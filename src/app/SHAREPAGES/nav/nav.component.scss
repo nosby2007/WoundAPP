@@ -1,5 +1,5 @@
 .navbar {
-  background-color: #004c8c; // Couleur bleue de l'image fournie
+  background-color: #004c8c; // Couleur principale
   padding: 10px;
 
   .nav-list {
@@ -19,10 +19,9 @@
         padding: 10px;
         display: block;
         transition: background-color 0.3s, color 0.3s;
-        font-size: 20px;
 
         &:hover {
-          background-color: #005fa3; // Couleur d'accentuation lors du survol
+          background-color: #005fa3;
           color: #e6f2ff;
         }
       }
@@ -32,36 +31,35 @@
         position: absolute;
         top: 100%;
         left: 0;
-        background-color: #e6f2ff; // Couleur de fond claire comme dans l'image
+        background-color: #e6f2ff;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         border-radius: 4px;
         padding: 10px;
-        width: 350px; // Augmenté pour mieux correspondre aux sections affichées
+        width: 250px;
         z-index: 1000;
 
         .dropdown-section {
           margin-bottom: 10px;
-
+        
           span {
             font-weight: bold;
-            color: #004c8c; // Texte de titre en bleu foncé pour correspondre au thème
+            color: #004c8c;
             display: block;
             margin-bottom: 5px;
           }
-
+        
           a {
             color: #333;
             text-decoration: none;
             padding: 5px;
             display: block;
-            transition: background-color 0.3s;
-
+        
             &:hover {
-              background-color: #cce0ff; // Couleur de survol légère, assortie à l'image
+              background-color: #cce0ff;
             }
           }
         }
-      }
+     }
 
       &:hover .dropdown-menu {
         display: block;
@@ -69,9 +67,7 @@
     }
 
     .user-info {
-      font-weight: 500;
-      font-family: robotic, sans-serif;
-      color: #faee07;
+      font-weight: bold;
     }
 
     .nav-item-right {
@@ -80,16 +76,15 @@
     }
 
     .logout-btn {
-      background-color: #faee07; // Couleur rouge pour déconnexion
+      background-color: #e60000;
       border: none;
-      color: #110101;
+      color: #fff;
       padding: 10px 15px;
       border-radius: 4px;
       cursor: pointer;
-      transition: background-color 0.3s;
 
       &:hover {
-        background-color: #0134ff; // Couleur plus foncée lors du survol
+        background-color: #cc0000;
       }
     }
   }

@@ -35,6 +35,54 @@ import { AddPatientComponent } from './COMPONENT/add-patient/add-patient.compone
 import { LoginComponent } from './Authentification/login/login.component';
 import { NavComponent } from './SHAREPAGES/nav/nav.component';
 import { HomeComponent } from './COMPONENT/home/home.component';
+import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
+import { ClinicalDashboardComponent } from './components/clinical-dashboard/clinical-dashboard.component';
+import { POCComponent } from './components/poc/poc.component';
+import { EMARComponent } from './components/e-mar/e-mar.component';
+import { AllLinksComponent } from './components/all-links/all-links.component';
+import { AutresComponent } from './components/autres/autres.component';
+import { PatientListAdComponent } from './Administrator/patient-list-ad/patient-list-ad.component';
+import { NouveauProComponent } from './Administrator/nouveau-pro/nouveau-pro.component';
+import { TableauBordComptComponent } from './Administrator/tableau-bord-compt/tableau-bord-compt.component';
+import { UDAComptComponent } from './Administrator/udacompt/udacompt.component';
+import { RapportComponent } from './Administrator/rapport/rapport.component';
+import { PatientClinicalComponent } from './CLINICAL/patient-clinical/patient-clinical.component';
+import { SuivitHospiComponent } from './CLINICAL/suivit-hospi/suivit-hospi.component';
+import { SystemDAtaMedComponent } from './CLINICAL/system-data-med/system-data-med.component';
+import { CommunicationComponent } from './CLINICAL/communication/communication.component';
+import { OrdersComponent } from './CLINICAL/orders/orders.component';
+import { LabResultComponent } from './CLINICAL/lab-result/lab-result.component';
+import { ManagRiskComponent } from './CLINICAL/manag-risk/manag-risk.component';
+import { PoidsSignesVComponent } from './CLINICAL/poids-signes-v/poids-signes-v.component';
+import { UDAComponent } from './CLINICAL/uda/uda.component';
+import { ControlInfectionsComponent } from './CLINICAL/control-infections/control-infections.component';
+import { TherapyComponent } from './CLINICAL/therapy/therapy.component';
+import { VisitMedicalComponent } from './CLINICAL/visit-medical/visit-medical.component';
+import { VaccinationComponent } from './CLINICAL/vaccination/vaccination.component';
+import { PoidsComponent } from './CLINICAL/poids/poids.component';
+import { RespirationComponent } from './CLINICAL/respiration/respiration.component';
+import { GlucoseComponent } from './CLINICAL/glucose/glucose.component';
+import { SpO2Component } from './CLINICAL/sp-o2/sp-o2.component';
+import { DouleurComponent } from './CLINICAL/douleur/douleur.component';
+import { TensionComponent } from './CLINICAL/tension/tension.component';
+import { PoolsComponent } from './CLINICAL/pools/pools.component';
+import { RapportFinancierComponent } from './RAPPORT/rapport-financier/rapport-financier.component';
+import { RapportCliniqueComponent } from './RAPPORT/rapport-clinique/rapport-clinique.component';
+import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-qualite.component';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @NgModule({
   declarations: [
@@ -46,7 +94,41 @@ import { HomeComponent } from './COMPONENT/home/home.component';
     AppointmentListComponent,
     LoginComponent,
     NavComponent,
-    HomeComponent
+    HomeComponent,
+    AdminDashboardComponent,
+    ClinicalDashboardComponent,
+    POCComponent,
+    EMARComponent,
+    AllLinksComponent,
+    AutresComponent,
+    PatientListAdComponent,
+    NouveauProComponent,
+    TableauBordComptComponent,
+    UDAComptComponent,
+    RapportComponent,
+    PatientClinicalComponent,
+    SuivitHospiComponent,
+    SystemDAtaMedComponent,
+    CommunicationComponent,
+    OrdersComponent,
+    LabResultComponent,
+    ManagRiskComponent,
+    PoidsSignesVComponent,
+    UDAComponent,
+    ControlInfectionsComponent,
+    TherapyComponent,
+    VisitMedicalComponent,
+    VaccinationComponent,
+    PoidsComponent,
+    RespirationComponent,
+    GlucoseComponent,
+    SpO2Component,
+    DouleurComponent,
+    TensionComponent,
+    PoolsComponent,
+    RapportFinancierComponent,
+    RapportCliniqueComponent,
+    RapportQualiteComponent, 
     
    
   ],
@@ -76,7 +158,8 @@ import { HomeComponent } from './COMPONENT/home/home.component';
     MatIconModule,
     NgConfirmModule,
     MatCardModule,
-    CommonModule
+    CommonModule,
+    
     
     
     

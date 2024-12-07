@@ -1,108 +1,115 @@
 <nav class="navbar" *ngIf="authService.isLoggedIn()">
   <ul class="nav-list">
+    <!-- Section Home -->
     <li class="nav-item dropdown">
-      <a href="#">Home</a>
-      <div class="dropdown-menu">
-        <div class="dropdown-section">
-          <span>Section Dashboard</span>
-          <a href="#">Home</a>
-          <a href="#">Tableau de bord Admin</a>
-          <a href="#">Tableau de bord Clinique</a>
-        </div>
+      <a routerLink="/home">Home</a>
+  <div class="dropdown-menu">
+    <div class="dropdown-section">
+      <span>Section Dashboard</span>
+      <a routerLink="/home">Home</a>
+      <a routerLink="/admin-dashboard">Tableau de bord Admin</a>
+      <a routerLink="/clinical-dashboard">Tableau de bord Clinique</a>
+    </div>
         <div class="dropdown-section">
           <span>Section Module</span>
-          <a href="#">POC</a>
-          <a href="#">eMar</a>
+          <a routerLink="/poc">POC</a>
+          <a routerLink="/emar">eMar</a>
         </div>
         <div class="dropdown-section">
           <span>Section External Links</span>
-          <a href="#">Voir tous les liens externes</a>
-          <a href="#">Autres</a>
+          <a routerLink="/allLink">Voir tous les liens externes</a>
+          <a routerLink="/autres">Autres</a>
         </div>
       </div>
     </li>
+
+    <!-- Section Administrator -->
     <li class="nav-item dropdown">
-      <a href="#">Administrator</a>
+      <a>Administrator</a>
       <div class="dropdown-menu">
         <div class="dropdown-section">
           <span>Section People</span>
-          <a href="PatientList">Patients</a>
-          <a href="#">Professionnels Médicaux</a>
+          <a routerLink="/patientList">Patients</a>
+          <a routerLink="medicaux">Professionnels Médicaux</a>
         </div>
         <div class="dropdown-section">
           <span>Section Actions</span>
-          <a href="#">Nouveau Professionnel</a>
+          <a routerLink="/medicaux">Nouveau Professionnel</a>
         </div>
         <div class="dropdown-section">
           <span>Section Comptabilité</span>
-          <a href="#">Tableau de Bord</a>
-          <a href="#">UDA</a>
+          <a routerLink="/finance">Tableau de Bord</a>
+          <a routerLink="/udaComp">UDA</a>
         </div>
         <div class="dropdown-section">
           <span>Section Other</span>
-          <a href="#">Rapport</a>
+          <a routerLink="/rapport">Rapport</a>
         </div>
       </div>
     </li>
+
+    <!-- Section Clinical -->
     <li class="nav-item dropdown">
-      <a href="#">Clinical</a>
+      <a routerLink="/patientCli">Clinical</a>
       <div class="dropdown-menu">
         <div class="dropdown-section">
           <span>People</span>
-          <a href="PatientList">Patients</a>
+          <a routerLink="/patientCli">Patients</a>
         </div>
         <div class="dropdown-section">
           <span>Actions</span>
-          <a href="#">Quick ADT</a>
-          <a href="#">New Resident</a>
-          <a href="#">New Medical Professional</a>
+          <a routerLink="/home">Quick ADT</a>
+          <a routerLink="/AddPatient">New Resident</a>
+          <a routerLink="/medicaux">New Medical Professional</a>
         </div>
         <div class="dropdown-section">
-          <span>Care Management</span>
-          <a href="#">Dashboard</a>
-          <a href="#">Hospital Tracking</a>
-          <a href="#">MDS</a>
-          <a href="#">Communications</a>
-          <a href="#">Orders</a>
-          <a href="#">Lab/Rx Results</a>
-          <a href="#">Risk Management</a>
-          <a href="#">Weights and Vitals</a>
-          <a href="#">UDA</a>
-          <a href="#">Infection Control</a>
+          <span>Management Soin</span>
+          <a routerLink="/dashbordCli">Dashboard</a>
+          <a routerLink="/suiviHos">Hospital Tracking</a>
+          <a routerLink="/mds">MDS</a>
+          <a routerLink="/com">Communications</a>
+          <a routerLink="/prescription">Orders</a>
+          <a routerLink="/labo">Lab/Rx Results</a>
+          <a routerLink="/risques">Risk Management</a>
+          <a routerLink="/signes">Weights and Vitals</a>
+          <a routerLink="/uda">UDA</a>
+          <a routerLink="/infection">Infection Control</a>
         </div>
         <div class="dropdown-section">
-          <span>Quick Entry</span>
-          <a href="#">Therapy Minutes</a>
-          <a href="#">Physician Visits</a>
-          <a href="#">Immunization</a>
-          <a href="#">Weight</a>
-          <a href="#">Blood Pressure</a>
-          <a href="#">Temperature</a>
-          <a href="#">Pulse</a>
-          <a href="#">Respiration</a>
-          <a href="#">Blood Sugar</a>
-          <a href="#">O2 Saturation</a>
-          <a href="#">Pain Level</a>
+          <span>Entrée Rapide</span>
+          <a routerLink="/tharapy">Therapistes</a>
+          <a routerLink="/VisiteMed">Visites Medicales</a>
+          <a routerLink="/vaccination">Vaccination</a>
+          <a routerLink="/poids">Poids</a>
+          <a routerLink="/tension">TA</a>
+          <a routerLink="/temperature">Temperature</a>
+          <a routerLink="/pools">POOLS</a>
+          <a routerLink="/respiration">Respiration</a>
+          <a routerLink="/glucose">Glucose</a>
+          <a routerLink="/saturation">O2 Saturation</a>
+          <a routerLink="/douleur">evaluation douleur</a>
         </div>
         <div class="dropdown-section">
           <span>Modules</span>
-          <td><a href="#">POC</a></td>
-          <td><a href="#">eMAR</a></td>
+          <a routerLink="/poc">POC</a>
+          <a routerLink="/emar">eMAR</a>
         </div>
         <div class="dropdown-section">
           <span>Other</span>
-          <a href="#">Reports</a>
+          <a routerLink="/rapport">Reports</a>
         </div>
       </div>
     </li>
+
+    <!-- Section Report -->
     <li class="nav-item dropdown">
-      <a href="#">Report</a>
+      <a routerLink="/rapport">Report</a>
       <div class="dropdown-menu">
         <div class="dropdown-section">
           <span>Rapports Disponibles</span>
-          <a href="#">Rapport Financier</a>
-          <a href="#">Rapport Clinique</a>
-          <a href="#">Rapport de Qualité</a>
+          <a routerLink="/rfinance">Rapport Financier</a>
+          <a routerLink="/rclinique">Rapport Clinique</a>
+          <a routerLink="/rqualite">Rapport de Qualité</a>
         </div>
       </div>
     </li>

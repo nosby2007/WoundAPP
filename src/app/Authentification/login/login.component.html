@@ -18,24 +18,26 @@
                       class="form-control"
                       name="email"
                       [(ngModel)]="email"
-                      placeholder="Enter your email"
+                      placeholder="Enter your email" autocomplete="email"
                       required
                     />
                   </div>
                   <div class="mb-3">
                     <label for="exampleInputPassword" class="form-label">Password</label>
+                    
                     <input
                       type="password"
                       class="form-control"
                       name="password"
                       [(ngModel)]="password"
-                      placeholder="Enter your password"
+                      placeholder="Enter your password" autocomplete="new-password"
                       required
                     />
                   </div>
                   <button type="button" class="btn btn-info w-100" (click)="login()">Se Connecter</button>
                   <div class="row mt-3">
                     <div class="col-12 text-center mt-2">
+                      <label><input type="checkbox" name="check">remember me</label> <br>
                       <a href="#" class="text-white">Mot de passe oublié ?</a>
                     </div>
                   </div>
