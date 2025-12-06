@@ -1,0 +1,7 @@
+{
+  "name": "wound-nurse",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
