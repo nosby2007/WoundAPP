@@ -1,0 +1,73 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Patients</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="patients-page" [fullscreen]="true">
+
+  <!-- Pull to refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-wrapper">
+
+    <!-- Barre de recherche -->
+    <ion-searchbar
+      placeholder="Search by name or DOB"
+      [(ngModel)]="search"
+      (ionInput)="load()"
+      showCancelButton="focus"
+      class="searchbar"
+    ></ion-searchbar>
+    <br><br><br>
+
+    <!-- États de chargement / erreur / vide -->
+    <div *ngIf="loading" class="state state-loading">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading patients…</p>
+    </div>
+
+    <div *ngIf="!loading && errorMsg" class="state state-error">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <p>{{ errorMsg }}</p>
+    </div>
+
+    <div *ngIf="!loading && !errorMsg && !filteredPatients.length" class="state state-empty">
+      <ion-icon name="people-circle-outline"></ion-icon>
+      <p>No patients found for this search.</p>
+    </div>
+
+    <!-- Liste de patients -->
+    <ion-list *ngIf="!loading && !errorMsg && filteredPatients.length">
+  <ion-item
+    button
+    detail="true"
+    *ngFor="let p of filteredPatients"
+    class="patient-item"
+    (click)="openPatient(p)"
+  >
+    <ion-avatar slot="start">
+      <ion-icon name="person-circle" size="large"></ion-icon>
+    </ion-avatar>
+
+    <ion-label>
+      <h2 class="patient-name">
+        {{ p.name || p.displayName || 'Patient' }}
+      </h2>
+
+      <p class="patient-meta">
+        <span *ngIf="p.dob">
+          DOB: {{ p.dob | date: 'MM/dd/yyyy' }}
+        </span>
+        <span *ngIf="p.mrn">
+          · MRN: {{ p.mrn }}
+        </span>
+      </p>
+    </ion-label>
+  </ion-item>
+</ion-list>
+
+  </div>
+</ion-content>

@@ -1,0 +1,98 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-button fill="clear" slot="start" (click)="back()" style="color: aliceblue;">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+    </ion-button>
+    <ion-title>{{ patientName() }}</ion-title>
+
+    <ion-button slot="center" fill="clear" color="pink" (click)="newAssessment()" style="color: rgb(252, 3, 239);">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-button>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page">
+    <!-- Search -->
+    <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)">
+    </ion-searchbar>
+
+
+    <!-- Loader -->
+    <div *ngIf="loading()" class="center">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="!loading() && errorMsg()" class="error">
+      {{ errorMsg() }}
+    </div>
+
+    <!-- Empty -->
+    <div *ngIf="!loading() && !errorMsg() && !filteredAssessments().length" class="empty">
+      No assessments for this patient.
+    </div>
+
+    <!-- List -->
+    <ion-list *ngIf="!loading() && !errorMsg() && filteredAssessments().length">
+  <ion-item
+    button
+    *ngFor="let a of assessments()"
+    (click)="openAssessment(a)"
+    class="assessment-item"
+  >
+  <ion-avatar slot="start" class="thumb">
+          <img *ngIf="a.photoURL" [src]="a.photoURL" alt="wound">
+          <ion-icon *ngIf="!a.photoURL" name="image-outline"></ion-icon>
+        </ion-avatar>
+
+    <ion-label class="assessment-main">
+      <div class="assessment-left">
+        <h2 class="assessment-title">
+          {{ a.type || 'Assessment' }}
+        </h2>
+
+        <p class="assessment-sub">
+          {{ a.location || 'Location N/A' }}
+          <span *ngIf="a.assessedAt">
+            · {{ a.assessedAt | date: 'MM/dd/yyyy' }}
+          </span>
+        </p>
+      </div>
+
+      <div class="assessment-right">
+        <div class="assessment-badges">
+          <span class="chip status-chip" [ngClass]="a.status">
+            {{ a.status || 'unknown' }}
+          </span>
+          <span *ngIf="a.stage" class="chip stage-chip">
+            Stage {{ a.stage }}
+          </span>
+        </div>
+      </div>
+    </ion-label>
+     <!-- 🔘 Boutons d’action à droite -->
+        <div class="actions" slot="end" (click)="$event.stopPropagation()">
+          <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)">
+            <ion-icon slot="icon-only" name="time-outline"></ion-icon>
+          </ion-button>
+
+          <ion-button size="small" fill="solid" class="btn-reeval" (click)="reEvaluate(a)">
+            <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+          </ion-button>
+        </div>
+  </ion-item>
+</ion-list>
+
+  </div>
+</ion-content>
+
+<ion-fab vertical="bottom" horizontal="end" slot="fixed">
+  <ion-fab-button color="primary" (click)="newAssessment()">
+    <ion-icon name="add"></ion-icon>
+  </ion-fab-button>
+</ion-fab>

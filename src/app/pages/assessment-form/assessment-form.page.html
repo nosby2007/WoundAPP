@@ -1,0 +1,106 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>
+      Wound assessment
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="ion-padding">
+
+    <!-- PHOTO / CAPTURE -->
+        <!-- Photo section -->
+      <ion-card class="photo-card">
+        <ion-card-header>
+          <ion-card-title>Wound photo</ion-card-title>
+        </ion-card-header>
+
+        <ion-card-content>
+          <div class="photo-actions">
+            <ion-button size="small" (click)="takePhoto()" type="button">
+              <ion-icon name="camera" slot="start"></ion-icon>
+              Take photo
+            </ion-button>
+
+            <ion-button size="small" fill="outline" (click)="pickFromGallery()" type="button">
+              <ion-icon name="images" slot="start"></ion-icon>
+              Gallery
+            </ion-button>
+          </div>
+
+          <div class="photo-preview" *ngIf="photoPreview">
+            <img [src]="photoPreview" alt="Wound photo" />
+          </div>
+        </ion-card-content>
+      </ion-card>
+
+    <!-- ✅ UN SEUL FORM -->
+    <form [formGroup]="form" (ngSubmit)="save()" class="assessment-form">
+
+      <!-- Type -->
+      <ion-item>
+        <ion-label position="stacked">Type of wound</ion-label>
+        <ion-select formControlName="type" interface="popover">
+          <ion-select-option *ngFor="let t of woundTypes" [value]="t">
+            {{ t }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <!-- Stage -->
+      <ion-item>
+        <ion-label position="stacked">Stage (if pressure)</ion-label>
+        <ion-select formControlName="stage" interface="popover">
+          <ion-select-option *ngFor="let s of stages" [value]="s">
+            {{ s }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <!-- Location -->
+      <ion-item>
+        <ion-label position="stacked">Location</ion-label>
+        <ion-input
+          type="text"
+          placeholder="Right lateral foot"
+          formControlName="location">
+        </ion-input>
+      </ion-item>
+
+      <!-- Acquired -->
+      <ion-item>
+        <ion-label position="stacked">Acquired</ion-label>
+        <ion-select formControlName="acquired" interface="popover">
+          <ion-select-option *ngFor="let a of acquiredOptions" [value]="a">
+            {{ a }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <!-- Status -->
+      <ion-item>
+        <ion-label position="stacked">Status</ion-label>
+        <ion-select formControlName="status" interface="popover">
+          <ion-select-option *ngFor="let st of statusOptions" [value]="st">
+            {{ st }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+
+
+      <!-- Bouton Save -->
+      <div class="actions">
+        <ion-button
+          expand="block"
+          type="submit"
+          [disabled]="loading || form.invalid">
+          <ion-spinner *ngIf="loading" name="crescent" slot="start"></ion-spinner>
+          Save assessment
+        </ion-button>
+      </div>
+
+    </form>
+  </div>
+</ion-content>

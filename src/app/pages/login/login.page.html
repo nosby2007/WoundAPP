@@ -1,0 +1,82 @@
+<ion-content [fullscreen]="true" class="login-page">
+
+  <div class="brand-header">
+    <div class="logo-circle">
+      <span>PH</span>
+    </div>
+    <div class="brand-text">
+      <h1>Perry Home Wound Care</h1>
+      <p>Nurse Mobile Console</p>
+    </div>
+  </div>
+
+  <div class="card-wrapper">
+    <div class="login-card">
+
+      <h2 class="title">Sign in</h2>
+      <p class="subtitle">Use your nurse / provider account credentials</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+
+        <!-- Email -->
+        <ion-item lines="full">
+          <ion-icon name="mail-outline" slot="start"></ion-icon>
+          <ion-input
+            type="email"
+            label="Email"
+            labelPlacement="stacked"
+            placeholder="you@example.com"
+            formControlName="email">
+          </ion-input>
+        </ion-item>
+        <div class="error" *ngIf="form.controls.email.touched && form.controls.email.invalid">
+          <span *ngIf="form.controls.email.errors?.['required']">Email is required.</span>
+          <span *ngIf="form.controls.email.errors?.['email']">Invalid email format.</span>
+        </div>
+
+        <!-- Password -->
+        <ion-item lines="full">
+          <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
+          <ion-input
+            type="password"
+            label="Password"
+            labelPlacement="stacked"
+            placeholder="••••••••"
+            formControlName="password">
+          </ion-input>
+        </ion-item>
+        <div class="error" *ngIf="form.controls.password.touched && form.controls.password.invalid">
+          <span *ngIf="form.controls.password.errors?.['required']">Password is required.</span>
+          <span *ngIf="form.controls.password.errors?.['minlength']">
+            Minimum 6 characters.
+          </span>
+        </div>
+
+        <!-- Error global -->
+        <div class="error global" *ngIf="errorMsg">
+          {{ errorMsg }}
+        </div>
+
+        <!-- Button -->
+        <ion-button
+          expand="block"
+          shape="round"
+          class="login-btn"
+          type="submit"
+          [disabled]="loading || form.invalid">
+          <ng-container *ngIf="!loading; else loadingTpl">
+            Sign in
+          </ng-container>
+          <ng-template #loadingTpl>
+            <ion-spinner name="crescent"></ion-spinner>
+          </ng-template>
+        </ion-button>
+      </form>
+
+      <div class="footnote">
+        <p>Secure access · Firebase Auth · Wound Assessments</p>
+      </div>
+    </div>
+  </div>
+
+</ion-content>

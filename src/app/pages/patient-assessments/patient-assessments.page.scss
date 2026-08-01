@@ -1,0 +1,193 @@
+.page {
+  padding: 8px 12px 24px;
+}
+
+ion-searchbar {
+  --background: #ffffff;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.error {
+  color: #c0392b;
+  padding: 12px;
+  font-size: 0.9rem;
+}
+
+.empty {
+  padding: 12px;
+  opacity: 0.6;
+  font-size: 0.9rem;
+}
+
+ion-list {
+  background: transparent;
+}
+
+ion-item {
+  --background: #ffffff;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+
+.thumb {
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  ion-icon {
+    font-size: 24px;
+    color: #94a3b8;
+  }
+}
+
+ion-label h2 {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+ion-label p {
+  margin-top: 2px;
+  font-size: 0.8rem;
+}
+
+.meta {
+  color: #64748b;
+}
+
+ion-chip {
+  font-size: 0.7rem;
+}
+
+ion-item.assessment-item {
+  /* On réduit un peu le padding à droite pour laisser respirer */
+  --inner-padding-end: 8px;
+}
+
+.assessment-item .actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;              // espace minimal entre les 2 boutons
+}
+
+.assessment-item .actions ion-button {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  height: 28px;          // petit bouton
+  min-width: 28px;
+  border-radius: 999px;  // style “pill”
+}
+
+.assessment-item .actions .btn-history {
+  --background: transparent;
+  --box-shadow: none;
+}
+
+.assessment-item {
+  --min-height: 72px;
+  align-items: flex-start;
+}
+
+.assessment-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  gap: 8px;
+}
+
+.assessment-left {
+  flex: 1 1 auto;
+  min-width: 0; // 🔑 pour que ça casse proprement sur petit écran
+}
+
+.assessment-title {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.assessment-sub {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 0;
+}
+
+.assessment-right {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.assessment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.chip {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.status-chip.open {
+  background: #e7f6ec;
+}
+
+.status-chip.closed {
+  background: #f4e7e7;
+}
+
+/* 📱 iPhone / petits écrans : on passe la colonne droite en dessous */
+@media (max-width: 480px) {
+  .assessment-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .assessment-right {
+    align-items: flex-start;
+    margin-top: 4px;
+  }
+
+  .assessment-badges {
+    justify-content: flex-start;
+  }
+}
+/* Bouton flottant “Ajouter” */
+.fab-add-assessment {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  --background: var(--ion-color-primary);
+  --box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0, 0, 0, 0.1);
+}

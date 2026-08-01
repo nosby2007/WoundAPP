@@ -1,0 +1,130 @@
+.login-page {
+  --background: linear-gradient(145deg, #0b1220, #1e293b);
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+/* Header marque en haut */
+.brand-header {
+  padding: 48px 24px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #e5e7eb;
+}
+
+.logo-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #bfdbfe;
+  font-size: 18px;
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.brand-text p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Card centrale */
+.card-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 18px;
+  padding: 24px 20px 18px;
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.65),
+    0 0 0 1px rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(16px);
+  color: #e5e7eb;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* Ion items */
+ion-item {
+  --background: transparent;
+  --border-color: rgba(148, 163, 184, 0.6);
+  --border-radius: 12px;
+  --padding-start: 8px;
+  --inner-padding-end: 8px;
+  margin-bottom: 4px;
+  color: #e5e7eb;
+}
+
+ion-item ion-icon {
+  color: #60a5fa;
+}
+
+ion-input {
+  --color: #e5e7eb;
+  --placeholder-color: #6b7280;
+  font-size: 14px;
+}
+
+/* Erreurs */
+.error {
+  margin: 2px 4px 8px;
+  font-size: 11px;
+  color: #fca5a5;
+}
+
+.error.global {
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+/* Bouton */
+.login-btn {
+  margin-top: 12px;
+  height: 44px;
+  --border-radius: 999px;
+  --background: linear-gradient(135deg, #2563eb, #3b82f6);
+  --background-activated: linear-gradient(135deg, #1d4ed8, #2563eb);
+  --box-shadow: 0 12px 24px rgba(37, 99, 235, 0.45);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Footnote */
+.footnote {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+}

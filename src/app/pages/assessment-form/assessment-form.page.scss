@@ -1,0 +1,48 @@
+/* src/app/pages/assessment-form/assessment-form.page.scss */
+:host {
+  ion-content {
+    --background: #f5f7fb;
+  }
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.error {
+  margin: 16px 0;
+  color: #c0392b;
+  font-weight: 500;
+}
+  
+.assessment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.photo-card {
+  margin-top: 16px;
+}
+
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photo-preview {
+  margin-top: 12px;
+  text-align: center;
+
+  img {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+}
+
+.actions {
+  margin-top: 20px;
+}
