@@ -1,12 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { getAuth } from 'firebase/auth';
 
 import { ApiService } from '../../services/api.service';
-import { AuthService } from '../../services/auth.service';
 
 /**
  * Field intake: register a new patient without leaving the app, then go
@@ -15,6 +16,14 @@ import { AuthService } from '../../services/auth.service';
  * (apiV2 Cloud Function) the web app's PatientApiService.create() uses,
  * with the same payload shape -- a patient created here is indistinguishable
  * from one created in the main app.
+ *
+ * Reads the current user via getAuth().currentUser (same pattern as
+ * AssessmentFormPage.save()) rather than the injected Auth token, and
+ * injects Firestore directly here rather than through AuthService --
+ * combining Auth + Firestore injection in that shared, root-provided
+ * service triggered an NG0200 (circular DI) when this app's mixed
+ * compat/modular Firebase setup tried to construct it. Keeping both
+ * dependencies scoped to this one component avoids that entirely.
  */
 @Component({
   selector: 'app-add-patient',
@@ -24,6 +33,8 @@ import { AuthService } from '../../services/auth.service';
   styleUrls: ['./add-patient.page.scss'],
 })
 export class AddPatientPage {
+  private firestore = inject(Firestore);
+
   saving = false;
   errorMsg = '';
 
@@ -38,7 +49,6 @@ export class AddPatientPage {
   constructor(
     private fb: FormBuilder,
     private api: ApiService,
-    private auth: AuthService,
     private router: Router
   ) {}
 
@@ -48,7 +58,7 @@ export class AddPatientPage {
     this.errorMsg = '';
 
     try {
-      const { orgId, facilityId } = await this.auth.getTenantContext();
+      const { orgId, facilityId } = await this.getTenantContext();
       const v = this.form.getRawValue();
 
       const payload: Record<string, unknown> = {
@@ -70,5 +80,38 @@ export class AddPatientPage {
     } finally {
       this.saving = false;
     }
+  }
+
+  /**
+   * Resolves the signed-in nurse's org/facility for stamping the new
+   * patient. Reads users/{uid}, same field-name fallbacks (orgId/orgID/
+   * tenantId/tenantID, facilityId/facilityID/primaryFacilityId) as the web
+   * app's TenantContextService, so a patient created here is
+   * indistinguishable from one created in the main app.
+   */
+  private async getTenantContext(): Promise<{ orgId: string | null; facilityId: string | null }> {
+    const uid = getAuth().currentUser?.uid;
+    if (!uid) return { orgId: null, facilityId: null };
+
+    const snap = await getDoc(doc(this.firestore, `users/${uid}`));
+    const data = (snap.data() as Record<string, unknown>) ?? {};
+
+    const orgId =
+      this.readString(data, 'orgId') ??
+      this.readString(data, 'orgID') ??
+      this.readString(data, 'tenantId') ??
+      this.readString(data, 'tenantID');
+
+    const facilityId =
+      this.readString(data, 'facilityId') ??
+      this.readString(data, 'facilityID') ??
+      this.readString(data, 'primaryFacilityId');
+
+    return { orgId, facilityId };
+  }
+
+  private readString(source: Record<string, unknown>, key: string): string | null {
+    const value = source[key];
+    return typeof value === 'string' && value.trim() ? value : null;
   }
 }
