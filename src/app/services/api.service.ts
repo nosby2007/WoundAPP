@@ -34,4 +34,13 @@ export class ApiService {
       switchMap(headers => this.http.get<any[]>(url, { headers }))
     );
   }
+
+  /** POST /patients -- same endpoint/payload shape as the web app's PatientApiService.create(), so a patient created here shows up identically in the main app's patient list. */
+  createPatient(payload: Record<string, unknown>) {
+    const url = `${this.base}/patients`;
+
+    return this.authHeaders$().pipe(
+      switchMap(headers => this.http.post<{ id: string }>(url, payload, { headers }))
+    );
+  }
 }

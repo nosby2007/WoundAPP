@@ -6,6 +6,7 @@ import { PatientAssessmentsPage } from '../pages/patient-assessments/patient-ass
 import { AssessmentDetailPage } from '../pages/assessments-details/assessments-details.page';
 import { AssessmentFormPage } from '../pages/assessment-form/assessment-form.page';
 import { WoundHistoryPage } from '../pages/wound-history/wound-history.page';
+import { AddPatientPage } from '../pages/add-patient/add-patient.page';
 
 const routes: Routes = [
   {
@@ -15,6 +16,11 @@ const routes: Routes = [
       {
         path: 'patients',
         component: PatientsPage,   // ✅ la page Patients dans le tab
+      },
+
+      {
+        path: 'add-patient',
+        component: AddPatientPage, // Field intake: register a patient, then go straight into their assessments
       },
 
       // Tu pourras réutiliser tab2 / tab3 plus tard

@@ -1,0 +1,88 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/patients"></ion-back-button>
+    </ion-buttons>
+    <ion-title>New Patient</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="add-patient-page" [fullscreen]="true">
+  <form [formGroup]="form" (ngSubmit)="submit()">
+
+    <ion-item lines="full">
+      <ion-icon name="person-outline" slot="start"></ion-icon>
+      <ion-input
+        label="Full name"
+        labelPlacement="stacked"
+        placeholder="Jane Doe"
+        formControlName="name">
+      </ion-input>
+    </ion-item>
+    <div class="error" *ngIf="form.controls.name.touched && form.controls.name.invalid">
+      Name is required.
+    </div>
+
+    <ion-item lines="full">
+      <ion-icon name="calendar-outline" slot="start"></ion-icon>
+      <ion-input
+        type="date"
+        label="Date of birth"
+        labelPlacement="stacked"
+        formControlName="dob">
+      </ion-input>
+    </ion-item>
+
+    <ion-item lines="full">
+      <ion-icon name="body-outline" slot="start"></ion-icon>
+      <ion-select
+        label="Gender"
+        labelPlacement="stacked"
+        placeholder="Select"
+        formControlName="gender">
+        <ion-select-option value="female">Female</ion-select-option>
+        <ion-select-option value="male">Male</ion-select-option>
+        <ion-select-option value="other">Other</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item lines="full">
+      <ion-icon name="call-outline" slot="start"></ion-icon>
+      <ion-input
+        type="tel"
+        label="Phone"
+        labelPlacement="stacked"
+        placeholder="(555) 555-5555"
+        formControlName="phone">
+      </ion-input>
+    </ion-item>
+
+    <ion-item lines="full">
+      <ion-icon name="clipboard-outline" slot="start"></ion-icon>
+      <ion-input
+        label="Reason for visit"
+        labelPlacement="stacked"
+        placeholder="e.g. Skin tear, right hand"
+        formControlName="reasonForAdmission">
+      </ion-input>
+    </ion-item>
+
+    <div class="error global" *ngIf="errorMsg">
+      {{ errorMsg }}
+    </div>
+
+    <ion-button
+      expand="block"
+      shape="round"
+      class="save-btn"
+      type="submit"
+      [disabled]="saving || form.invalid">
+      <ng-container *ngIf="!saving; else savingTpl">
+        Save &amp; start assessment
+      </ng-container>
+      <ng-template #savingTpl>
+        <ion-spinner name="crescent"></ion-spinner>
+      </ng-template>
+    </ion-button>
+  </form>
+</ion-content>

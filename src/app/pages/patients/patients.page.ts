@@ -16,6 +16,8 @@ import {
   IonAvatar,
   IonLabel,
   IonIcon,
+  IonButtons,
+  IonButton,
 } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
 import { PatientService } from 'src/app/services/patient.service';
@@ -40,6 +42,8 @@ import { PatientService } from 'src/app/services/patient.service';
     IonAvatar,
     IonLabel,
     IonIcon,
+    IonButtons,
+    IonButton,
   ],
   templateUrl: './patients.page.html',
   styleUrls: ['./patients.page.scss'],
@@ -137,5 +141,9 @@ openPatient(p: any) {
 
   doRefresh(event: CustomEvent) {
     this.load(event);
+  }
+
+  goAddPatient() {
+    this.router.navigate(['/tabs', 'add-patient']);
   }
 }
