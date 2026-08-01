@@ -196,15 +196,28 @@ export class AssessmentsService {
   }
 
   /** 📸 upload de la photo (dataUrl) vers Storage */
+  /**
+   * Path and metadata must match storage.rules' patients/{patientId}/
+   * documents/wounds/{fileName} pattern exactly -- the web app's own wound
+   * photo uploads (WoundAssessmentService) already use this same path.
+   * Storage rules require request.resource.metadata.patientId/uploadedBy
+   * to be set (patientUploadMatches()); without them every upload here
+   * fell through to the rules file's final catch-all deny, regardless of
+   * the uploader's role.
+   */
   async uploadWoundPhoto(
     patientId: string,
     assessmentId: string,
     dataUrl: string,
+    uploadedBy: string,
   ): Promise<string> {
-    const path = `wounds/${patientId}/${assessmentId}.jpg`;
+    const path = `patients/${patientId}/documents/wounds/${assessmentId}.jpg`;
     const storageRef = ref(this.storage, path);
 
-    await uploadString(storageRef, dataUrl, 'data_url');
+    await uploadString(storageRef, dataUrl, 'data_url', {
+      contentType: 'image/jpeg',
+      customMetadata: { patientId, uploadedBy },
+    });
     const url = await getDownloadURL(storageRef);
     return url;
   }

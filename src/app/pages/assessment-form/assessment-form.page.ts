@@ -181,9 +181,9 @@ statusOptions: string[] = [
     }
   }
 
-  private async uploadPhotoIfNeeded(assessmentId: string): Promise<string | undefined> {
+  private async uploadPhotoIfNeeded(assessmentId: string, uploadedBy: string): Promise<string | undefined> {
     if (!this.photoDataUrl) return undefined;
-    return this.assessments.uploadWoundPhoto(this.patientId, assessmentId, this.photoDataUrl);
+    return this.assessments.uploadWoundPhoto(this.patientId, assessmentId, this.photoDataUrl, uploadedBy);
   }
 
   async save() {
@@ -331,7 +331,7 @@ statusOptions: string[] = [
     }
 
     // 3️⃣ upload photo si besoin
-    const url = await this.uploadPhotoIfNeeded(id!);
+    const url = await this.uploadPhotoIfNeeded(id!, uid);
     if (url) {
       await this.assessments.update(this.patientId, id!, {
         photoURL: url,
