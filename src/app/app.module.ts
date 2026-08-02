@@ -33,6 +33,8 @@ import { provideStorage, getStorage } from '@angular/fire/storage';
     AngularFireModule.initializeApp(environment.firebase),
     AngularFireAuthModule,
     AngularFirestoreModule,      // 👈 AJOUT IMPORTANT
+
+    HttpClientModule,
   ],
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
