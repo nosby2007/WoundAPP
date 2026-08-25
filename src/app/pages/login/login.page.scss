@@ -1,130 +1,135 @@
+/* Sign-in. Light clinical shell like the rest of the app -- this page used
+   to be the only dark screen, which is what made every screen after it feel
+   like a different product. */
 .login-page {
-  --background: linear-gradient(145deg, #0b1220, #1e293b);
-
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
+  --background: var(--ion-background-color);
 }
 
-/* Header marque en haut */
+.card-wrapper {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--app-space-5);
+  max-width: 460px;
+  margin: 0 auto;
+}
+
 .brand-header {
-  padding: 48px 24px 16px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  color: #e5e7eb;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-5);
 }
 
 .logo-circle {
+  display: grid;
+  place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 999px;
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 48px;
+  border-radius: 50%;
+  background: var(--ion-color-primary);
+  color: #fff;
   font-weight: 700;
-  color: #bfdbfe;
-  font-size: 18px;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
 }
 
-.brand-text h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
+.brand-text {
+  h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--app-ink);
+    letter-spacing: -0.01em;
+  }
 
-.brand-text p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-/* Card centrale */
-.card-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 16px;
+  p {
+    margin: 2px 0 0;
+    font-size: 0.82rem;
+    color: var(--app-ink-muted);
+  }
 }
 
 .login-card {
-  width: 100%;
-  max-width: 420px;
-  background: rgba(15, 23, 42, 0.95);
-  border-radius: 18px;
-  padding: 24px 20px 18px;
-  box-shadow:
-    0 18px 40px rgba(15, 23, 42, 0.65),
-    0 0 0 1px rgba(148, 163, 184, 0.25);
-  backdrop-filter: blur(16px);
-  color: #e5e7eb;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow);
+  padding: var(--app-space-5);
 }
 
-.title {
-  margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 600;
+.login-card .title {
+  margin: 0 0 var(--app-space-1);
+  font-size: 1.35rem;
+  font-weight: 650;
+  color: var(--app-ink);
+  letter-spacing: -0.015em;
 }
 
-.subtitle {
-  margin: 0 0 18px;
-  font-size: 13px;
-  color: #9ca3af;
+.login-card .subtitle {
+  margin: 0 0 var(--app-space-5);
+  font-size: 0.9rem;
+  color: var(--app-ink-muted);
 }
 
-/* Ion items */
+/* Same boxed field as the intake and assessment forms, so the first screen a
+   nurse sees already teaches the shape every other form uses. */
 ion-item {
-  --background: transparent;
-  --border-color: rgba(148, 163, 184, 0.6);
-  --border-radius: 12px;
-  --padding-start: 8px;
-  --inner-padding-end: 8px;
-  margin-bottom: 4px;
-  color: #e5e7eb;
+  margin-bottom: var(--app-space-3);
+  --background: var(--app-surface);
+  --border-color: var(--app-border);
+  --border-radius: var(--app-radius);
+  --padding-start: var(--app-space-3);
+  --inner-padding-end: var(--app-space-3);
+  --highlight-color-focused: var(--ion-color-primary);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
 }
 
-ion-item ion-icon {
-  color: #60a5fa;
+ion-item ion-icon[slot='start'] {
+  margin-inline-end: var(--app-space-3);
+  font-size: 20px;
+  color: var(--app-ink-muted);
+}
+
+ion-item:focus-within ion-icon[slot='start'] {
+  color: var(--ion-color-primary);
 }
 
 ion-input {
-  --color: #e5e7eb;
-  --placeholder-color: #6b7280;
-  font-size: 14px;
+  --placeholder-color: var(--app-ink-muted);
+  font-size: 0.98rem;
+  color: var(--app-ink);
 }
 
-/* Erreurs */
-.error {
-  margin: 2px 4px 8px;
-  font-size: 11px;
-  color: #fca5a5;
+ion-input::part(label) {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
 }
 
-.error.global {
-  margin-top: 6px;
-  margin-bottom: 10px;
-}
-
-/* Bouton */
 .login-btn {
-  margin-top: 12px;
-  height: 44px;
-  --border-radius: 999px;
-  --background: linear-gradient(135deg, #2563eb, #3b82f6);
-  --background-activated: linear-gradient(135deg, #1d4ed8, #2563eb);
-  --box-shadow: 0 12px 24px rgba(37, 99, 235, 0.45);
-  font-weight: 600;
-  font-size: 14px;
+  margin-top: var(--app-space-2);
+  --padding-top: 20px;
+  --padding-bottom: 20px;
 }
 
-/* Footnote */
+.error {
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: #fdecea;
+  color: var(--ion-color-danger);
+  font-size: 0.88rem;
+}
+
 .footnote {
-  margin-top: 14px;
+  margin: var(--app-space-4) 0 0;
   text-align: center;
-  font-size: 11px;
-  color: #9ca3af;
+  font-size: 0.75rem;
+  color: var(--app-ink-muted);
 }

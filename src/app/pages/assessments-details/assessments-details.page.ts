@@ -21,6 +21,12 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { addIcons } from 'ionicons';
+import {
+  arrowBack,
+  createOutline,
+} from 'ionicons/icons';
 import { AssessmentsService } from '../../services/assessments.service';
 import { Subscription } from 'rxjs';
 
@@ -53,6 +59,15 @@ import { Subscription } from 'rxjs';
   ],
 })
 export class AssessmentDetailPage implements OnInit, OnDestroy {
+
+  constructor() {
+    // Ionic standalone has no global icon registry: each page
+    // registers the glyphs its own template names.
+    addIcons({
+      arrowBack,
+      createOutline,
+    });
+  }
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessmentsService = inject(AssessmentsService);

@@ -1,0 +1,43 @@
+/* src/app/pages/wound-history/wound-history.page.scss
+ *
+ * This page shipped with no stylesheet at all -- it inherited nothing and
+ * rendered as raw Ionic defaults with inline padding. It now uses the shared
+ * page shell, list and state patterns like every other screen.
+ *
+ * The reading order is deliberate: the timestamp is the identifier here
+ * (several entries describe the same wound), so it leads; type/location is the
+ * supporting line; status is a chip on the right where the eye can run down a
+ * single column and spot a deterioration. */
+
+.history-action {
+  margin-top: 0;
+  margin-bottom: var(--app-space-4);
+}
+
+.history-list {
+  ion-item {
+    --min-height: 64px;
+  }
+}
+
+.history-when {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--app-ink);
+}
+
+.history-what {
+  margin-top: 2px;
+  font-size: 0.85rem;
+  color: var(--app-ink-muted);
+
+  .dot {
+    padding: 0 2px;
+    color: var(--app-border-strong);
+  }
+}
+
+.app-chip[slot='end'] {
+  align-self: center;
+  margin-inline-start: var(--app-space-2);
+}

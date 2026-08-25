@@ -1,35 +1,74 @@
-.add-patient-page {
-  --background: var(--ion-color-light);
-}
+/* src/app/pages/add-patient/add-patient.page.scss
+ *
+ * Admission form. Same field rhythm as the assessment form so the two capture
+ * screens feel like one app -- boxed rows on white, uppercase stacked labels,
+ * one full-width primary action at the bottom. */
 
 form {
-  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--app-space-4) var(--app-space-4) var(--app-space-6);
 }
 
 ion-item {
-  --background: #ffffff;
-  --border-radius: 12px;
-  margin-bottom: 10px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  margin-bottom: var(--app-space-3);
+  --background: var(--app-surface);
+  --border-color: var(--app-border);
+  --border-radius: var(--app-radius);
+  --padding-start: var(--app-space-3);
+  --inner-padding-end: var(--app-space-3);
+  --highlight-color-focused: var(--ion-color-primary);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-sm);
 }
 
-ion-item ion-icon {
+/* Leading icons are wayfinding, not decoration: muted so the value the nurse
+   typed stays the highest-contrast thing in the row. */
+ion-item ion-icon[slot='start'] {
+  margin-inline-end: var(--app-space-3);
+  font-size: 20px;
+  color: var(--app-ink-muted);
+}
+
+ion-item:focus-within ion-icon[slot='start'] {
   color: var(--ion-color-primary);
 }
 
+ion-input,
+ion-select {
+  --placeholder-color: var(--app-ink-muted);
+  font-size: 0.98rem;
+  color: var(--app-ink);
+}
+
+/* Ionic's own stacked label; matched to the uppercase caption used elsewhere. */
+ion-input::part(label),
+ion-select::part(label) {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
 .error {
-  margin: -4px 4px 10px;
-  font-size: 12px;
+  margin: calc(var(--app-space-2) * -1) var(--app-space-1) var(--app-space-3);
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--ion-color-danger);
 }
 
 .error.global {
-  margin-top: 4px;
-  margin-bottom: 12px;
+  margin-top: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid rgba(192, 57, 43, 0.24);
+  border-radius: var(--app-radius);
+  background: #fdecea;
 }
 
 .save-btn {
-  margin-top: 16px;
-  height: 46px;
-  font-weight: 600;
+  margin-top: var(--app-space-5);
+  --padding-top: var(--app-space-4);
+  --padding-bottom: var(--app-space-4);
 }

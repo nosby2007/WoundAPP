@@ -7,6 +7,7 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -19,6 +20,8 @@ import {
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { AssessmentsService, MobileAssessment } from 'src/app/services/assessments.service';
 import { Observable } from 'rxjs';
+import { addIcons } from 'ionicons';
+import { addOutline, documentTextOutline } from 'ionicons/icons';
 
 @Component({
   selector: 'app-wound-history',
@@ -35,6 +38,7 @@ import { Observable } from 'rxjs';
     IonButtons,
     IonContent,
     IonHeader,
+    IonIcon,
     IonItem,
     IonLabel,
     IonList,
@@ -55,6 +59,12 @@ export class WoundHistoryPage {
 
   items$!: Observable<MobileAssessment[]>;
   loading = true;
+
+  constructor() {
+    // Ionic standalone has no global icon registry: each page registers the
+    // glyphs its own template names.
+    addIcons({ addOutline, documentTextOutline });
+  }
 
   ngOnInit() {
     this.items$ = this.assessments.listForWound(this.patientId, this.woundId);

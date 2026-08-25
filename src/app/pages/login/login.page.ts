@@ -9,6 +9,12 @@ import {
   IonItem,
   IonSpinner,
 } from '@ionic/angular/standalone';
+
+import { addIcons } from 'ionicons';
+import {
+  lockClosedOutline,
+  mailOutline,
+} from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -49,7 +55,12 @@ export class LoginPage {
     private fb: FormBuilder,
     private auth: AuthService,
     private router: Router
-  ) {}
+  ) {
+    addIcons({
+      lockClosedOutline,
+      mailOutline,
+    });
+  }
 
   async submit() {
     if (this.form.invalid) return;
