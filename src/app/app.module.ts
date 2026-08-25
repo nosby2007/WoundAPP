@@ -7,9 +7,11 @@ import { AppComponent } from './app.component';
 import { HttpClientModule } from '@angular/common/http';
 
 import { AngularFireModule } from '@angular/fire/compat';
+import { PinComponent } from './Authentification/pin/pin.component';
 import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 import { environment } from 'src/environments/environment';
 import { AngularFireAuthModule } from '@angular/fire/compat/auth';
+import { AngularFireFunctionsModule, REGION } from '@angular/fire/compat/functions';
 
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import {MatCard, MatCardModule} from '@angular/material/card';
@@ -86,6 +88,7 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
 
 @NgModule({
   declarations: [
+    PinComponent,
     AppComponent,
     PatientListComponent,
     PatienDetailsComponent,
@@ -141,6 +144,7 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     AngularFireModule.initializeApp(environment.firebase),
     AngularFirestoreModule,
     AngularFireAuthModule,
+    AngularFireFunctionsModule,
     BrowserAnimationsModule,
     MatSlideToggleModule,
     DatePipe,
@@ -164,7 +168,8 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     
     
   ],
-  providers: [ {provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: {floatLabel: 'always'}}],
+  providers: [
+    { provide: REGION, useValue: 'us-central1' }, {provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: {floatLabel: 'always'}}],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

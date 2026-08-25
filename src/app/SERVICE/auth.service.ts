@@ -37,25 +37,20 @@ export class AuthService {
     );
   }
 
-  register(email: string, password: string, displayName: string) {
-    this.fireAuth.createUserWithEmailAndPassword(email, password).then((userCredential) => {
-      const user = userCredential.user;
-      if (user) {
-        // Mettre à jour le profil utilisateur avec le nom
-        user.updateProfile({
-          displayName: displayName
-        }).then(() => {
-          alert('Registration successful');
-          this.userName.next(displayName);
-          localStorage.setItem('userName', displayName);
-          this.router.navigate(['/login']);
-        });
-      }
-    }, (err: any) => {
-      alert(err.message);
-      this.router.navigate(['/register']);
-    });
-  }
+  /*
+   * Self-registration was removed deliberately.
+   *
+   * It called createUserWithEmailAndPassword, which mints an account with
+   * no organization and no role -- an account that can read nothing, and
+   * that no administrator asked to exist. Accounts are created in the
+   * InnovaCare admin console (adminCreateUserV2), which assigns the
+   * organization, facilities and role at the same time.
+   *
+   * Note this is not, by itself, the control: email sign-up is enabled on
+   * the Firebase project, so the REST API will still mint accounts for
+   * anyone holding the public API key. Closing that is a project setting,
+   * not a code change.
+   */
 
   getUserName(): string | null {
     return localStorage.getItem('userName');
