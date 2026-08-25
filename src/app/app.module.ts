@@ -30,7 +30,6 @@ import { AppointmentListComponent } from './COMPONENT/appointment-list/appointme
 import { MatTableModule} from '@angular/material/table';
 import {  MatPaginatorModule } from '@angular/material/paginator';
 import {MatIconModule} from '@angular/material/icon';
-import { NgConfirmModule } from 'ng-confirm-box';
 import { CommonModule, DatePipe } from '@angular/common';
 import { AddAppointmentComponent } from './COMPONENT/add-appointment/add-appointment.component';
 import { AddPatientComponent } from './COMPONENT/add-patient/add-patient.component';
@@ -160,7 +159,6 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     MatTableModule,
     MatPaginatorModule,
     MatIconModule,
-    NgConfirmModule,
     MatCardModule,
     CommonModule,
     
