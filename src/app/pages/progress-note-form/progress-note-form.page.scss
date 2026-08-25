@@ -1,0 +1,86 @@
+/* src/app/pages/progress-note-form/progress-note-form.page.scss */
+
+.patient-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  padding: var(--app-space-3) var(--app-space-4);
+}
+
+.avatar-initials {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.patient-text {
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 650;
+    color: var(--app-ink);
+  }
+
+  p {
+    margin: 2px 0 0;
+    font-size: 0.82rem;
+    color: var(--app-ink-muted);
+  }
+}
+
+/* The box is the point of the screen, so it gets the room and the focus
+   ring rather than sitting as one row among many. */
+.note-field {
+  --background: var(--app-surface);
+  --border-color: var(--app-border);
+  --border-radius: var(--app-radius);
+  --padding-start: var(--app-space-4);
+  --inner-padding-end: var(--app-space-3);
+  --highlight-color-focused: var(--ion-color-primary);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-sm);
+}
+
+ion-textarea {
+  --placeholder-color: var(--app-ink-muted);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--app-ink);
+}
+
+.inline-error {
+  padding: var(--app-space-3);
+  margin-top: var(--app-space-3);
+  border: 1px solid rgba(192, 57, 43, 0.24);
+  border-radius: var(--app-radius);
+  background: #fdecea;
+
+  ion-icon { font-size: 20px; }
+  p { font-size: 0.88rem; font-weight: 600; }
+}
+
+.note-when {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--app-ink-muted);
+}
+
+.note-author {
+  font-weight: 500;
+}
+
+.note-body {
+  margin-top: 4px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--app-ink);
+  white-space: pre-wrap;
+}

@@ -28,6 +28,12 @@ import {
   peopleCircleOutline,
 } from 'ionicons/icons';
 import { NoOrganizationError, PatientService } from 'src/app/services/patient.service';
+import {
+  patientAge,
+  patientAvatarHue,
+  patientInitials,
+  toDate,
+} from 'src/app/shared/patient-display';
 
 
 @Component({
@@ -160,53 +166,9 @@ openPatient(p: any) {
     this.router.navigate(['/tabs', 'add-patient']);
   }
 
-  /**
-   * Initials, for when a patient has no photo.
-   *
-   * A generic silhouette on every row makes the list harder to scan, not
-   * easier -- initials give the eye something to land on while claiming
-   * nothing untrue about who the person is.
-   */
-  initials(p: any): string {
-    const parts = String(p?.name || p?.displayName || '').trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) return '?';
-    const first = parts[0][0] || '';
-    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
-    return (first + last).toUpperCase();
-  }
-
-  /** A stable colour per patient, so the same chart looks the same tomorrow. */
-  avatarHue(p: any): number {
-    const source = String(p?.id || p?.name || '');
-    let hash = 0;
-    for (let i = 0; i < source.length; i += 1) {
-      hash = (hash * 31 + source.charCodeAt(i)) % 360;
-    }
-    return hash;
-  }
-
-  /**
-   * Age from the date of birth.
-   *
-   * Shown beside the date because on a ward the age is what gets checked,
-   * and deriving it from the same field keeps the two from disagreeing.
-   */
-  age(p: any): number | null {
-    const dob = this.toDate(p?.dob);
-    if (!dob) return null;
-    const now = new Date();
-    let years = now.getFullYear() - dob.getFullYear();
-    const monthDelta = now.getMonth() - dob.getMonth();
-    if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < dob.getDate())) years -= 1;
-    return years >= 0 && years < 150 ? years : null;
-  }
-
-  /** Records carry the date as an ISO string, a Date, or a Firestore Timestamp. */
-  toDate(value: any): Date | null {
-    if (!value) return null;
-    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
-    if (typeof value?.toDate === 'function') return value.toDate();
-    const parsed = new Date(value);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
+  // Shared with the progress-note picker, which renders the same row.
+  initials = patientInitials;
+  avatarHue = patientAvatarHue;
+  age = patientAge;
+  toDate = toDate;
 }
