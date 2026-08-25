@@ -20,6 +20,13 @@ import {
   IonButton,
 } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
+import { addIcons } from 'ionicons';
+import {
+  personAddOutline,
+  personCircle,
+  alertCircleOutline,
+  peopleCircleOutline,
+} from 'ionicons/icons';
 import { NoOrganizationError, PatientService } from 'src/app/services/patient.service';
 
 
@@ -59,7 +66,11 @@ export class PatientsPage implements OnDestroy {
   constructor(
     private patientsFs: PatientService,
     private router: Router
-  ) {}
+  ) {
+    // Same registration the assessments page does -- without it these
+    // four icons render as empty space.
+    addIcons({ personAddOutline, personCircle, alertCircleOutline, peopleCircleOutline });
+  }
 
   ionViewWillEnter() {
     this.load();
