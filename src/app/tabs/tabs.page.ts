@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { addIcons } from 'ionicons';
-import { peopleOutline, personAddOutline } from 'ionicons/icons';
+import { createOutline, peopleOutline, personAddOutline } from 'ionicons/icons';
 
 @Component({
   selector: 'app-tabs',
@@ -12,6 +12,6 @@ export class TabsPage {
   constructor() {
     // Ionic standalone has no global icon registry; the shell registers the
     // two glyphs its tab bar names.
-    addIcons({ peopleOutline, personAddOutline });
+    addIcons({ createOutline, peopleOutline, personAddOutline });
   }
 }

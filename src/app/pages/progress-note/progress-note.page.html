@@ -1,0 +1,63 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Progress note</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="load($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-wrapper">
+    <p class="lede">Pick the patient you are writing about.</p>
+
+    <ion-searchbar
+      placeholder="Search by name, MRN or DOB"
+      [(ngModel)]="search"
+      showCancelButton="focus"
+    ></ion-searchbar>
+
+    <div *ngIf="loading" class="state">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading patients…</p>
+    </div>
+
+    <div *ngIf="!loading && errorMsg" class="state state-error">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <p>{{ errorMsg }}</p>
+    </div>
+
+    <div *ngIf="!loading && !errorMsg && !filtered.length" class="state">
+      <ion-icon name="people-circle-outline"></ion-icon>
+      <p>No patients match this search.</p>
+    </div>
+
+    <ion-list class="app-list" *ngIf="!loading && !errorMsg && filtered.length" lines="full">
+      <ion-item button detail="true" *ngFor="let p of filtered" (click)="open(p)">
+        <ion-avatar slot="start" class="patient-avatar">
+          <img *ngIf="p.photoURL; else initialsAvatar" [src]="p.photoURL" alt="" />
+          <ng-template #initialsAvatar>
+            <span class="avatar-initials"
+                  [style.background]="'hsl(' + avatarHue(p) + ', 62%, 92%)'"
+                  [style.color]="'hsl(' + avatarHue(p) + ', 58%, 32%)'">
+              {{ initials(p) }}
+            </span>
+          </ng-template>
+        </ion-avatar>
+
+        <ion-label>
+          <h2 class="patient-name">{{ p.name || 'Patient' }}</h2>
+          <p class="patient-meta text-numeric">
+            <ng-container *ngIf="toDate(p.dob) as dob">
+              <span>{{ dob | date: 'MM/dd/yyyy' }}</span>
+              <span *ngIf="age(p) !== null"> · {{ age(p) }} yrs</span>
+            </ng-container>
+            <span *ngIf="p.mrn"> · MRN {{ p.mrn }}</span>
+            <span *ngIf="p.room"> · Room {{ p.room }}</span>
+          </p>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+  </div>
+</ion-content>

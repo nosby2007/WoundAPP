@@ -1,0 +1,46 @@
+/* src/app/pages/progress-note/progress-note.page.scss */
+
+.lede {
+  margin: 0 0 var(--app-space-3);
+  font-size: 0.9rem;
+  color: var(--app-ink-muted);
+}
+
+ion-searchbar {
+  margin-bottom: var(--app-space-4);
+  padding: 0;
+  --background: var(--app-surface);
+  --border-radius: var(--app-radius);
+  --box-shadow: var(--app-shadow-sm);
+  --placeholder-color: var(--app-ink-muted);
+}
+
+.patient-avatar {
+  width: 44px;
+  height: 44px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.avatar-initials {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.patient-name {
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: var(--app-ink);
+}
+
+.patient-meta {
+  margin-top: 2px;
+  font-size: 0.82rem;
+  color: var(--app-ink-muted);
+}

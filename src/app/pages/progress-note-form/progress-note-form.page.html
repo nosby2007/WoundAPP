@@ -1,0 +1,86 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/progress-note" (click)="backToPicker()"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Progress note</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="page-wrapper">
+
+    <!-- Who this is about, kept in view while typing. -->
+    <div class="patient-banner app-card" *ngIf="patient">
+      <span class="avatar-initials"
+            [style.background]="'hsl(' + avatarHue(patient) + ', 62%, 92%)'"
+            [style.color]="'hsl(' + avatarHue(patient) + ', 58%, 32%)'">
+        {{ initials(patient) }}
+      </span>
+      <div class="patient-text">
+        <h2>{{ patient.name || 'Patient' }}</h2>
+        <p class="text-numeric">
+          <ng-container *ngIf="toDate(patient.dob) as dob">
+            <span>{{ dob | date: 'MM/dd/yyyy' }}</span>
+            <span *ngIf="age(patient) !== null"> · {{ age(patient) }} yrs</span>
+          </ng-container>
+          <span *ngIf="patient.mrn"> · MRN {{ patient.mrn }}</span>
+        </p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Note</h2>
+
+    <ion-item class="note-field">
+      <ion-textarea
+        [(ngModel)]="details"
+        placeholder="What you observed, what you did, what needs following up."
+        [autoGrow]="true"
+        [rows]="6"
+        [counter]="true"
+        [maxlength]="4000"
+        aria-label="Progress note"
+      ></ion-textarea>
+    </ion-item>
+
+    <div class="state state-error inline-error" *ngIf="errorMsg">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <p>{{ errorMsg }}</p>
+    </div>
+
+    <div class="app-actions">
+      <ion-button expand="block" (click)="save()" [disabled]="!canSave">
+        <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
+        Save to chart
+      </ion-button>
+    </div>
+
+    <h2 class="section-title">Recent notes</h2>
+
+    <div class="state" *ngIf="loadingHistory">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading…</p>
+    </div>
+
+    <div class="state" *ngIf="!loadingHistory && !recent.length">
+      <ion-icon name="document-text-outline"></ion-icon>
+      <p>No notes on this chart yet.</p>
+    </div>
+
+    <ion-list class="app-list" *ngIf="!loadingHistory && recent.length" lines="full">
+      <ion-item *ngFor="let n of recent">
+        <ion-label class="ion-text-wrap">
+          <h2 class="note-when text-numeric">
+            <ng-container *ngIf="n.effectiveAt; else pending">
+              {{ n.effectiveAt | date: 'short' }}
+            </ng-container>
+            <ng-template #pending>Just now</ng-template>
+            <span class="note-author" *ngIf="n.providerName"> · {{ n.providerName }}</span>
+          </h2>
+          <p class="note-body">{{ n.details }}</p>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+
+  </div>
+</ion-content>

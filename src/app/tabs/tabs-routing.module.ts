@@ -7,6 +7,8 @@ import { AssessmentDetailPage } from '../pages/assessments-details/assessments-d
 import { AssessmentFormPage } from '../pages/assessment-form/assessment-form.page';
 import { WoundHistoryPage } from '../pages/wound-history/wound-history.page';
 import { AddPatientPage } from '../pages/add-patient/add-patient.page';
+import { ProgressNotePage } from '../pages/progress-note/progress-note.page';
+import { ProgressNoteFormPage } from '../pages/progress-note-form/progress-note-form.page';
 
 const routes: Routes = [
   {
@@ -21,6 +23,17 @@ const routes: Routes = [
       {
         path: 'add-patient',
         component: AddPatientPage, // Field intake: register a patient, then go straight into their assessments
+      },
+
+      // Quick bedside documentation. The tab lands on the roster because a
+      // note needs a patient; picking one opens the note itself.
+      {
+        path: 'progress-note',
+        component: ProgressNotePage,
+      },
+      {
+        path: 'progress-note/:patientId',
+        component: ProgressNoteFormPage,
       },
 
       // Tu pourras réutiliser tab2 / tab3 plus tard
