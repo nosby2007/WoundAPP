@@ -1,193 +1,140 @@
-.page {
-  padding: 8px 12px 24px;
+/* Assessment list for one patient. Each row is a wound over time, so the
+   thumbnail is the anchor and the type/location line is what gets read. */
+.page-wrapper {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--app-space-4);
 }
 
 ion-searchbar {
-  --background: #ffffff;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.08);
-}
-
-.center {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 24px;
-}
-
-.error {
-  color: #c0392b;
-  padding: 12px;
-  font-size: 0.9rem;
-}
-
-.empty {
-  padding: 12px;
-  opacity: 0.6;
-  font-size: 0.9rem;
+  --background: var(--app-surface);
+  --border-radius: var(--app-radius);
+  --box-shadow: var(--app-shadow-sm);
+  --color: var(--app-ink);
+  --placeholder-color: var(--app-ink-muted);
+  --icon-color: var(--app-ink-muted);
+  padding: 0;
+  margin-bottom: var(--app-space-4);
 }
 
 ion-list {
   background: transparent;
-}
-
-ion-item {
-  --background: #ffffff;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.06);
-}
-
-.thumb {
-  width: 44px;
-  height: 44px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: #f1f5f9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  ion-icon {
-    font-size: 24px;
-    color: #94a3b8;
-  }
-}
-
-ion-label h2 {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-ion-label p {
-  margin-top: 2px;
-  font-size: 0.8rem;
-}
-
-.meta {
-  color: #64748b;
-}
-
-ion-chip {
-  font-size: 0.7rem;
-}
-
-ion-item.assessment-item {
-  /* On réduit un peu le padding à droite pour laisser respirer */
-  --inner-padding-end: 8px;
-}
-
-.assessment-item .actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;              // espace minimal entre les 2 boutons
-}
-
-.assessment-item .actions ion-button {
-  --padding-start: 4px;
-  --padding-end: 4px;
-  --padding-top: 0;
-  --padding-bottom: 0;
-  height: 28px;          // petit bouton
-  min-width: 28px;
-  border-radius: 999px;  // style “pill”
-}
-
-.assessment-item .actions .btn-history {
-  --background: transparent;
-  --box-shadow: none;
+  padding: 0;
 }
 
 .assessment-item {
-  --min-height: 72px;
-  align-items: flex-start;
-}
-
-.assessment-main {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  gap: 8px;
+  align-items: stretch;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-3);
+  padding: var(--app-space-3);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
 }
 
 .assessment-left {
+  flex: 0 0 72px;
+
+  img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: var(--app-radius);
+    background: var(--app-surface-sunken);
+  }
+
+  ion-icon {
+    font-size: 28px;
+    color: var(--app-border-strong);
+  }
+}
+
+.assessment-main {
   flex: 1 1 auto;
-  min-width: 0; // 🔑 pour que ça casse proprement sur petit écran
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .assessment-title {
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 2px;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--app-ink);
+  letter-spacing: -0.01em;
 }
 
 .assessment-sub {
-  font-size: 13px;
-  color: var(--ion-color-medium);
-  margin: 0;
-}
-
-.assessment-right {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--app-ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .assessment-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  justify-content: flex-end;
+  gap: var(--app-space-1);
+  margin-top: var(--app-space-2);
 }
 
 .chip {
-  font-size: 11px;
-  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--app-surface-sunken);
+  color: var(--ion-color-primary);
+  font-size: 0.72rem;
+  font-weight: 650;
 }
 
-.status-chip.open {
-  background: #e7f6ec;
+.assessment-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--app-space-1);
+  flex: 0 0 auto;
 }
 
-.status-chip.closed {
-  background: #f4e7e7;
+.btn-history,
+.btn-reeval {
+  --padding-start: var(--app-space-3);
+  --padding-end: var(--app-space-3);
+  margin: 0;
+  font-size: 0.78rem;
 }
 
-/* 📱 iPhone / petits écrans : on passe la colonne droite en dessous */
-@media (max-width: 480px) {
-  .assessment-main {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .assessment-right {
-    align-items: flex-start;
-    margin-top: 4px;
-  }
-
-  .assessment-badges {
-    justify-content: flex-start;
-  }
+.actions {
+  display: grid;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-4);
 }
-/* Bouton flottant “Ajouter” */
-.fab-add-assessment {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 100;
-  --background: var(--ion-color-primary);
-  --box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(0, 0, 0, 0.1);
+
+.center {
+  display: grid;
+  place-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-6) var(--app-space-4);
+  text-align: center;
+  color: var(--app-ink-muted);
+
+  ion-icon { font-size: 34px; color: var(--app-border-strong); }
+  p { margin: 0; }
+}
+
+.error {
+  margin: 0 0 var(--app-space-4);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: #fdecea;
+  color: var(--ion-color-danger);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 400px) {
+  .assessment-left { flex-basis: 56px; img { width: 56px; height: 56px; } }
 }

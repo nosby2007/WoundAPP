@@ -1,6 +1,6 @@
 <!-- src/app/pages/wound-history/wound-history.page.html -->
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-back-button (click)="backToList()">Back</ion-back-button>
     </ion-buttons>
@@ -13,32 +13,41 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <div style="padding: 12px;">
-    <ion-button expand="block" (click)="newAssessmentForThisWound()">
-      + New assessment for this wound
-    </ion-button>
-  </div>
+  <div class="page-wrapper">
+    <div class="app-actions history-action">
+      <ion-button expand="block" (click)="newAssessmentForThisWound()">
+        <ion-icon name="add-outline" slot="start"></ion-icon>
+        New assessment for this wound
+      </ion-button>
+    </div>
 
-  <div *ngIf="loading" style="display:flex; justify-content:center; margin-top:24px;">
-    <ion-spinner name="crescent"></ion-spinner>
-  </div>
+    <div class="state" *ngIf="loading">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading history…</p>
+    </div>
 
-  <ion-list *ngIf="!loading">
-    <ion-item
-      button
-      *ngFor="let a of (items$ | async) || []"
-      (click)="openAssessment(a)"
-    >
-      <ion-label>
-        <h2>
-          {{ a.assessedAt | date:'short' }} •
-          {{ a.status | titlecase }}
-        </h2>
-        <p>
-          {{ a.type }} – {{ a.location }}
-          <span *ngIf="a.stage"> (Stage {{ a.stage }})</span>
-        </p>
-      </ion-label>
-    </ion-item>
-  </ion-list>
+    <ng-container *ngIf="!loading">
+      <ng-container *ngIf="(items$ | async) || [] as items">
+        <h2 class="section-title" *ngIf="items.length">Assessments</h2>
+
+        <ion-list class="app-list history-list" *ngIf="items.length" lines="full">
+          <ion-item button *ngFor="let a of items" (click)="openAssessment(a)" detail="true">
+            <ion-label>
+              <h2 class="history-when text-numeric">{{ a.assessedAt | date:'short' }}</h2>
+              <p class="history-what">
+                {{ a.type }} <span class="dot">·</span> {{ a.location }}
+                <span *ngIf="a.stage"> <span class="dot">·</span> Stage {{ a.stage }}</span>
+              </p>
+            </ion-label>
+            <span class="app-chip" slot="end" *ngIf="a.status">{{ a.status | titlecase }}</span>
+          </ion-item>
+        </ion-list>
+
+        <div class="state" *ngIf="!items.length">
+          <ion-icon name="document-text-outline"></ion-icon>
+          <p>No assessment recorded for this wound yet.</p>
+        </div>
+      </ng-container>
+    </ng-container>
+  </div>
 </ion-content>

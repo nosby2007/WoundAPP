@@ -26,12 +26,175 @@
 @import "@ionic/angular/css/flex-utils.css";
 
 /**
- * Ionic Dark Mode
+ * Ionic Dark Mode -- deliberately not enabled.
  * -----------------------------------------------------
- * For more info, please see:
+ * dark.system.css used to be imported here, but the app has only a light
+ * palette: on a phone set to dark it swapped Ionic's own background and text
+ * tokens to their dark values while every app token below (--app-surface,
+ * --app-ink, the white toolbars, the white cards) stayed light, so the screen
+ * came out half-dark and unreadable. A clinical tool is also read under ward
+ * lighting and printed/screenshotted into records, so one light palette is the
+ * intended look. Re-enable this import only together with a full dark set of
+ * the tokens in theme/variables.scss.
+ *
  * https://ionicframework.com/docs/theming/dark-mode
  */
 
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
-@import "@ionic/angular/css/palettes/dark.system.css";
+/* @import "@ionic/angular/css/palettes/dark.system.css"; */
+
+
+/* ===========================================================================
+ * Shared page vocabulary
+ * ---------------------------------------------------------------------------
+ * Eight pages each invented their own card, their own empty state and their
+ * own heading, and one shipped no stylesheet at all. These are the patterns
+ * they had in common, written once so screens look related and a new page
+ * starts consistent instead of blank.
+ *
+ * Everything here resolves through the tokens in theme/variables.scss.
+ * ======================================================================== */
+
+/* --- Chrome -------------------------------------------------------------- */
+/* Light toolbars rather than a saturated bar. On a phone held at arm's length
+   the coloured bar is the brightest thing on screen and pulls the eye away
+   from the patient data, which is the opposite of what a ward tool wants. */
+ion-toolbar {
+  --background: var(--app-surface);
+  --color: var(--app-ink);
+  --border-color: var(--app-border);
+  --border-width: 0 0 1px 0;
+  --border-style: solid;
+  --min-height: 56px;
+}
+
+ion-title {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+/* --- Page shell ---------------------------------------------------------- */
+.page-wrapper {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--app-space-4);
+}
+
+.section-title {
+  margin: var(--app-space-5) 0 var(--app-space-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
+/* --- Surfaces ------------------------------------------------------------ */
+.app-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  padding: var(--app-space-4);
+}
+
+/* Lists sit on white with hairline separators rather than gaps between
+   floating cards -- denser, and far easier to scan down a roster. */
+.app-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  overflow: hidden;
+
+  ion-item {
+    --background: transparent;
+    --border-color: var(--app-border);
+    --padding-start: var(--app-space-4);
+    --inner-padding-end: var(--app-space-3);
+    --min-height: 68px;
+  }
+
+  ion-item:last-of-type { --border-width: 0; }
+}
+
+/* --- States -------------------------------------------------------------- */
+/* Loading, empty and error share one shape so a screen never looks broken
+   just because it has nothing to show yet. */
+.state {
+  display: grid;
+  place-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-6) var(--app-space-4);
+  text-align: center;
+  color: var(--app-ink-muted);
+
+  ion-icon {
+    font-size: 34px;
+    color: var(--app-border-strong);
+  }
+
+  p { margin: 0; font-size: 0.92rem; }
+}
+
+.state-error {
+  color: var(--ion-color-danger);
+
+  ion-icon { color: var(--ion-color-danger); }
+}
+
+/* --- Text ---------------------------------------------------------------- */
+.text-muted { color: var(--app-ink-muted); }
+.text-numeric { font-variant-numeric: tabular-nums; }
+
+/* --- Chips --------------------------------------------------------------- */
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--app-surface-sunken);
+  color: var(--ion-color-primary);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.app-chip.is-warning {
+  background: #fdf1e7;
+  color: var(--ion-color-warning);
+}
+
+.app-chip.is-danger {
+  background: #fdecea;
+  color: var(--ion-color-danger);
+}
+
+/* --- Forms --------------------------------------------------------------- */
+/* One rhythm for every form in the app; pages should not re-specify this. */
+.app-field {
+  margin-bottom: var(--app-space-4);
+  --background: var(--app-surface);
+  --border-radius: var(--app-radius);
+  --border-color: var(--app-border);
+  --highlight-color-focused: var(--ion-color-primary);
+}
+
+.app-actions {
+  display: grid;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-5);
+}
+
+ion-button {
+  --border-radius: var(--app-radius);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}

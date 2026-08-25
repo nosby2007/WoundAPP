@@ -1,46 +1,59 @@
-/* src/app/pages/assessment-detail/assessment-detail.page.scss */
-:host {
-  ion-content {
-    --background: #f5f7fb;
-  }
-}
-
-.center {
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
-}
-
-.error {
-  margin-top: 16px;
-  color: #c0392b;
-  font-weight: 500;
-}
-
-.field-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-
-.field-value {
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #111827;
-}
-
-.field-value.status {
-  text-transform: capitalize;
+/* One assessment, read-only. Label/value pairs, because this screen gets
+   checked against a chart rather than skimmed. */
+ion-card {
+  margin: 0 0 var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
 }
 
 .wound-photo {
   width: 100%;
-  border-radius: 12px;
-  display: block;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
 }
-.wound-photo ion-icon {
-  font-size: 48px;
-  color: #94a3b8;
+
+.field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
+.field-value {
+  margin: 2px 0 var(--app-space-4);
+  font-size: 0.96rem;
+  color: var(--app-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--app-surface-sunken);
+  color: var(--ion-color-primary);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.center {
+  display: grid;
+  place-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-6);
+  color: var(--app-ink-muted);
+}
+
+.error {
+  margin: var(--app-space-4);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: #fdecea;
+  color: var(--ion-color-danger);
+  font-size: 0.88rem;
 }

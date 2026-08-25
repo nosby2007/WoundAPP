@@ -1,133 +1,50 @@
-.patients-page {
-  /* fond global de la page */
-  --background: var(--ion-color-light);
-}
-
+/* Roster. The one screen a nurse opens every shift, so it is tuned for
+   scanning: identity first, hairline rows, no decoration competing with the
+   names. */
 .page-wrapper {
-  padding: 12px 16px 24px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--app-space-4);
 }
 
-/* Barre de recherche “pill” */
 .searchbar {
-  --background: #ffffff;
-  --border-radius: 999px;
-  --box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
-  margin-bottom: 12px;
+  --background: var(--app-surface);
+  --border-radius: var(--app-radius);
+  --box-shadow: var(--app-shadow-sm);
+  --color: var(--app-ink);
+  --placeholder-color: var(--app-ink-muted);
+  --icon-color: var(--app-ink-muted);
+  padding: 0;
+  margin-bottom: var(--app-space-4);
 }
 
-/* États (loading / error / empty) */
-.state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  margin-top: 40px;
-  color: #666;
-  font-size: 0.95rem;
-
-  ion-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
-    color: var(--ion-color-medium);
-  }
-
-  ion-spinner {
-    margin-bottom: 8px;
-  }
-}
-
-.state-error {
-  color: var(--ion-color-danger);
-  ion-icon {
-    color: var(--ion-color-danger);
-  }
-}
-
-/* Liste & cards patients */
-.patients-list {
-  margin-top: 8px;
-  background: transparent;
+ion-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  overflow: hidden;
+  padding: 0;
 }
 
 .patient-item {
-  --background: #ffffff;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  --background: transparent;
+  --border-color: var(--app-border);
+  --padding-start: var(--app-space-4);
+  --inner-padding-end: var(--app-space-3);
+  --min-height: 72px;
+  --detail-icon-color: var(--app-border-strong);
+  --detail-icon-opacity: 1;
+
+  &:last-of-type { --border-width: 0; }
 }
 
-/* corrige les coins arrondis du ion-item */
-.patient-item::part(native) {
-  border-radius: 12px;
-}
-
-/* avatar rond avec fond doux */
-.avatar {
-  background: var(--ion-color-light);
-  ion-icon {
-    font-size: 32px;
-    color: var(--ion-color-primary);
-  }
-}
-
-/* textes */
-.name {
-  font-weight: 600;
-  font-size: 1rem;
-  margin-bottom: 2px;
-}
-
-.line-small {
-  font-size: 0.8rem;
-  color: #777;
-}
-
-.patient-item {
-  --min-height: 64px;
-}
-
-.patient-name {
-  font-weight: 600;
-  font-size: 16px;
-
-  // 🔴 clé pour iPhone : ne PAS forcer sur une seule ligne
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-}
-
-.patient-meta {
-  font-size: 13px;
-  color: var(--ion-color-medium);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-/* 💡 Petits écrans (iPhone) */
-@media (max-width: 480px) {
-  ion-searchbar {
-    --border-radius: 10px;
-    --box-shadow: none;
-  }
-
-  .patient-name {
-    font-size: 15px;
-  }
-
-  .patient-item {
-    --inner-padding-start: 12px;
-    --inner-padding-end: 12px;
-  }
-}
-
-
-/* Identity column: photo when the record has one, initials when it does
-   not. A generic silhouette on every row is harder to scan than a letter. */
+/* Photo when the record has one, initials when it does not. A silhouette on
+   every row gives the eye nothing to catch. */
 .patient-avatar {
   width: 44px;
   height: 44px;
+  margin-inline-end: var(--app-space-3);
 
   img {
     width: 100%;
@@ -144,21 +61,24 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
 }
 
 .patient-name {
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--app-ink);
+  letter-spacing: -0.01em;
 }
 
 .patient-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--app-space-1);
+  margin-top: 2px;
   font-size: 0.82rem;
-  color: var(--ion-color-medium, #7a8798);
+  color: var(--app-ink-muted);
 
   .meta-dob { font-variant-numeric: tabular-nums; }
 }

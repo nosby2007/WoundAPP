@@ -20,6 +20,12 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { addIcons } from 'ionicons';
+import {
+  camera,
+  images,
+} from 'ionicons/icons';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
@@ -59,6 +65,15 @@ import { take } from 'rxjs/operators';
   ],
 })
 export class AssessmentFormPage implements OnInit {
+
+  constructor() {
+    // Ionic standalone has no global icon registry: each page
+    // registers the glyphs its own template names.
+    addIcons({
+      camera,
+      images,
+    });
+  }
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);

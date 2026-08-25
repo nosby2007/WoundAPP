@@ -1,48 +1,108 @@
-/* src/app/pages/assessment-form/assessment-form.page.scss */
-:host {
-  ion-content {
-    --background: #f5f7fb;
-  }
-}
-
-.center {
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
-}
-
-.error {
-  margin: 16px 0;
-  color: #c0392b;
-  font-weight: 500;
-}
-  
-.assessment-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+/* src/app/pages/assessment-form/assessment-form.page.scss
+ *
+ * Capture screen. The photo comes first because that is the order the nurse
+ * works in -- shoot the wound, then describe it -- and the form below is a
+ * single stacked column so it stays readable one-handed at the bedside.
+ * Everything resolves through the shared tokens; no local palette. */
 
 .photo-card {
-  margin-top: 16px;
+  margin: 0 0 var(--app-space-5);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+
+  ion-card-header {
+    padding: var(--app-space-4) var(--app-space-4) 0;
+  }
+
+  ion-card-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--app-ink-muted);
+  }
+
+  ion-card-content {
+    padding: var(--app-space-3) var(--app-space-4) var(--app-space-4);
+  }
 }
 
 .photo-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--app-space-2);
   flex-wrap: wrap;
+
+  ion-button {
+    --padding-start: var(--app-space-3);
+    --padding-end: var(--app-space-3);
+    margin: 0;
+  }
 }
 
+/* Placeholder frame keeps the card the same height before and after a
+   capture, so the form below does not jump when the photo lands. */
 .photo-preview {
-  margin-top: 12px;
-  text-align: center;
+  margin-top: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
+  overflow: hidden;
 
   img {
-    max-width: 100%;
-    border-radius: 8px;
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+  }
+}
+
+.assessment-form {
+  display: block;
+
+  ion-item {
+    margin-bottom: var(--app-space-3);
+    --background: var(--app-surface);
+    --border-color: var(--app-border);
+    --border-radius: var(--app-radius);
+    --padding-start: var(--app-space-4);
+    --inner-padding-end: var(--app-space-3);
+    --highlight-color-focused: var(--ion-color-primary);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-sm);
+  }
+
+  ion-label[position='stacked'] {
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--app-ink-muted);
+  }
+
+  ion-select,
+  ion-input {
+    --placeholder-color: var(--app-ink-muted);
+    font-size: 0.98rem;
+    color: var(--app-ink);
   }
 }
 
 .actions {
-  margin-top: 20px;
+  margin-top: var(--app-space-5);
+  padding-bottom: var(--app-space-5);
+
+  ion-button {
+    --padding-top: var(--app-space-4);
+    --padding-bottom: var(--app-space-4);
+  }
+}
+
+.error {
+  margin: var(--app-space-3) 0 0;
+  color: var(--ion-color-danger);
+  font-size: 0.9rem;
+  font-weight: 600;
 }

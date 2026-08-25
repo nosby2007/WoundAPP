@@ -16,6 +16,15 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { addIcons } from 'ionicons';
+import {
+  bodyOutline,
+  calendarOutline,
+  callOutline,
+  clipboardOutline,
+  personOutline,
+} from 'ionicons/icons';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
@@ -82,7 +91,15 @@ export class AddPatientPage {
     private fb: FormBuilder,
     private api: ApiService,
     private router: Router
-  ) {}
+  ) {
+    addIcons({
+      bodyOutline,
+      calendarOutline,
+      callOutline,
+      clipboardOutline,
+      personOutline,
+    });
+  }
 
   async submit(): Promise<void> {
     if (this.form.invalid) return;

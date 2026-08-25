@@ -1,2 +1,126 @@
-// For information on how to create your own theme, please refer to:
-// https://ionicframework.com/docs/theming/
+// =============================================================================
+// InnovaCare mobile -- clinical light theme
+// =============================================================================
+//
+// This file was empty. Every page therefore fell back to Ionic's stock blue
+// and invented its own colours locally, which is why no two screens looked
+// related. Everything visual should resolve here, so a change lands once
+// and reaches the whole app.
+//
+// The palette is chosen for the job, not for taste: a nurse reads this at a
+// bedside, often on a phone held at arm's length under ward lighting or in
+// daylight by a window. So the content surface is near-white for maximum
+// contrast, the chrome is light rather than a saturated bar that fights the
+// content, and the accent blue is dark enough to pass contrast on white.
+// -----------------------------------------------------------------------------
+
+:root {
+  // --- Brand ---------------------------------------------------------------
+  // Deep clinical blue, taken down from the logo's navy so it stays legible
+  // as text and as a small icon on white.
+  --ion-color-primary:            #1b4b8f;
+  --ion-color-primary-rgb:        27, 75, 143;
+  --ion-color-primary-contrast:   #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade:      #184279;
+  --ion-color-primary-tint:       #325d9a;
+
+  // Teal from the logo, used sparingly -- links, active states, progress.
+  --ion-color-secondary:          #0f7b7d;
+  --ion-color-secondary-rgb:      15, 123, 125;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade:    #0d6c6e;
+  --ion-color-secondary-tint:     #27888a;
+
+  --ion-color-tertiary:           #4a5f7a;
+  --ion-color-tertiary-rgb:       74, 95, 122;
+  --ion-color-tertiary-contrast:  #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade:     #41546b;
+  --ion-color-tertiary-tint:      #5c6f87;
+
+  // --- Status --------------------------------------------------------------
+  // Clinical meaning, not decoration: success = done/normal, warning = needs
+  // attention, danger = abnormal or destructive. Each is dark enough to read
+  // as text on white, which stock Ionic's are not.
+  --ion-color-success:            #067647;
+  --ion-color-success-rgb:        6, 118, 71;
+  --ion-color-success-contrast:   #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade:      #05683e;
+  --ion-color-success-tint:       #1f8459;
+
+  --ion-color-warning:            #b54708;
+  --ion-color-warning-rgb:        181, 71, 8;
+  --ion-color-warning-contrast:   #ffffff;
+  --ion-color-warning-contrast-rgb: 255, 255, 255;
+  --ion-color-warning-shade:      #9f3e07;
+  --ion-color-warning-tint:       #bc5921;
+
+  --ion-color-danger:             #b42318;
+  --ion-color-danger-rgb:         180, 35, 24;
+  --ion-color-danger-contrast:    #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade:       #9e1f15;
+  --ion-color-danger-tint:        #bc392f;
+
+  --ion-color-medium:             #5c6b7f;
+  --ion-color-medium-rgb:         92, 107, 127;
+  --ion-color-medium-contrast:    #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade:       #515e70;
+  --ion-color-medium-tint:        #6c7a8c;
+
+  --ion-color-light:              #f4f6fa;
+  --ion-color-light-rgb:          244, 246, 250;
+  --ion-color-light-contrast:     #0f2038;
+  --ion-color-light-contrast-rgb: 15, 32, 56;
+  --ion-color-light-shade:        #d7d8dc;
+  --ion-color-light-tint:         #f5f7fb;
+
+  // --- Surfaces and text ---------------------------------------------------
+  // The page is a cool near-white; cards are pure white and lift off it. That
+  // separation is what makes a list readable without drawing a border on
+  // everything.
+  --ion-background-color:         #f4f6fa;
+  --ion-background-color-rgb:     244, 246, 250;
+  --ion-text-color:               #0f2038;
+  --ion-text-color-rgb:           15, 32, 56;
+
+  --ion-toolbar-background:       #ffffff;
+  --ion-toolbar-color:            #0f2038;
+  --ion-item-background:          #ffffff;
+  --ion-card-background:          #ffffff;
+  --ion-tab-bar-background:       #ffffff;
+  --ion-tab-bar-color:            #5c6b7f;
+  --ion-tab-bar-color-selected:   #1b4b8f;
+
+  // --- App tokens ----------------------------------------------------------
+  // Used by global.scss and the pages. Named for what they mean rather than
+  // what they look like, so a palette change does not require a find/replace.
+  --app-surface:        #ffffff;
+  --app-surface-sunken: #eef1f7;
+  --app-ink:            #0f2038;
+  --app-ink-soft:       #3d4d63;
+  --app-ink-muted:      #5c6b7f;
+  --app-border:         #e3e8ef;
+  --app-border-strong:  #cfd7e3;
+
+  --app-radius-sm: 8px;
+  --app-radius:    12px;
+  --app-radius-lg: 16px;
+
+  // Shadows stay shallow. A clinical list should read as paper, not as a
+  // stack of floating cards competing for attention.
+  --app-shadow-sm: 0 1px 2px rgba(15, 32, 56, 0.06);
+  --app-shadow:    0 2px 8px rgba(15, 32, 56, 0.07);
+  --app-shadow-lg: 0 8px 24px rgba(15, 32, 56, 0.10);
+
+  --app-space-1: 4px;
+  --app-space-2: 8px;
+  --app-space-3: 12px;
+  --app-space-4: 16px;
+  --app-space-5: 24px;
+  --app-space-6: 32px;
+}

@@ -30,9 +30,13 @@ import {
 
 import { addIcons } from 'ionicons';
 import {
+  add,
+  addOutline,
   chevronBackOutline,
   chevronForwardOutline,
   imageOutline,
+  refreshOutline,
+  timeOutline,
 } from 'ionicons/icons';
 
 import {
@@ -91,9 +95,13 @@ export class PatientAssessmentsPage implements OnInit {
     private assessmentsSvc: AssessmentsService,
   ) {
     addIcons({
+      add,
+      addOutline,
       chevronBackOutline,
       chevronForwardOutline,
       imageOutline,
+      refreshOutline,
+      timeOutline,
     });
   }
 
