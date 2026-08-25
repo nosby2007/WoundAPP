@@ -1,7 +1,14 @@
 import { Component } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { IonicModule } from '@ionic/angular';
+import {
+  IonButton,
+  IonContent,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonSpinner,
+} from '@ionic/angular/standalone';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -11,11 +18,20 @@ import { AuthService } from '../../services/auth.service';
   
   standalone: true,                     // ✅ on assume standalone
   imports: [
-    IonicModule,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
     RouterModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonButton,
+    IonContent,
+    IonIcon,
+    IonInput,
+    IonItem,
+    IonSpinner,
   ],
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],

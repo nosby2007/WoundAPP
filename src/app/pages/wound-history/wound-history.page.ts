@@ -1,7 +1,21 @@
 // src/app/pages/wound-history/wound-history.page.ts
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule } from '@ionic/angular';
+import {
+  IonBackButton,
+  IonButton,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonRefresher,
+  IonRefresherContent,
+  IonSpinner,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { AssessmentsService, MobileAssessment } from 'src/app/services/assessments.service';
 import { Observable } from 'rxjs';
@@ -11,7 +25,25 @@ import { Observable } from 'rxjs';
   standalone: true,
   templateUrl: './wound-history.page.html',
   styleUrls: ['./wound-history.page.scss'],
-  imports: [IonicModule, CommonModule, RouterModule],
+  imports: [ CommonModule, RouterModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonBackButton,
+    IonButton,
+    IonButtons,
+    IonContent,
+    IonHeader,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonRefresher,
+    IonRefresherContent,
+    IonSpinner,
+    IonTitle,
+    IonToolbar,
+  ],
 })
 export class WoundHistoryPage {
   private route = inject(ActivatedRoute);
