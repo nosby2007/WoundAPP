@@ -1,0 +1,70 @@
+.pin-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(160deg, #eef4ff 0%, #f7fafc 60%);
+}
+
+.pin-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 28px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(16, 42, 82, 0.12);
+}
+
+.pin-badge {
+  font-size: 40px;
+  height: 40px;
+  width: 40px;
+  color: #1a56db;
+
+  &.danger { color: #b42318; }
+}
+
+h1 {
+  margin: 12px 0 6px;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #10243f;
+}
+
+.pin-lead {
+  margin: 0 0 22px;
+  color: #5b6b81;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.pin-field {
+  width: 100%;
+
+  input {
+    text-align: center;
+    letter-spacing: 0.5em;
+    font-size: 1.3rem;
+  }
+}
+
+.pin-mismatch,
+.pin-error {
+  margin: 4px 0 12px;
+  font-size: 0.88rem;
+  color: #b42318;
+}
+
+.pin-submit {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.pin-loading {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  color: #5b6b81;
+}

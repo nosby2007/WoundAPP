@@ -1,0 +1,60 @@
+<div class="pin-shell">
+  <mat-card class="pin-card">
+    <ng-container [ngSwitch]="mode">
+
+      <div *ngSwitchCase="'loading'" class="pin-loading">
+        <mat-icon>lock</mat-icon>
+        <p>Chargement…</p>
+      </div>
+
+      <ng-container *ngSwitchCase="'create'">
+        <mat-icon class="pin-badge">lock_open</mat-icon>
+        <h1>Créez votre code d'accès</h1>
+        <p class="pin-lead">
+          Six chiffres, demandés à chaque connexion. Évitez une date de naissance
+          ou une suite comme 123456.
+        </p>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'unlock'">
+        <mat-icon class="pin-badge">lock</mat-icon>
+        <h1>Code d'accès</h1>
+        <p class="pin-lead">Saisissez vos six chiffres pour continuer.</p>
+      </ng-container>
+
+      <div *ngSwitchCase="'error'" class="pin-loading">
+        <mat-icon class="pin-badge danger">error_outline</mat-icon>
+        <h1>Indisponible</h1>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="mode === 'create' || mode === 'unlock'">
+      <mat-form-field appearance="outline" class="pin-field">
+        <mat-label>Code à 6 chiffres</mat-label>
+        <input matInput type="password" inputmode="numeric" maxlength="6"
+               autocomplete="one-time-code" [(ngModel)]="pin"
+               (keyup.enter)="submit()" placeholder="••••••" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="pin-field" *ngIf="mode === 'create'">
+        <mat-label>Confirmez le code</mat-label>
+        <input matInput type="password" inputmode="numeric" maxlength="6"
+               autocomplete="one-time-code" [(ngModel)]="confirmPin"
+               (keyup.enter)="submit()" placeholder="••••••" />
+      </mat-form-field>
+
+      <p class="pin-mismatch"
+         *ngIf="mode === 'create' && confirmPin && pin !== confirmPin">
+        Les deux codes ne correspondent pas.
+      </p>
+    </ng-container>
+
+    <p class="pin-error" *ngIf="errorMsg">{{ errorMsg }}</p>
+
+    <button mat-raised-button color="primary" class="pin-submit"
+            *ngIf="mode === 'create' || mode === 'unlock'"
+            [disabled]="!canSubmit" (click)="submit()">
+      {{ busy ? 'Vérification…' : (mode === 'create' ? 'Enregistrer le code' : 'Déverrouiller') }}
+    </button>
+  </mat-card>
+</div>

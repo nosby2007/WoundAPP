@@ -1,5 +1,8 @@
 export interface Patient {
     id?: string;
+    /** The owning organization. Every Firestore rule on `patients` keys
+     *  off this, so a record without it is invisible and unsaveable. */
+    orgId?: string;
     name: string;
     gender: string;
     dob: Date;
