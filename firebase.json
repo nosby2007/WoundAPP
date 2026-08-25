@@ -1,9 +1,6 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
   "hosting": {
+    "target": "innovacare-mobile",
     "public": "dist/touch",
     "ignore": [
       "firebase.json",
@@ -16,11 +13,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "storage": {
-    "rules": "storage.rules"
-  },
-  "database": {
-    "rules": "database.rules.json"
   }
 }

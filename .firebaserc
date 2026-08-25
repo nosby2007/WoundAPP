@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "woundapp-261e6"
+  },
+  "targets": {
+    "woundapp-261e6": {
+      "hosting": {
+        "innovacare-mobile": [
+          "innovacare-mobile"
+        ]
+      }
+    }
   }
 }

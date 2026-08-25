@@ -17,5 +17,6 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_FASHION }}
-          projectId: jade-fashion
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WOUNDAPP_261E6 }}
+          projectId: woundapp-261e6
+          target: innovacare-mobile
