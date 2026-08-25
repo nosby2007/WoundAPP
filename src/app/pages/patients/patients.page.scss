@@ -122,3 +122,43 @@
   }
 }
 
+
+/* Identity column: photo when the record has one, initials when it does
+   not. A generic silhouette on every row is harder to scan than a letter. */
+.patient-avatar {
+  width: 44px;
+  height: 44px;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+}
+
+.avatar-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.patient-name {
+  font-weight: 600;
+}
+
+.patient-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--ion-color-medium, #7a8798);
+
+  .meta-dob { font-variant-numeric: tabular-nums; }
+}

@@ -1,7 +1,21 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { IonicModule } from '@ionic/angular';
+import {
+  IonBackButton,
+  IonButton,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonSelect,
+  IonSelectOption,
+  IonSpinner,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
@@ -28,7 +42,25 @@ import { ApiService } from '../../services/api.service';
 @Component({
   selector: 'app-add-patient',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, IonicModule],
+  imports: [CommonModule, ReactiveFormsModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonBackButton,
+    IonButton,
+    IonButtons,
+    IonContent,
+    IonHeader,
+    IonIcon,
+    IonInput,
+    IonItem,
+    IonSelect,
+    IonSelectOption,
+    IonSpinner,
+    IonTitle,
+    IonToolbar,
+  ],
   templateUrl: './add-patient.page.html',
   styleUrls: ['./add-patient.page.scss'],
 })

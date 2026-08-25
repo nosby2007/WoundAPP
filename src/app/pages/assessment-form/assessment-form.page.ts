@@ -1,7 +1,25 @@
 // src/app/pages/assessment-form/assessment-form.page.ts
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ToastController } from '@ionic/angular';
+import {
+  ToastController,
+  IonButton,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
+  IonContent,
+  IonHeader,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonSelect,
+  IonSelectOption,
+  IonSpinner,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
@@ -17,7 +35,28 @@ import { take } from 'rxjs/operators';
   standalone: true,
   templateUrl: './assessment-form.page.html',
   styleUrls: ['./assessment-form.page.scss'],
-  imports: [IonicModule, CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [ CommonModule, ReactiveFormsModule, RouterModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonButton,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
+    IonContent,
+    IonHeader,
+    IonIcon,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonSelect,
+    IonSelectOption,
+    IonSpinner,
+    IonTitle,
+    IonToolbar,
+  ],
 })
 export class AssessmentFormPage implements OnInit {
   private fb = inject(FormBuilder);

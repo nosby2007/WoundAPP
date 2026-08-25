@@ -2,7 +2,25 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { IonicModule } from '@ionic/angular';
+import {
+  IonButton,
+  IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
+  IonCol,
+  IonContent,
+  IonFooter,
+  IonGrid,
+  IonHeader,
+  IonIcon,
+  IonRow,
+  IonSpinner,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 import { AssessmentsService } from '../../services/assessments.service';
 import { Subscription } from 'rxjs';
 
@@ -10,7 +28,29 @@ import { Subscription } from 'rxjs';
    selector: 'app-assessments-details',
   templateUrl: './assessments-details.page.html',
   styleUrls: ['./assessments-details.page.scss'],
-  imports: [IonicModule, CommonModule, RouterModule],
+  imports: [ CommonModule, RouterModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonButton,
+    IonButtons,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardSubtitle,
+    IonCardTitle,
+    IonCol,
+    IonContent,
+    IonFooter,
+    IonGrid,
+    IonHeader,
+    IonIcon,
+    IonRow,
+    IonSpinner,
+    IonTitle,
+    IonToolbar,
+  ],
 })
 export class AssessmentDetailPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);

@@ -9,22 +9,23 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
-import { IonicModule } from '@ionic/angular';   // 👈 IMPORTANT : on utilise IonicModule (NgModule)
 import {
-  IonHeader,
-  IonToolbar,
-  IonTitle,
+  IonAvatar,
+  IonButton,
   IonContent,
+  IonFab,
+  IonFabButton,
+  IonHeader,
+  IonIcon,
+  IonItem,
+  IonLabel,
+  IonList,
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
   IonSpinner,
-  IonList,
-  IonItem,
-  IonAvatar,
-  IonLabel,
-  IonIcon,
-  IonButton,          // 🔹 ajoute ceci
+  IonTitle,
+  IonToolbar,
 } from '@ionic/angular/standalone';
 
 import { addIcons } from 'ionicons';
@@ -53,12 +54,30 @@ function normalizePatientId(raw: string | null): string {
 @Component({
   selector: 'app-patient-assessments',
   standalone: true,
-  // ✅ plus de IonHeader / IonToolbar / etc. On importe IonicModule.
   imports: [
     CommonModule,
     FormsModule,
     RouterModule,
-    IonicModule,
+    // Ionic standalone resolves ion-* through these component classes.
+    // IonicModule (the NgModule API) sat here instead, which registers
+    // nothing for a standalone component: the tags fell through as
+    // unknown elements and the page rendered as bare HTML.
+    IonAvatar,
+    IonButton,
+    IonContent,
+    IonFab,
+    IonFabButton,
+    IonHeader,
+    IonIcon,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonRefresher,
+    IonRefresherContent,
+    IonSearchbar,
+    IonSpinner,
+    IonTitle,
+    IonToolbar,
   ],
   templateUrl: './patient-assessments.page.html',
   styleUrls: ['./patient-assessments.page.scss'],
