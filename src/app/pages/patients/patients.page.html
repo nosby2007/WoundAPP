@@ -53,8 +53,15 @@
     class="patient-item"
     (click)="openPatient(p)"
   >
-    <ion-avatar slot="start">
-      <ion-icon name="person-circle" size="large"></ion-icon>
+    <ion-avatar slot="start" class="patient-avatar">
+      <img *ngIf="p.photoURL; else initialsAvatar" [src]="p.photoURL" alt="" />
+      <ng-template #initialsAvatar>
+        <span class="avatar-initials"
+              [style.background]="'hsl(' + avatarHue(p) + ', 62%, 92%)'"
+              [style.color]="'hsl(' + avatarHue(p) + ', 58%, 32%)'">
+          {{ initials(p) }}
+        </span>
+      </ng-template>
     </ion-avatar>
 
     <ion-label>
@@ -63,12 +70,12 @@
       </h2>
 
       <p class="patient-meta">
-        <span *ngIf="p.dob">
-          DOB: {{ p.dob | date: 'MM/dd/yyyy' }}
-        </span>
-        <span *ngIf="p.mrn">
-          · MRN: {{ p.mrn }}
-        </span>
+        <ng-container *ngIf="toDate(p.dob) as dob">
+          <span class="meta-dob">{{ dob | date: 'MM/dd/yyyy' }}</span>
+          <span *ngIf="age(p) !== null" class="meta-age">· {{ age(p) }} yrs</span>
+        </ng-container>
+        <span *ngIf="p.mrn">· MRN {{ p.mrn }}</span>
+        <span *ngIf="p.room">· Room {{ p.room }}</span>
       </p>
     </ion-label>
   </ion-item>
