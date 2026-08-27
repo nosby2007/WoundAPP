@@ -1,101 +1,330 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>
-      Wound assessment
-    </ion-title>
+    <ion-title>Wound assessment</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true">
   <div class="page-wrapper">
 
-    <!-- PHOTO / CAPTURE -->
-        <!-- Photo section -->
-      <ion-card class="photo-card">
-        <ion-card-header>
-          <ion-card-title>Wound photo</ion-card-title>
-        </ion-card-header>
+    <!-- PHOTO -->
+    <ion-card class="photo-card">
+      <ion-card-header>
+        <ion-card-title>Wound photo</ion-card-title>
+      </ion-card-header>
 
-        <ion-card-content>
-          <div class="photo-actions">
-            <ion-button size="small" (click)="takePhoto()" type="button">
-              <ion-icon name="camera" slot="start"></ion-icon>
-              Take photo
-            </ion-button>
+      <ion-card-content>
+        <div class="photo-actions">
+          <ion-button size="small" (click)="takePhoto()" type="button">
+            <ion-icon name="camera" slot="start"></ion-icon>
+            Take photo
+          </ion-button>
 
-            <ion-button size="small" fill="outline" (click)="pickFromGallery()" type="button">
-              <ion-icon name="images" slot="start"></ion-icon>
-              Gallery
-            </ion-button>
-          </div>
+          <ion-button size="small" fill="outline" (click)="pickFromGallery()" type="button">
+            <ion-icon name="images" slot="start"></ion-icon>
+            Gallery
+          </ion-button>
+        </div>
 
-          <div class="photo-preview" *ngIf="photoPreview">
-            <img [src]="photoPreview" alt="Wound photo" />
-          </div>
-        </ion-card-content>
-      </ion-card>
+        <div class="photo-preview" *ngIf="photoPreview">
+          <img [src]="photoPreview" alt="Wound photo" />
+        </div>
+      </ion-card-content>
+    </ion-card>
 
-    <!-- ✅ UN SEUL FORM -->
     <form [formGroup]="form" (ngSubmit)="save()" class="assessment-form">
 
-      <!-- Type -->
-      <ion-item>
-        <ion-label position="stacked">Type of wound</ion-label>
-        <ion-select formControlName="type" interface="popover">
-          <ion-select-option *ngFor="let t of woundTypes" [value]="t">
-            {{ t }}
-          </ion-select-option>
-        </ion-select>
-      </ion-item>
+      <!-- Sections collapse so the whole assessment fits one thumb-scroll.
+           Wound and Measurements start open: they are what a re-assessment
+           is for. -->
+      <ion-accordion-group [multiple]="true" [value]="['describe','measurements']">
 
-      <!-- Stage -->
-      <ion-item>
-        <ion-label position="stacked">Stage (if pressure)</ion-label>
-        <ion-select formControlName="stage" interface="popover">
-          <ion-select-option *ngFor="let s of stages" [value]="s">
-            {{ s }}
-          </ion-select-option>
-        </ion-select>
-      </ion-item>
+        <!-- ============ WOUND ============ -->
+        <ion-accordion value="describe">
+          <ion-item slot="header">
+            <ion-label>Wound</ion-label>
+          </ion-item>
 
-      <!-- Location -->
-      <ion-item>
-        <ion-label position="stacked">Location</ion-label>
-        <ion-input
-          type="text"
-          placeholder="Right lateral foot"
-          formControlName="location">
-        </ion-input>
-      </ion-item>
+          <div slot="content" class="section-body" formGroupName="describe">
+            <ion-item>
+              <ion-label position="stacked">Type of wound</ion-label>
+              <ion-select formControlName="type" interface="popover">
+                <ion-select-option *ngFor="let t of woundTypes" [value]="t">{{ t }}</ion-select-option>
+              </ion-select>
+            </ion-item>
 
-      <!-- Acquired -->
-      <ion-item>
-        <ion-label position="stacked">Acquired</ion-label>
-        <ion-select formControlName="acquired" interface="popover">
-          <ion-select-option *ngFor="let a of acquiredOptions" [value]="a">
-            {{ a }}
-          </ion-select-option>
-        </ion-select>
-      </ion-item>
+            <ion-item>
+              <ion-label position="stacked">Stage (if pressure)</ion-label>
+              <ion-select formControlName="stage" interface="popover">
+                <ion-select-option *ngFor="let s of stages" [value]="s">{{ s }}</ion-select-option>
+              </ion-select>
+            </ion-item>
 
-      <!-- Status -->
-      <ion-item>
-        <ion-label position="stacked">Status</ion-label>
-        <ion-select formControlName="status" interface="popover">
-          <ion-select-option *ngFor="let st of statusOptions" [value]="st">
-            {{ st }}
-          </ion-select-option>
-        </ion-select>
-      </ion-item>
+            <ion-item>
+              <ion-label position="stacked">Location</ion-label>
+              <ion-input type="text" placeholder="Right lateral foot" formControlName="location"></ion-input>
+            </ion-item>
 
+            <ion-item>
+              <ion-label position="stacked">Acquired</ion-label>
+              <ion-select formControlName="acquired" interface="popover">
+                <ion-select-option *ngFor="let a of acquiredOptions" [value]="a">{{ a }}</ion-select-option>
+              </ion-select>
+            </ion-item>
 
+            <ion-item>
+              <ion-label position="stacked">Notes</ion-label>
+              <ion-textarea formControlName="notes" [autoGrow]="true" [rows]="2"></ion-textarea>
+            </ion-item>
+          </div>
+        </ion-accordion>
 
-      <!-- Bouton Save -->
-      <div class="actions">
-        <ion-button
-          expand="block"
-          type="submit"
-          [disabled]="loading || form.invalid">
+        <!-- ============ MEASUREMENTS ============ -->
+        <ion-accordion value="measurements">
+          <ion-item slot="header">
+            <ion-label>Measurements</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="measurements">
+            <div class="measure-row">
+              <ion-item>
+                <ion-label position="stacked">Length (cm)</ion-label>
+                <ion-input type="number" inputmode="decimal" step="0.1" min="0"
+                           placeholder="—" formControlName="length"></ion-input>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Width (cm)</ion-label>
+                <ion-input type="number" inputmode="decimal" step="0.1" min="0"
+                           placeholder="—" formControlName="width"></ion-input>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Depth (cm)</ion-label>
+                <ion-input type="number" inputmode="decimal" step="0.1" min="0"
+                           placeholder="—" formControlName="depth"></ion-input>
+              </ion-item>
+            </div>
+
+            <!-- Computed, never typed, so the arithmetic cannot disagree with
+                 the three numbers above it. -->
+            <div class="derived" *ngIf="area !== null">
+              <span>Area <strong class="text-numeric">{{ area }}</strong> cm²</span>
+              <span *ngIf="volume !== null">Volume <strong class="text-numeric">{{ volume }}</strong> cm³</span>
+            </div>
+            <ion-note class="derived-hint" *ngIf="area === null">
+              Area and volume are calculated once length and width are entered.
+            </ion-note>
+
+            <ion-item>
+              <ion-label position="stacked">Undermining</ion-label>
+              <ion-select formControlName="undermining" interface="popover" placeholder="Not assessed">
+                <ion-select-option *ngFor="let u of underminingOptions" [value]="u">{{ u }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Tunneling</ion-label>
+              <ion-select formControlName="tunneling" interface="popover" placeholder="Not assessed">
+                <ion-select-option *ngFor="let t of tunnelingOptions" [value]="t">{{ t }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+        <!-- ============ WOUND BED ============ -->
+        <ion-accordion value="woundBed">
+          <ion-item slot="header">
+            <ion-label>Wound bed</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="woundBed">
+            <ion-item>
+              <ion-checkbox formControlName="epithelial" labelPlacement="end">Epithelial tissue</ion-checkbox>
+            </ion-item>
+
+            <ion-item>
+              <ion-checkbox formControlName="granulationPresent" labelPlacement="end">Granulation</ion-checkbox>
+            </ion-item>
+            <ion-item *ngIf="form.value.woundBed?.granulationPresent">
+              <ion-label position="stacked">Granulation %</ion-label>
+              <ion-input type="number" inputmode="numeric" min="0" max="100"
+                         placeholder="—" formControlName="granulationPercent"></ion-input>
+            </ion-item>
+
+            <ion-item>
+              <ion-checkbox formControlName="sloughPresent" labelPlacement="end">Slough</ion-checkbox>
+            </ion-item>
+            <ion-item *ngIf="form.value.woundBed?.sloughPresent">
+              <ion-label position="stacked">Slough %</ion-label>
+              <ion-input type="number" inputmode="numeric" min="0" max="100"
+                         placeholder="—" formControlName="sloughPercent"></ion-input>
+            </ion-item>
+
+            <ion-item>
+              <ion-checkbox formControlName="eschar" labelPlacement="end">Eschar</ion-checkbox>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Signs of infection</ion-label>
+              <ion-select formControlName="infection" [multiple]="true" placeholder="None selected">
+                <ion-select-option *ngFor="let s of infectionSigns" [value]="s">{{ s }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Other findings</ion-label>
+              <ion-select formControlName="other" [multiple]="true" placeholder="None selected">
+                <ion-select-option *ngFor="let o of woundOtherOptions" [value]="o">{{ o }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Note</ion-label>
+              <ion-textarea formControlName="otherNote" [autoGrow]="true" [rows]="2"></ion-textarea>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+        <!-- ============ EXUDATE ============ -->
+        <ion-accordion value="exudate">
+          <ion-item slot="header">
+            <ion-label>Exudate</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="exudate">
+            <ion-item>
+              <ion-label position="stacked">Amount</ion-label>
+              <ion-select formControlName="amount" interface="popover">
+                <ion-select-option *ngFor="let a of exudateAmounts" [value]="a">{{ a }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Type</ion-label>
+              <ion-select formControlName="type" interface="popover">
+                <ion-select-option *ngFor="let t of exudateTypes" [value]="t">{{ t }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Odor</ion-label>
+              <ion-select formControlName="odor" interface="popover">
+                <ion-select-option *ngFor="let o of odorOptions" [value]="o">{{ o }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+        <!-- ============ PERI-WOUND ============ -->
+        <ion-accordion value="periwound">
+          <ion-item slot="header">
+            <ion-label>Peri-wound</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="periwound">
+            <ion-item>
+              <ion-label position="stacked">Edges</ion-label>
+              <ion-select formControlName="edges" interface="popover">
+                <ion-select-option *ngFor="let e of edgeOptions" [value]="e">{{ e }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Surrounding skin</ion-label>
+              <ion-select formControlName="surrounding" [multiple]="true" placeholder="None selected">
+                <ion-select-option *ngFor="let s of surroundingOptions" [value]="s">{{ s }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Induration</ion-label>
+              <ion-select formControlName="induration" interface="popover">
+                <ion-select-option *ngFor="let i of indurationOptions" [value]="i">{{ i }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Edema</ion-label>
+              <ion-select formControlName="edema" interface="popover">
+                <ion-select-option *ngFor="let e of edemaOptions" [value]="e">{{ e }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Temperature</ion-label>
+              <ion-select formControlName="temperature" interface="popover">
+                <ion-select-option *ngFor="let t of temperatureOptions" [value]="t">{{ t }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+        <!-- ============ PAIN ============ -->
+        <ion-accordion value="pain">
+          <ion-item slot="header">
+            <ion-label>Pain</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="pain">
+            <ion-item>
+              <ion-checkbox formControlName="cognitivelyImpaired" labelPlacement="end">
+                Cognitively impaired
+              </ion-checkbox>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Pain score — {{ form.value.pain?.score }}/10</ion-label>
+              <ion-range formControlName="score" [min]="0" [max]="10" [step]="1"
+                         [pin]="true" [snaps]="true" aria-label="Pain score"></ion-range>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Frequency</ion-label>
+              <ion-select formControlName="frequency" interface="popover">
+                <ion-select-option *ngFor="let f of painFrequencyOptions" [value]="f">{{ f }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Notes</ion-label>
+              <ion-textarea formControlName="notes" [autoGrow]="true" [rows]="2"></ion-textarea>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+        <!-- ============ PROGRESS ============ -->
+        <ion-accordion value="progress">
+          <ion-item slot="header">
+            <ion-label>Progress</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body" formGroupName="progress">
+            <ion-item>
+              <ion-label position="stacked">Status</ion-label>
+              <ion-select formControlName="status" interface="popover">
+                <ion-select-option *ngFor="let st of statusOptions" [value]="st">{{ st }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Infection</ion-label>
+              <ion-select formControlName="infection" interface="popover">
+                <ion-select-option *ngFor="let i of infectionStatusOptions" [value]="i">{{ i }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Notes</ion-label>
+              <ion-textarea formControlName="notes" [autoGrow]="true" [rows]="2"></ion-textarea>
+            </ion-item>
+          </div>
+        </ion-accordion>
+
+      </ion-accordion-group>
+
+      <div class="app-actions actions">
+        <ion-button expand="block" type="submit" [disabled]="loading || form.invalid">
           <ion-spinner *ngIf="loading" name="crescent" slot="start"></ion-spinner>
           Save assessment
         </ion-button>
