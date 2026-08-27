@@ -3,29 +3,32 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ToastController,
+  IonAccordion,
+  IonAccordionGroup,
   IonButton,
   IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardTitle,
+  IonCheckbox,
   IonContent,
   IonHeader,
   IonIcon,
   IonInput,
   IonItem,
   IonLabel,
+  IonNote,
+  IonRange,
   IonSelect,
   IonSelectOption,
   IonSpinner,
+  IonTextarea,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 
 import { addIcons } from 'ionicons';
-import {
-  camera,
-  images,
-} from 'ionicons/icons';
+import { camera, images } from 'ionicons/icons';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
@@ -34,46 +37,75 @@ import { AssessmentsService } from '../../services/assessments.service';
 import { getAuth } from 'firebase/auth';
 import { take } from 'rxjs/operators';
 
+import {
+  ACQUIRED,
+  EDEMA,
+  EDGES,
+  EXUDATE_AMOUNTS,
+  EXUDATE_TYPES,
+  INDURATION,
+  INFECTION_SIGNS,
+  INFECTION_STATUS,
+  ODORS,
+  PAIN_FREQUENCY,
+  STAGES,
+  STATUS,
+  SURROUNDING,
+  TEMPERATURE,
+  TUNNELING,
+  UNDERMINING,
+  WOUND_OTHER,
+  WOUND_TYPES,
+} from 'src/app/shared/wound-vocabulary';
 
-
+/**
+ * A wound assessment, as recorded at the bedside.
+ *
+ * This form used to ask five questions -- type, stage, location, acquired,
+ * status -- while the document it saved carried the web app's full
+ * WoundAssessment shape. Everything it did not ask, it filled in anyway:
+ * measurements of 0, exudate 'None', pain 0, infection 'None', peri-wound
+ * 'Normal', no granulation, no slough. Those are not blanks. They are
+ * negative clinical findings, written into the chart over a nurse's name,
+ * for questions nobody was asked -- and 0 x 0 x 0 cm is the one number a
+ * wound is tracked by.
+ *
+ * Every section the payload writes is now a section the nurse can fill in.
+ * The lists come from shared/wound-vocabulary.ts, which is copied from the
+ * web app's own form rather than written here.
+ */
 @Component({
   selector: 'app-assessment-form',
   standalone: true,
   templateUrl: './assessment-form.page.html',
   styleUrls: ['./assessment-form.page.scss'],
-  imports: [ CommonModule, ReactiveFormsModule, RouterModule,
-    // Ionic standalone resolves ion-* through these component classes.
-    // IonicModule (the NgModule API) sat here instead, which registers
-    // nothing for a standalone component: the tags fell through as
-    // unknown elements and the page rendered as bare HTML.
+  imports: [
+    CommonModule, ReactiveFormsModule, RouterModule,
+    IonAccordion,
+    IonAccordionGroup,
     IonButton,
     IonCard,
     IonCardContent,
     IonCardHeader,
     IonCardTitle,
+    IonCheckbox,
     IonContent,
     IonHeader,
     IonIcon,
     IonInput,
     IonItem,
     IonLabel,
+    IonNote,
+    IonRange,
     IonSelect,
     IonSelectOption,
     IonSpinner,
+    IonTextarea,
     IonTitle,
     IonToolbar,
   ],
 })
 export class AssessmentFormPage implements OnInit {
-
-  constructor() {
-    // Ionic standalone has no global icon registry: each page
-    // registers the glyphs its own template names.
-    addIcons({
-      camera,
-      images,
-    });
-  }
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -83,71 +115,110 @@ export class AssessmentFormPage implements OnInit {
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId'); // undefined = NEW
 
-  
-woundTypes: string[] = [
-  'Pressure',
-  'Skin Tear',
-  'Diabetic',
-  'Venous',
-  'Arterial',
-  'Surgical',
-  'MASD',
-  'Rash',
-  'Blister',
-  'Laceration',
-  'Open Lesion',
-  'Hematoma',
-  'Burn',
-  'Abscess',
-  'Ischemic',
-  'Neuropathic',
-  'Cancer Lesion',
-  'Moisture Associated Skin Damage (MASD)',
-  'Pressure - Kennedy Terminal Ulcer',
-  'Pressure - Medical Device Related Pressure Injury',
-  'Other'
-];
-
-stages: string[] = [
-  'Stage 1',
-  'Stage 2',
-  'Stage 3',
-  'Stage 4',
-  'Deep Tissue Injury',
-  'Mucosal Membrane',
-  'Unstageable'
-];
-
-acquiredOptions: string[] = [
-  'In-House Acquired',
-  'Present on Admission'
-];
-
-statusOptions: string[] = [
-  'New',
-  'Improving',
-  'Stable',
-  'Stalled',
-  'Deteriorating',
-  'Monitoring',
-  'Resolved'
-];
-
+  // Vocabularies, for the template.
+  woundTypes = WOUND_TYPES;
+  stages = STAGES;
+  acquiredOptions = ACQUIRED;
+  statusOptions = STATUS;
+  underminingOptions = UNDERMINING;
+  tunnelingOptions = TUNNELING;
+  exudateAmounts = EXUDATE_AMOUNTS;
+  exudateTypes = EXUDATE_TYPES;
+  odorOptions = ODORS;
+  infectionSigns = INFECTION_SIGNS;
+  woundOtherOptions = WOUND_OTHER;
+  edgeOptions = EDGES;
+  surroundingOptions = SURROUNDING;
+  indurationOptions = INDURATION;
+  edemaOptions = EDEMA;
+  temperatureOptions = TEMPERATURE;
+  painFrequencyOptions = PAIN_FREQUENCY;
+  infectionStatusOptions = INFECTION_STATUS;
 
   loading = false;
 
-   form = this.fb.group({
-   type: ['Pressure', Validators.required],
-  stage: [''],
-  location: ['', Validators.required],
-  acquired: ['In-House Acquired'],
-  status: ['New', Validators.required],
+  /**
+   * Mirrors the web app's WoundAssessment form group, section for section, so
+   * the two write the same document.
+   *
+   * Measurements start empty rather than at 0. An unrecorded measurement and
+   * a wound that measures zero are different clinical statements, and the
+   * second one means healed.
+   */
+  form = this.fb.group({
+    describe: this.fb.group({
+      type: ['Pressure', Validators.required],
+      stage: [''],
+      location: ['', Validators.required],
+      acquired: ['In-House Acquired'],
+      notes: [''],
+    }),
+    measurements: this.fb.group({
+      length: [null as number | null],
+      width: [null as number | null],
+      depth: [null as number | null],
+      undermining: [''],
+      tunneling: [''],
+    }),
+    woundBed: this.fb.group({
+      epithelial: [false],
+      granulationPresent: [false],
+      granulationPercent: [null as number | null],
+      sloughPresent: [false],
+      sloughPercent: [null as number | null],
+      eschar: [false],
+      infection: this.fb.control<string[]>([]),
+      other: this.fb.control<string[]>([]),
+      otherNote: [''],
+    }),
+    exudate: this.fb.group({
+      amount: ['None'],
+      type: ['None'],
+      odor: ['None'],
+    }),
+    periwound: this.fb.group({
+      edges: ['Attached'],
+      surrounding: this.fb.control<string[]>([]),
+      induration: ['None present'],
+      edema: ['No swelling or edema'],
+      temperature: ['Normal'],
+    }),
+    pain: this.fb.group({
+      cognitivelyImpaired: [false],
+      score: [0],
+      frequency: ['None'],
+      notes: [''],
+    }),
+    progress: this.fb.group({
+      status: ['New', Validators.required],
+      infection: ['None'],
+      notes: [''],
+    }),
   });
 
-  photoPreview?: string;    // pour l’affichage
-  private photoDataUrl?: string; // envoyé à Firebase
+  photoPreview?: string;
+  private photoDataUrl?: string;
 
-  // 🟢 AU CHARGEMENT : si on a assessmentId → on charge les données existantes
+  constructor() {
+    addIcons({ camera, images });
+  }
+
+  /** Area and volume, computed the same way the web form computes them. */
+  get area(): number | null {
+    const l = this.form.value.measurements?.length;
+    const w = this.form.value.measurements?.width;
+    if (l == null || w == null) return null;
+    return Number((Number(l) * Number(w)).toFixed(2));
+  }
+
+  get volume(): number | null {
+    const l = this.form.value.measurements?.length;
+    const w = this.form.value.measurements?.width;
+    const d = this.form.value.measurements?.depth;
+    if (l == null || w == null || d == null) return null;
+    return Number((Number(l) * Number(w) * Number(d)).toFixed(2));
+  }
+
   ngOnInit(): void {
     if (this.assessmentId) {
       this.loadForEdit();
@@ -163,25 +234,62 @@ statusOptions: string[] = [
       .subscribe({
         next: (data) => {
           if (!data) {
-            console.warn(
-              '[AssessmentForm] No doc found for edit',
-              this.patientId,
-              this.assessmentId
-            );
+            console.warn('[AssessmentForm] No doc found for edit', this.patientId, this.assessmentId);
             this.loading = false;
             return;
           }
 
-          // 🧩 Pré-remplir le formulaire
           this.form.patchValue({
-            type: data.describe?.type || data.type || '',
-            stage: data.describe?.stage || data.stage || '',
-            location: data.describe?.location || data.location || '',
-            acquired: data.describe?.acquired || data.acquired || '',
-            status: data.progress?.status || data.status || 'open',
+            describe: {
+              type: data.describe?.type || data.type || '',
+              stage: data.describe?.stage || data.stage || '',
+              location: data.describe?.location || data.location || '',
+              acquired: data.describe?.acquired || data.acquired || '',
+              notes: data.describe?.notes || '',
+            },
+            measurements: {
+              length: this.numOrNull(data.measurements?.length),
+              width: this.numOrNull(data.measurements?.width),
+              depth: this.numOrNull(data.measurements?.depth),
+              undermining: data.measurements?.undermining || '',
+              tunneling: data.measurements?.tunneling || '',
+            },
+            woundBed: {
+              epithelial: !!data.woundBed?.epithelial,
+              granulationPresent: !!data.woundBed?.granulation?.present,
+              granulationPercent: this.numOrNull(data.woundBed?.granulation?.percent),
+              sloughPresent: !!data.woundBed?.slough?.present,
+              sloughPercent: this.numOrNull(data.woundBed?.slough?.percent),
+              eschar: !!data.woundBed?.eschar,
+              infection: data.woundBed?.infection || [],
+              other: data.woundBed?.other || [],
+              otherNote: data.woundBed?.otherNote || '',
+            },
+            exudate: {
+              amount: data.exudate?.amount || 'None',
+              type: data.exudate?.type || 'None',
+              odor: data.exudate?.odor || 'None',
+            },
+            periwound: {
+              edges: data.periwound?.edges || 'Attached',
+              surrounding: data.periwound?.surrounding || [],
+              induration: data.periwound?.induration || 'None present',
+              edema: data.periwound?.edema || 'No swelling or edema',
+              temperature: data.periwound?.temperature || 'Normal',
+            },
+            pain: {
+              cognitivelyImpaired: !!data.pain?.cognitivelyImpaired,
+              score: data.pain?.score ?? 0,
+              frequency: data.pain?.frequency || 'None',
+              notes: data.pain?.notes || '',
+            },
+            progress: {
+              status: data.progress?.status || data.status || 'New',
+              infection: data.progress?.infection || 'None',
+              notes: data.progress?.notes || '',
+            },
           });
 
-          // 📸 si une photo existe déjà
           if (data.photoURL) {
             this.photoPreview = data.photoURL;
           }
@@ -193,6 +301,13 @@ statusOptions: string[] = [
           this.loading = false;
         },
       });
+  }
+
+  /** A stored 0 is a real measurement; a missing field is not. */
+  private numOrNull(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
   }
 
   async takePhoto() {
@@ -241,180 +356,156 @@ statusOptions: string[] = [
   }
 
   async save() {
-  if (this.form.invalid) {
-    this.form.markAllAsTouched();
-    return;
-  }
-
-  this.loading = true;
-
-  const savingToast = await this.toastCtrl.create({
-    message: 'Saving assessment...',
-    duration: 0,
-  });
-  await savingToast.present();
-
-  try {
-    const firebaseUser = getAuth().currentUser;
-    const uid = firebaseUser?.uid || null;
-    const displayName = firebaseUser?.displayName || 'Nurse';
-
-    console.log('[AssessmentForm] currentUser uid =', uid);
-
-    if (!uid) {
-      throw new Error('No logged user uid (user not authenticated)');
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
     }
 
-    const now = new Date();
+    this.loading = true;
 
-    // 🧠 1) Construire un payload qui ressemble au WoundAssessment de la web-app
-    const basePayload: any = {
-      patientId: this.patientId,
+    const savingToast = await this.toastCtrl.create({
+      message: 'Saving assessment...',
+      duration: 0,
+    });
+    await savingToast.present();
 
-      // meta/audit
-      createdAt: now,
-      assessedAt: now,
-      updatedAt: now,
+    try {
+      const firebaseUser = getAuth().currentUser;
+      const uid = firebaseUser?.uid || null;
+      const displayName = firebaseUser?.displayName || 'Nurse';
 
-      createdBy: uid,         // pour les rules (canCreateSub)
-      createdByUid: uid,      // pour la web app
-      createdByName: displayName || 'Nurse',
+      if (!uid) {
+        throw new Error('No logged user uid (user not authenticated)');
+      }
 
-      // section describe (on alimente ce que le mobile connaît)
-      describe: {
-        type: this.form.value.type || 'Other',
-        stage: this.form.value.stage || null,
-        location: this.form.value.location || '',
-        acquired: this.form.value.acquired || 'In-House Acquired',
-        ageCategory: '',      // on laisse vide pour l’instant
-        exactDate: null,
-        stagedBy: 'In-house nursing',
-        notes: '',
-      },
+      const now = new Date();
+      const v = this.form.getRawValue();
 
-      // measurements : valeurs par défaut (0)
-      measurements: {
-        area: 0,
-        length: 0,
-        width: 0,
-        depth: 0,
-        undermining: '',
-        tunneling: '',
-      },
+      // The web app's WoundAssessment shape, filled from what was actually
+      // asked. Nothing is invented for a question the form did not put.
+      const basePayload: any = {
+        patientId: this.patientId,
 
-      // woundBed : tout neutre
-      woundBed: {
-        epithelial: false,
-        granulation: { present: false, percent: 0 },
-        slough: { present: false, percent: 0 },
-        eschar: false,
-        infection: [],
-        other: [],
-        otherNote: '',
-      },
+        createdAt: now,
+        assessedAt: now,
+        updatedAt: now,
 
-      // exudate : neutre
-      exudate: {
-        amount: 'None',
-        type: 'None',
-        odor: 'None',
-      },
+        createdBy: uid,          // for the rules (canCreateSub)
+        createdByUid: uid,       // for the web app
+        createdByName: displayName || 'Nurse',
 
-      // periwound : valeurs par défaut
-      periwound: {
-        edges: 'Attached',
-        surrounding: [],
-        induration: 'None present',
-        edema: 'No swelling or edema',
-        temperature: 'Normal',
-      },
+        describe: {
+          type: v.describe.type || 'Other',
+          stage: v.describe.stage || null,
+          location: v.describe.location || '',
+          acquired: v.describe.acquired || 'In-House Acquired',
+          ageCategory: '',
+          exactDate: null,
+          stagedBy: 'In-house nursing',
+          notes: v.describe.notes || '',
+        },
 
-      // pain : neutre
-      pain: {
-        cognitivelyImpaired: false,
-        score: 0,
-        frequency: 'None',
-        notes: '',
-      },
+        measurements: {
+          length: v.measurements.length,
+          width: v.measurements.width,
+          depth: v.measurements.depth,
+          area: this.area,
+          volume: this.volume,
+          undermining: v.measurements.undermining || '',
+          tunneling: v.measurements.tunneling || '',
+        },
 
-      // orders : valeur par défaut
-      orders: {
-        goalOfCare: 'Healable',
-      },
+        woundBed: {
+          epithelial: v.woundBed.epithelial,
+          granulation: {
+            present: v.woundBed.granulationPresent,
+            percent: v.woundBed.granulationPercent,
+          },
+          slough: {
+            present: v.woundBed.sloughPresent,
+            percent: v.woundBed.sloughPercent,
+          },
+          eschar: v.woundBed.eschar,
+          infection: v.woundBed.infection || [],
+          other: v.woundBed.other || [],
+          otherNote: v.woundBed.otherNote || '',
+        },
 
-      // treatment : vides pour l’instant
-      treatment: {
-        dressingAppearance: 'Intact',
-        cleansing: '',
-        debridement: '',
-        primary: '',
-        secondary: '',
-        modalities: '',
-        additionalCare: [],
-      },
+        exudate: {
+          amount: v.exudate.amount,
+          type: v.exudate.type,
+          odor: v.exudate.odor,
+        },
 
-      // progress : alimente status depuis la form
-      progress: {
-        status: (this.form.value.status as any) || 'New',
-        infection: 'None',
-        notes: '',
-        education: '',
-      },
+        periwound: {
+          edges: v.periwound.edges,
+          surrounding: v.periwound.surrounding || [],
+          induration: v.periwound.induration,
+          edema: v.periwound.edema,
+          temperature: v.periwound.temperature,
+        },
 
-      // placeholder pour la photo
-      photoURL: null,
-    };
+        pain: {
+          cognitivelyImpaired: v.pain.cognitivelyImpaired,
+          score: v.pain.score,
+          frequency: v.pain.frequency,
+          notes: v.pain.notes || '',
+        },
 
-    let id = this.assessmentId;
+        progress: {
+          status: v.progress.status || 'New',
+          infection: v.progress.infection,
+          notes: v.progress.notes || '',
+          education: '',
+        },
 
-    // 2️⃣ NEW ou EDIT ?
-    if (!id) {
-      // ➕ NEW : on crée le doc dans patients/{patientId}/woundAssessments
-      id = await this.assessments.create(this.patientId, basePayload);
-      console.log('[AssessmentForm] created new assessment id =', id);
-    } else {
-      // ✏️ EDIT : on met juste à jour (sans toucher createdAt / createdBy)
-      basePayload.updatedAt = now;
-      delete basePayload.createdAt;
-      delete basePayload.createdBy;
-      delete basePayload.createdByUid;
-      delete basePayload.createdByName;
+        photoURL: null,
+      };
 
-      await this.assessments.update(this.patientId, id, basePayload);
-      console.log('[AssessmentForm] updated assessment id =', id);
-    }
+      let id = this.assessmentId;
 
-    // 3️⃣ upload photo si besoin
-    const url = await this.uploadPhotoIfNeeded(id!, uid);
-    if (url) {
-      await this.assessments.update(this.patientId, id!, {
-        photoURL: url,
-        updatedAt: new Date(),
+      if (!id) {
+        id = await this.assessments.create(this.patientId, basePayload);
+      } else {
+        basePayload.updatedAt = now;
+        delete basePayload.createdAt;
+        delete basePayload.createdBy;
+        delete basePayload.createdByUid;
+        delete basePayload.createdByName;
+        delete basePayload.photoURL;
+
+        await this.assessments.update(this.patientId, id, basePayload);
+      }
+
+      const url = await this.uploadPhotoIfNeeded(id!, uid);
+      if (url) {
+        await this.assessments.update(this.patientId, id!, {
+          photoURL: url,
+          updatedAt: new Date(),
+        });
+      }
+
+      this.loading = false;
+      savingToast.dismiss();
+
+      const doneToast = await this.toastCtrl.create({
+        message: 'Assessment saved',
+        duration: 2000,
       });
+      doneToast.present();
+
+      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+    } catch (err) {
+      console.error(err);
+      this.loading = false;
+      savingToast.dismiss();
+
+      const toast = await this.toastCtrl.create({
+        message: 'Error saving assessment',
+        duration: 2500,
+        color: 'danger',
+      });
+      toast.present();
     }
-
-    this.loading = false;
-    savingToast.dismiss();
-
-    const doneToast = await this.toastCtrl.create({
-      message: 'Assessment saved',
-      duration: 2000,
-    });
-    doneToast.present();
-
-    // retour à la liste
-    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
-  } catch (err) {
-    console.error(err);
-    this.loading = false;
-    savingToast.dismiss();
-
-    const toast = await this.toastCtrl.create({
-      message: 'Error saving assessment',
-      duration: 2500,
-      color: 'danger',
-    });
-    toast.present();
   }
-}
 }
