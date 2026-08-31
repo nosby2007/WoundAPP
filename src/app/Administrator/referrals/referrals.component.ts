@@ -19,6 +19,7 @@ export class ReferralsComponent implements OnInit {
   toDate = '';
   statusFilter = '';
   sourceFilter = '';
+  generatedAt = new Date();
 
   readonly statuses: ReferralStatus[] = [
     'Received', 'Under Review', 'Insurance Verification', 'Contact/Scheduling',
@@ -100,6 +101,7 @@ export class ReferralsComponent implements OnInit {
   }
 
   printSurveyReport(): void {
+    this.generatedAt = new Date();
     window.print();
   }
 
