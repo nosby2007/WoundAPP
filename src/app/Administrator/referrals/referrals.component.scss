@@ -1,0 +1,45 @@
+.referrals-page { padding: 24px; background: #f5f7fa; min-height: 100%; }
+.page-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+.page-header h1, .print-header h1 { margin: 0; }
+.page-header p { margin: 6px 0 0; color: #5f6b7a; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.intake-card { margin-bottom: 18px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
+.full { grid-column: 1 / -1; }
+.checks { display: flex; gap: 20px; align-items: center; min-height: 56px; flex-wrap: wrap; }
+.form-actions { display: flex; gap: 10px; }
+.message { padding: 10px 14px; margin-bottom: 12px; background: #eef7ee; border-radius: 6px; }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: white; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+.filters input, .filters select { min-height: 36px; border: 1px solid #ccd4dd; border-radius: 5px; padding: 0 8px; }
+.survey-sheet { background: white; padding: 20px; border-radius: 8px; }
+.print-header { display: none; text-align: center; margin-bottom: 18px; }
+.summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+.summary-grid div { border: 1px solid #d9e0e7; border-radius: 7px; padding: 12px; text-align: center; }
+.summary-grid strong { display: block; font-size: 22px; }
+.summary-grid span { font-size: 12px; color: #5f6b7a; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { border: 1px solid #d9e0e7; padding: 8px; text-align: left; vertical-align: top; }
+th { background: #eef2f6; font-weight: 600; }
+.empty { text-align: center; padding: 22px; color: #6b7280; }
+.print-footer { margin-top: 14px; font-size: 10px; color: #6b7280; text-align: right; }
+
+@media (max-width: 800px) {
+  .page-header { align-items: flex-start; flex-direction: column; }
+  .form-grid { grid-template-columns: 1fr; }
+  .full { grid-column: auto; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media print {
+  @page { size: landscape; margin: 0.45in; }
+  .no-print { display: none !important; }
+  .referrals-page, .survey-sheet { padding: 0; background: white; }
+  .survey-sheet { box-shadow: none; }
+  .print-header { display: block; }
+  .summary-grid { grid-template-columns: repeat(5, 1fr); }
+  .table-wrap { overflow: visible; }
+  table { font-size: 9px; }
+  th, td { padding: 5px; }
+  tr { page-break-inside: avoid; }
+}
