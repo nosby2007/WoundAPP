@@ -47,6 +47,7 @@ import { NouveauProComponent } from './Administrator/nouveau-pro/nouveau-pro.com
 import { TableauBordComptComponent } from './Administrator/tableau-bord-compt/tableau-bord-compt.component';
 import { UDAComptComponent } from './Administrator/udacompt/udacompt.component';
 import { RapportComponent } from './Administrator/rapport/rapport.component';
+import { ReferralsComponent } from './Administrator/referrals/referrals.component';
 import { PatientClinicalComponent } from './CLINICAL/patient-clinical/patient-clinical.component';
 import { SuivitHospiComponent } from './CLINICAL/suivit-hospi/suivit-hospi.component';
 import { SystemDAtaMedComponent } from './CLINICAL/system-data-med/system-data-med.component';
@@ -71,20 +72,6 @@ import { RapportFinancierComponent } from './RAPPORT/rapport-financier/rapport-f
 import { RapportCliniqueComponent } from './RAPPORT/rapport-clinique/rapport-clinique.component';
 import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-qualite.component';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @NgModule({
   declarations: [
     PinComponent,
@@ -108,6 +95,7 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     TableauBordComptComponent,
     UDAComptComponent,
     RapportComponent,
+    ReferralsComponent,
     PatientClinicalComponent,
     SuivitHospiComponent,
     SystemDAtaMedComponent,
@@ -130,9 +118,7 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     PoolsComponent,
     RapportFinancierComponent,
     RapportCliniqueComponent,
-    RapportQualiteComponent, 
-    
-   
+    RapportQualiteComponent,
   ],
   imports: [
     BrowserModule,
@@ -147,7 +133,6 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     BrowserAnimationsModule,
     MatSlideToggleModule,
     DatePipe,
-
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
@@ -161,13 +146,11 @@ import { RapportQualiteComponent } from './RAPPORT/rapport-qualite/rapport-quali
     MatIconModule,
     MatCardModule,
     CommonModule,
-    
-    
-    
-    
   ],
   providers: [
-    { provide: REGION, useValue: 'us-central1' }, {provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: {floatLabel: 'always'}}],
+    { provide: REGION, useValue: 'us-central1' },
+    {provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: {floatLabel: 'always'}}
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }
