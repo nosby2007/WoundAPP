@@ -21,6 +21,7 @@ import { NouveauProComponent } from './Administrator/nouveau-pro/nouveau-pro.com
 import { TableauBordComptComponent } from './Administrator/tableau-bord-compt/tableau-bord-compt.component';
 import { UDAComptComponent } from './Administrator/udacompt/udacompt.component';
 import { RapportComponent } from './Administrator/rapport/rapport.component';
+import { ReferralsComponent } from './Administrator/referrals/referrals.component';
 import { SuivitHospiComponent } from './CLINICAL/suivit-hospi/suivit-hospi.component';
 import { SystemDAtaMedComponent } from './CLINICAL/system-data-med/system-data-med.component';
 import { CommunicationComponent } from './CLINICAL/communication/communication.component';
@@ -46,9 +47,7 @@ import { RapportFinancierComponent } from './RAPPORT/rapport-financier/rapport-f
 
 const routes: Routes = [
   {path: '', redirectTo:'login', pathMatch:'full'},
-  {path:'login', component:LoginComponent,},
-  // Signed in but not yet unlocked: reachable with AuthGuard alone, or the
-  // PIN screen would guard itself and nobody could ever reach it.
+  {path:'login', component:LoginComponent},
   {path:'pin', component:PinComponent, canActivate:[AuthGuardGuard]},
   {path:'home', component:HomeComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'poc', component:POCComponent, canActivate:[AuthGuardGuard, PinGuard]},
@@ -56,6 +55,7 @@ const routes: Routes = [
   {path:'allLink', component:AllLinksComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'autres', component:AutresComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'patientAd', component:PatientListAdComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'referrals', component:ReferralsComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'medicaux', component:NouveauProComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'finance', component:TableauBordComptComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'udaComp', component:UDAComptComponent, canActivate:[AuthGuardGuard, PinGuard]},
@@ -84,14 +84,13 @@ const routes: Routes = [
   {path:'rfinance', component:RapportFinancierComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'rclinique', component:RapportCliniqueComponent, canActivate:[AuthGuardGuard, PinGuard]},
   {path:'rqualite', component:RapportQualiteComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  { path: 'admin-dashboard', component: AdminDashboardComponent },
-  { path: 'clinical-dashboard', component: ClinicalDashboardComponent },
-  {path: "patientList", component:PatientListComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  {path: "addPatient", component:AddPatientComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  {path: "addAppointment", component:AddAppointmentComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  {path: "appointmentList", component:AppointmentListComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  {path: "PatientList/:id", component:PatienDetailsComponent, canActivate:[AuthGuardGuard, PinGuard]},
-  
+  {path:'admin-dashboard', component:AdminDashboardComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'clinical-dashboard', component:ClinicalDashboardComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'patientList', component:PatientListComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'addPatient', component:AddPatientComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'addAppointment', component:AddAppointmentComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'appointmentList', component:AppointmentListComponent, canActivate:[AuthGuardGuard, PinGuard]},
+  {path:'PatientList/:id', component:PatienDetailsComponent, canActivate:[AuthGuardGuard, PinGuard]},
 ];
 
 @NgModule({
