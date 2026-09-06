@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { AssessmentsDetailsPage } from './assessments-details.page';
+import { pageTestProviders } from '../../../testing/page-test-providers';
+import { AssessmentDetailPage } from './assessments-details.page';
 
-describe('AssessmentsDetailsPage', () => {
-  let component: AssessmentsDetailsPage;
-  let fixture: ComponentFixture<AssessmentsDetailsPage>;
+describe('AssessmentDetailPage', () => {
+  let component: AssessmentDetailPage;
+  let fixture: ComponentFixture<AssessmentDetailPage>;
 
   beforeEach(() => {
-    fixture = TestBed.createComponent(AssessmentsDetailsPage);
+    TestBed.configureTestingModule({ providers: pageTestProviders({ patientId: 'p1', assessmentId: 'a1' }) });
+    fixture = TestBed.createComponent(AssessmentDetailPage);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

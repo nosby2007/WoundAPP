@@ -33,6 +33,16 @@ module.exports = function (config) {
       ]
     },
     reporters: ['progress', 'kjhtml'],
+    // CI (and this repo's container images) run Chrome as root with no user
+    // namespace, where the sandbox cannot start. Without this launcher the
+    // suite does not fail -- it never launches, which reads as a config
+    // error rather than a test result.
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+      },
+    },
     port: 9876,
     colors: true,
     logLevel: config.LOG_INFO,
