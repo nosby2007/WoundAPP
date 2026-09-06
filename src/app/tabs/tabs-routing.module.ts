@@ -12,6 +12,7 @@ import { ProgressNoteFormPage } from '../pages/progress-note-form/progress-note-
 import { BradenFormPage } from '../pages/braden-form/braden-form.page';
 import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
 import { EducationPage } from '../pages/education/education.page';
+import { WoundNotePage } from '../pages/wound-note/wound-note.page';
 
 const routes: Routes = [
   {
@@ -52,6 +53,13 @@ const routes: Routes = [
       // },
        {
         path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage,  // ✅ la page Patient Assessments dans le tab
+      },
+
+      // The wound progress note covers every wound of the visit, so it is
+      // patient-level rather than reached from one assessment.
+      {
+        path: 'skin-wound/:patientId/wound-note',
+        component: WoundNotePage,
       },
 
       // Education is about the patient and their caregiver. It can be

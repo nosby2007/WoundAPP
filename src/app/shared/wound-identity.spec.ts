@@ -1,4 +1,5 @@
 import {
+  latestAssessmentPerWound,
   resolveWoundId,
   stripWoundIdForUpdate,
   woundIdForCreate,
@@ -66,5 +67,55 @@ describe('wound identity', () => {
       expect(resolveWoundId(null)).toBeNull();
       expect(resolveWoundId({})).toBeNull();
     });
+  });
+});
+
+describe('latestAssessmentPerWound', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('keeps one row per wound, the newest one', () => {
+    const rows = latestAssessmentPerWound([
+      { id: 'a1', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'a2', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+      { id: 'a3', woundId: 'w2', assessedAt: at('2026-09-05T10:00:00Z') },
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(['a2', 'a3']);
+  });
+
+  it('groups a legacy assessment by its own id, as the web does', () => {
+    const rows = latestAssessmentPerWound([
+      { id: 'a1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'a2', assessedAt: at('2026-09-02T10:00:00Z') },
+    ]);
+    // Two wounds, because that is what the chart already shows for these.
+    expect(rows.length).toBe(2);
+  });
+
+  it('does not let an undated assessment displace a dated one', () => {
+    // "No recorded time" is not "now". Letting it win would make the note
+    // report an older set of measurements as current.
+    const rows = latestAssessmentPerWound([
+      { id: 'dated', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+      { id: 'undated', woundId: 'w1', assessedAt: null },
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(['dated']);
+  });
+
+  it('still returns an undated assessment when it is all there is', () => {
+    const rows = latestAssessmentPerWound([{ id: 'only', woundId: 'w1', assessedAt: null }]);
+    expect(rows.map((r) => r.id)).toEqual(['only']);
+  });
+
+  it('skips a row that resolves to no wound at all', () => {
+    const rows = latestAssessmentPerWound([{ assessedAt: at('2026-09-06T10:00:00Z') }]);
+    expect(rows).toEqual([]);
+  });
+
+  it('lists the most recently assessed wound first', () => {
+    const rows = latestAssessmentPerWound([
+      { id: 'older', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'newer', woundId: 'w2', assessedAt: at('2026-09-06T10:00:00Z') },
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(['newer', 'older']);
   });
 });

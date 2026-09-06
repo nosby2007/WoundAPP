@@ -75,3 +75,43 @@ export function resolveWoundId(
   const own = (assessment.id ?? '').trim();
   return own ? own : null;
 }
+
+/**
+ * The current state of each of a patient's wounds: the newest assessment per
+ * wound, newest wound first.
+ *
+ * Same grouping the web's registry does (`woundId ?? id`, then sort by
+ * assessedAt), so a note built here lists the wounds the chart lists. Doing
+ * it differently would produce a note that disagrees with the screen it was
+ * generated from -- which is worse than no note, because it looks
+ * authoritative.
+ */
+export function latestAssessmentPerWound<
+  T extends { id?: string | null; woundId?: string | null; assessedAt?: Date | null }
+>(assessments: T[]): T[] {
+  const byWound = new Map<string, T>();
+
+  for (const assessment of assessments) {
+    const woundId = resolveWoundId(assessment);
+    if (!woundId) continue;
+
+    const current = byWound.get(woundId);
+    if (!current) {
+      byWound.set(woundId, assessment);
+      continue;
+    }
+    // An assessment with no date cannot displace one that has a date: "no
+    // recorded time" is not "now".
+    const candidateAt = assessment.assessedAt?.getTime?.() ?? null;
+    const currentAt = current.assessedAt?.getTime?.() ?? null;
+    if (candidateAt !== null && (currentAt === null || candidateAt > currentAt)) {
+      byWound.set(woundId, assessment);
+    }
+  }
+
+  return Array.from(byWound.values()).sort((left, right) => {
+    const l = left.assessedAt?.getTime?.() ?? 0;
+    const r = right.assessedAt?.getTime?.() ?? 0;
+    return r - l;
+  });
+}
