@@ -44,6 +44,24 @@ export interface ProgressNote {
   details: string;
   effectiveAt: Date | null;
   providerName: string;
+  woundId: string | null;
+  woundLabel: string | null;
+}
+
+/**
+ * Which wound a note is about, when it is about one.
+ *
+ * A note written from a wound assessment is still an ordinary provider note
+ * -- same collection, same shape, rendered by the same web view -- with three
+ * extra fields saying what it was written next to. They are additive: a note
+ * without them is a patient-level note, which is what every note in this
+ * collection was until now.
+ */
+export interface ProgressNoteWoundContext {
+  woundId: string;
+  woundAssessmentId: string;
+  /** e.g. "Pressure — Right heel". Denormalized so a reader needs one read. */
+  label: string;
 }
 
 export class NotAuthenticatedError extends Error {
@@ -62,7 +80,11 @@ export class ProgressNoteService {
    * (`orderBy('effectiveAt', 'desc')`); a note without it would be written
    * successfully and then never appear in the provider's view.
    */
-  async create(patientId: string, details: string): Promise<string> {
+  async create(
+    patientId: string,
+    details: string,
+    wound?: ProgressNoteWoundContext | null,
+  ): Promise<string> {
     if (!patientId) throw new Error('ProgressNoteService.create(): patientId is missing.');
 
     const text = (details || '').trim();
@@ -73,7 +95,7 @@ export class ProgressNoteService {
 
     const now = serverTimestamp();
 
-    const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), {
+    const payload: Record<string, unknown> = {
       patientId,
       type: 'Progress Notes',
       details: text,
@@ -83,7 +105,20 @@ export class ProgressNoteService {
       createdBy: user.uid,
       createdAt: now,
       updatedAt: now,
-    });
+    };
+
+    // Only when there is one. An absent woundId means "about the patient",
+    // which is not the same statement as "about no wound in particular".
+    if (wound) {
+      payload['woundId'] = wound.woundId;
+      payload['woundAssessmentId'] = wound.woundAssessmentId;
+      payload['woundLabel'] = wound.label;
+    }
+
+    // The note body is exactly what the clinician typed. The wound is
+    // recorded beside it, never prepended to it: a note is a clinician's
+    // words, and this app does not add any.
+    const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
 
     return ref.id;
   }
@@ -108,6 +143,8 @@ export class ProgressNoteService {
         // locally, so effectiveAt can be null until the write settles.
         effectiveAt: typeof data.effectiveAt?.toDate === 'function' ? data.effectiveAt.toDate() : null,
         providerName: data.providerName || data.createdBy || '',
+        woundId: typeof data.woundId === 'string' ? data.woundId : null,
+        woundLabel: typeof data.woundLabel === 'string' ? data.woundLabel : null,
       };
     });
   }

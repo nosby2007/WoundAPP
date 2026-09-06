@@ -1,0 +1,89 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="'/tabs/skin-wound/' + patientId + '/assessments'"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Braden Scale</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="braden-page ion-padding">
+  <form [formGroup]="form" (ngSubmit)="save()">
+
+    <ion-list lines="full">
+      <ion-item>
+        <ion-label position="stacked">Sensory perception</ion-label>
+        <ion-select formControlName="sensory" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of sensoryOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Moisture</ion-label>
+        <ion-select formControlName="moisture" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of moistureOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Activity</ion-label>
+        <ion-select formControlName="activity" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of activityOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Mobility</ion-label>
+        <ion-select formControlName="mobility" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of mobilityOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Nutrition</ion-label>
+        <ion-select formControlName="nutrition" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of nutritionOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Friction &amp; shear</ion-label>
+        <ion-select formControlName="friction" interface="popover" placeholder="Not answered">
+          <ion-select-option *ngFor="let o of frictionOptions" [value]="o.value">{{ o.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+    </ion-list>
+
+    <!-- No total until all six are answered: a partial sum reads as a low
+         score rather than as an unfinished assessment. -->
+    <div class="score" *ngIf="complete; else incomplete" [attr.data-risk]="riskClass">
+      <span class="value">{{ total }}</span>
+      <span class="risk">{{ riskText }}</span>
+    </div>
+    <ng-template #incomplete>
+      <ion-note class="pending">Answer all six subscales to get a score.</ion-note>
+    </ng-template>
+
+    <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+
+    <ion-button expand="block" type="submit" [disabled]="!complete || saving">
+      <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
+      Save Braden score
+    </ion-button>
+  </form>
+
+  <section class="history" *ngIf="historyLoaded && history.length">
+    <h2>Recent scores</h2>
+    <ion-list lines="full">
+      <ion-item *ngFor="let row of history">
+        <ion-label>
+          <h3>{{ row.total }} — {{ row.riskText }}</h3>
+          <p>
+            {{ row.assessedAt ? (row.assessedAt | date: 'medium') : 'Date not recorded' }}
+            <ng-container *ngIf="row.recordedByName"> · {{ row.recordedByName }}</ng-container>
+          </p>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+  </section>
+</ion-content>

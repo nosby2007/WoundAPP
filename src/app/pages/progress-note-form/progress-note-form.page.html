@@ -31,6 +31,12 @@
 
     <h2 class="section-title">Note</h2>
 
+    <!-- Which wound this note is being written against, when the page was
+         opened from an assessment. Said before the box, not after it. -->
+    <div class="wound-context" *ngIf="wound">
+      About {{ wound.label || 'this wound' }}
+    </div>
+
     <ion-item class="note-field">
       <ion-textarea
         [(ngModel)]="details"
@@ -77,6 +83,7 @@
             <ng-template #pending>Just now</ng-template>
             <span class="note-author" *ngIf="n.providerName"> · {{ n.providerName }}</span>
           </h2>
+          <p class="note-wound" *ngIf="n.woundLabel">{{ n.woundLabel }}</p>
           <p class="note-body">{{ n.details }}</p>
         </ion-label>
       </ion-item>

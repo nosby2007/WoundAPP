@@ -176,6 +176,15 @@ ion-list {
   opacity: .85;
 }
 
+/* Patient-level assessments, above the wound list. Outlined rather than
+   solid: these are alongside the wound work, not the primary action on the
+   screen, which is still recording a wound. */
+.assessment-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  margin: var(--app-space-3) 0 var(--app-space-1);
+}
 
 /* EVV patient / responsible-party attestation */
 .evv-attest {

@@ -24,7 +24,12 @@ import { addIcons } from 'ionicons';
 import { alertCircleOutline, documentTextOutline } from 'ionicons/icons';
 
 import { db } from 'src/app/firebase';
-import { NotAuthenticatedError, ProgressNote, ProgressNoteService } from 'src/app/services/progress-note.service';
+import {
+  NotAuthenticatedError,
+  ProgressNote,
+  ProgressNoteService,
+  ProgressNoteWoundContext,
+} from 'src/app/services/progress-note.service';
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 
 /**
@@ -67,6 +72,14 @@ export class ProgressNoteFormPage {
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   patient: any = null;
+
+  /**
+   * Set when this page was opened from a wound assessment. Same page, same
+   * collection, same note -- it just knows which wound the nurse was looking
+   * at, so the chart records that instead of leaving a reader to guess from
+   * the timestamp.
+   */
+  wound: ProgressNoteWoundContext | null = this.readWoundContext();
 
   details = '';
   saving = false;
@@ -120,7 +133,7 @@ export class ProgressNoteFormPage {
     this.errorMsg = '';
 
     try {
-      await this.notes.create(this.patientId, this.details);
+      await this.notes.create(this.patientId, this.details, this.wound);
       this.details = '';
       await this.loadHistory();
 
@@ -141,6 +154,21 @@ export class ProgressNoteFormPage {
     } finally {
       this.saving = false;
     }
+  }
+
+  /**
+   * The wound is passed as query parameters rather than a separate route:
+   * the note itself, the collection it lands in and every failure mode are
+   * identical, and a second copy of this page would be a second place for
+   * the permission handling below to drift.
+   */
+  private readWoundContext(): ProgressNoteWoundContext | null {
+    const q = this.route.snapshot.queryParamMap;
+    const woundId = q.get('woundId');
+    const woundAssessmentId = q.get('assessmentId');
+    const label = q.get('woundLabel');
+    if (!woundId || !woundAssessmentId) return null;
+    return { woundId, woundAssessmentId, label: label || '' };
   }
 
   backToPicker() {

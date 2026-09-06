@@ -99,6 +99,15 @@
       <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
     </div>
 
+    <!-- Braden is about the patient, not about one wound, so it sits here
+         beside the visit rather than under an assessment. -->
+    <div class="assessment-shortcuts">
+      <ion-button size="small" fill="outline" (click)="openBraden()">
+        <ion-icon slot="start" name="body-outline"></ion-icon>
+        Braden Scale
+      </ion-button>
+    </div>
+
     <!-- Search -->
     <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)">
     </ion-searchbar>

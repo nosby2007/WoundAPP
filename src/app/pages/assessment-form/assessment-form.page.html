@@ -321,6 +321,93 @@
           </div>
         </ion-accordion>
 
+        <!-- ============ TREATMENT ============ -->
+        <ion-accordion value="treatment">
+          <ion-item slot="header">
+            <ion-label>Treatment</ion-label>
+          </ion-item>
+
+          <div slot="content" class="section-body">
+            <div formGroupName="orders">
+              <ion-item>
+                <ion-label position="stacked">Goal of care</ion-label>
+                <ion-select formControlName="goalOfCare" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let g of goalOfCareOptions" [value]="g">{{ g }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+            </div>
+
+            <div formGroupName="treatment">
+              <ion-item>
+                <ion-label position="stacked">Dressing on arrival</ion-label>
+                <ion-select formControlName="dressingAppearance" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let d of dressingAppearanceOptions" [value]="d">{{ d }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Cleansing</ion-label>
+                <ion-select formControlName="cleansing" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let c of cleansingOptions" [value]="c">{{ c }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Debridement</ion-label>
+                <ion-select formControlName="debridement" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let d of debridementOptions" [value]="d">{{ d }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Primary dressing</ion-label>
+                <ion-select formControlName="primary" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let p of primaryDressingOptions" [value]="p">{{ p }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item *ngIf="form.value.treatment?.primary === 'Other'">
+                <ion-label position="stacked">Primary — which</ion-label>
+                <ion-input formControlName="primaryOther"></ion-input>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Secondary dressing</ion-label>
+                <ion-select formControlName="secondary" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let s of secondaryDressingOptions" [value]="s">{{ s }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item *ngIf="form.value.treatment?.secondary === 'Other'">
+                <ion-label position="stacked">Secondary — which</ion-label>
+                <ion-input formControlName="secondaryOther"></ion-input>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Modality</ion-label>
+                <ion-select formControlName="modalities" interface="popover"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let m of modalityOptions" [value]="m">{{ m }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Additional care</ion-label>
+                <ion-select formControlName="additionalCare" [multiple]="true"
+                            placeholder="Not recorded">
+                  <ion-select-option *ngFor="let a of additionalCareOptions" [value]="a">{{ a }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+            </div>
+          </div>
+        </ion-accordion>
+
       </ion-accordion-group>
 
       <div class="app-actions actions">

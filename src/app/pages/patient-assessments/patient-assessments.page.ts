@@ -37,6 +37,7 @@ import { addIcons } from 'ionicons';
 import {
   add,
   addOutline,
+  bodyOutline,
   chevronBackOutline,
   chevronForwardOutline,
   imageOutline,
@@ -117,6 +118,7 @@ export class PatientAssessmentsPage implements OnInit {
     addIcons({
       add,
       addOutline,
+      bodyOutline,
       chevronBackOutline,
       chevronForwardOutline,
       imageOutline,
@@ -345,6 +347,12 @@ export class PatientAssessmentsPage implements OnInit {
       'assessments',
       a.id,
     ]);
+  }
+
+  /** Braden Scale for this patient -- a risk score, not a wound record. */
+  openBraden() {
+    if (!this.patientId) return;
+    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'braden']);
   }
 
   newAssessment() {

@@ -85,3 +85,47 @@ export const PAIN_FREQUENCY = ['None', 'Intermittent', 'Constant', 'With dressin
 export const INFECTION_STATUS = ['None', 'Suspected', 'MD/Provider diagnosed infection'] as const;
 export const GOALS_OF_CARE = ['Healable', 'Slow to Heal', 'Monitor/Manage'] as const;
 export const DRESSING_APPEARANCE = ['Intact', 'Missing', 'Dry', 'Saturated', 'Leaking', 'None'] as const;
+
+/* --- Treatment ----------------------------------------------------------
+ * The dressing and care actually applied at this visit. Same five lists the
+ * web form offers (cleansingOpts / debridementOpts / primaryDressings /
+ * secondaryDressings / modalities / additionalCareOpts), copied verbatim.
+ *
+ * `WoundAssessment.treatment` has always been part of the document this app
+ * writes; the form simply never asked, so the section came out empty on a
+ * chart the web app renders in full. */
+export const CLEANSING = [
+  'Acetic Acid', 'Cetrimide', 'Chlorhexidine', 'Hydrogen peroxide',
+  'Normal Saline', 'Povidone iodine', 'Soap & Water', 'Sodium hypochlorite',
+  'Sterile Water', 'Water', 'Generic wound cleanser', 'Other', 'None',
+] as const;
+
+export const DEBRIDEMENT = [
+  'Autolytic', 'Biologic', 'Enzymatic', 'Mechanical', 'Polyacrylate',
+  'Sharp', 'Surgical-outpatient', 'None',
+] as const;
+
+export const PRIMARY_DRESSINGS = [
+  'Antimicrobial', 'Antifungal', 'Biologic', 'Calcium Alginate', 'Charcoal',
+  'Clear Acrylic', 'Composite', 'Film/Membrane', 'Foam', 'Hydrocolloid',
+  'Hydrogel', 'Hydrophilic Fiber', 'Hypertonic', 'NPWT', 'Non-Adherent',
+  'Pain controlling', 'Other', 'No dressing',
+] as const;
+
+export const SECONDARY_DRESSINGS = [
+  'Composite', 'Compression wrap', 'Dry', 'Film/Membrane', 'Foam',
+  'Hydrocolloid', 'Silicone', 'Other', 'No secondary dressing',
+] as const;
+
+export const MODALITIES = [
+  'Electrical stimulation', 'Electromagnetic therapy', 'Ultrasound mist',
+  'Other', 'None',
+] as const;
+
+export const ADDITIONAL_CARE = [
+  'Offloading/Pressure redistribution', 'Repositioning schedule',
+  'Float heels', 'Compression therapy', 'Nutritional support',
+  'Glucose control', 'Incontinence management', 'Stop smoking',
+  'Moisture management', 'Protect periwound', 'Limit shear/friction',
+  'Pain management', 'Education done',
+] as const;

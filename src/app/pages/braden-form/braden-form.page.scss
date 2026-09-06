@@ -1,0 +1,72 @@
+/* Braden Scale. Same field rhythm as the wound assessment form: boxed rows,
+   uppercase stacked labels, one full-width action at the bottom. */
+
+form {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* The score is the point of the screen, so it is the largest thing on it --
+   and it only appears once all six subscales are answered. */
+.score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-3);
+  margin: var(--app-space-4) 0;
+  padding: var(--app-space-4);
+  border-radius: var(--app-radius);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.score .value {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score .risk {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Risk bands, darkest at the worst end. The colour is a second channel, not
+   the only one -- the words are always there. */
+.score[data-risk='vh'] { background: #fdecea; border-color: rgba(192, 57, 43, 0.32); }
+.score[data-risk='vh'] .risk { color: #a4271b; }
+.score[data-risk='h']  { background: #fdf0e6; border-color: rgba(191, 90, 0, 0.30); }
+.score[data-risk='h']  .risk { color: #a45200; }
+.score[data-risk='m']  { background: #fff8e1; border-color: rgba(191, 138, 0, 0.28); }
+.score[data-risk='m']  .risk { color: #7a5b00; }
+.score[data-risk='r']  { background: #f3f6fb; border-color: rgba(30, 96, 165, 0.24); }
+.score[data-risk='r']  .risk { color: #1e60a5; }
+.score[data-risk='n']  { background: #edf7ef; border-color: rgba(31, 122, 60, 0.24); }
+.score[data-risk='n']  .risk { color: #1f7a3c; }
+
+.pending {
+  display: block;
+  margin: var(--app-space-4) var(--app-space-1);
+  font-size: 0.85rem;
+  color: var(--app-ink-muted);
+}
+
+.error {
+  margin: var(--app-space-3) var(--app-space-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-danger);
+}
+
+.history {
+  max-width: 720px;
+  margin: var(--app-space-6) auto 0;
+}
+
+.history h2 {
+  margin: 0 var(--app-space-1) var(--app-space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}

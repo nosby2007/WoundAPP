@@ -110,10 +110,22 @@
 
 <ion-footer>
   <ion-toolbar>
+    <!-- The three things done next to a wound: change what was recorded,
+         write the plan for it, or say something about it. -->
+    <ion-buttons slot="start">
+      <ion-button (click)="openCarePlan()" [disabled]="!assessment">
+        <ion-icon slot="start" name="clipboard-outline"></ion-icon>
+        Care plan
+      </ion-button>
+      <ion-button (click)="openNote()" [disabled]="!assessment">
+        <ion-icon slot="start" name="document-text-outline"></ion-icon>
+        Note
+      </ion-button>
+    </ion-buttons>
     <ion-buttons slot="end">
       <ion-button (click)="editAssessment()">
         <ion-icon slot="start" name="create-outline"></ion-icon>
-        Edit assessment
+        Edit
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
