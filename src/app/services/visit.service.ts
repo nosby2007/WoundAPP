@@ -133,7 +133,12 @@ export class VisitService {
       clinicianUid: user.uid,
       clinicianName: user.displayName ?? null,
       checkIn: checkpoint,
-      checkOut: null,
+      // checkOut is OMITTED, not written as null. A null puts the key in
+      // the document, and the rules' checkpoint guard then reads .byUid
+      // off it -- an error, not a false, so the whole write was refused.
+      // Absent is also the honest shape: the departure has not happened.
+      // JADE-SHOP made the rule null-tolerant as well; this side simply
+      // stops creating the null.
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       createdBy: user.uid,
