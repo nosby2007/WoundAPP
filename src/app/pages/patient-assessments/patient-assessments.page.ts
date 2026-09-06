@@ -1,9 +1,10 @@
 import {
   Component,
   OnInit,
+  inject,
   signal,
   computed,
-  
+
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -23,6 +24,7 @@ import {
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
+  IonNote,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -35,6 +37,9 @@ import {
   chevronBackOutline,
   chevronForwardOutline,
   imageOutline,
+  locationOutline,
+  logInOutline,
+  logOutOutline,
   refreshOutline,
   timeOutline,
 } from 'ionicons/icons';
@@ -43,6 +48,8 @@ import {
   AssessmentsService,
   MobileAssessment,
 } from '../../services/assessments.service';
+import { FieldVisit, VisitService } from '../../services/visit.service';
+import { describeEvvLocation } from '../../shared/evv';
 
 // Helper local pour nettoyer les ids qui ressemblent à "[Signal: xxx]"
 function normalizePatientId(raw: string | null): string {
@@ -82,6 +89,7 @@ function normalizePatientId(raw: string | null): string {
     IonSpinner,
     IonTitle,
     IonToolbar,
+    IonNote,
   ],
   templateUrl: './patient-assessments.page.html',
   styleUrls: ['./patient-assessments.page.scss'],
@@ -94,15 +102,85 @@ export class PatientAssessmentsPage implements OnInit {
     private router: Router,
     private assessmentsSvc: AssessmentsService,
   ) {
+    // Ionic standalone has no global icon registry: every page registers
+    // the icons it names, or they render blank.
     addIcons({
       add,
       addOutline,
       chevronBackOutline,
       chevronForwardOutline,
       imageOutline,
+      locationOutline,
+      logInOutline,
+      logOutOutline,
       refreshOutline,
       timeOutline,
     });
+  }
+
+  // ---------------------------------------------------------------- EVV
+
+  /** The open visit for this clinician on this patient, if any. */
+  openVisit = signal<FieldVisit | null>(null);
+  evvBusy = signal(false);
+  evvMessage = signal<string>('');
+
+  private readonly visits = inject(VisitService);
+
+  private async refreshOpenVisit(): Promise<void> {
+    try {
+      this.openVisit.set(await this.visits.openVisit(this.patientId));
+    } catch {
+      // A denied or failed read must not take the page down with it; the
+      // buttons simply offer a check-in, and the write will report its
+      // own error if it also fails.
+      this.openVisit.set(null);
+    }
+  }
+
+  async checkIn(): Promise<void> {
+    if (this.evvBusy()) return;
+    this.evvBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      const { location } = await this.visits.checkIn(this.patientId);
+      await this.refreshOpenVisit();
+      // Said out loud when the position did not come: the arrival IS
+      // recorded, and the clinician should know the location is not.
+      this.evvMessage.set(
+        location.status === 'captured'
+          ? 'Checked in.'
+          : `Checked in — but the location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+      );
+    } catch (error: any) {
+      this.evvMessage.set(error?.message ?? 'Could not check in.');
+    } finally {
+      this.evvBusy.set(false);
+    }
+  }
+
+  async checkOut(): Promise<void> {
+    const visit = this.openVisit();
+    if (!visit || this.evvBusy()) return;
+    this.evvBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      const { location } = await this.visits.checkOut(this.patientId, visit.id);
+      await this.refreshOpenVisit();
+      this.evvMessage.set(
+        location.status === 'captured'
+          ? 'Checked out.'
+          : `Checked out — but the location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+      );
+    } catch (error: any) {
+      this.evvMessage.set(error?.message ?? 'Could not check out.');
+    } finally {
+      this.evvBusy.set(false);
+    }
+  }
+
+  locationText(): string {
+    return describeEvvLocation(this.openVisit()?.checkIn?.location);
   }
 
   patientName = signal<string>('Patient');
@@ -133,6 +211,7 @@ export class PatientAssessmentsPage implements OnInit {
       if (id) {
         this.load(id);
         this.loadPatient(id);
+        void this.refreshOpenVisit();
       }
     });
   }

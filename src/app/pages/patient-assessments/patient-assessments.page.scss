@@ -138,3 +138,40 @@ ion-list {
 @media (max-width: 400px) {
   .assessment-left { flex-basis: 56px; img { width: 56px; height: 56px; } }
 }
+
+
+/* EVV check-in / check-out */
+.evv-card {
+  margin: 12px 8px 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ion-color-step-150, rgba(0, 0, 0, .1));
+  background: var(--ion-color-step-50, rgba(0, 0, 0, .02));
+}
+.evv-card.evv-on {
+  border-color: var(--ion-color-success, #2dd36f);
+  background: rgba(45, 211, 111, .08);
+}
+.evv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.evv-row > ion-icon {
+  font-size: 20px;
+  opacity: .7;
+}
+.evv-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.evv-text ion-note {
+  font-size: 12px;
+}
+.evv-msg {
+  margin-top: 8px;
+  font-size: 12.5px;
+  opacity: .85;
+}
