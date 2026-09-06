@@ -84,3 +84,24 @@ ion-textarea {
   color: var(--app-ink);
   white-space: pre-wrap;
 }
+
+/* The wound this note is about, when the page was opened from an assessment.
+   Above the box rather than below it: the nurse should know what they are
+   writing against before they start typing, not after. */
+.wound-context {
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-muted, #f5f6f8);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Same label on a past note, so the history reads as a chart and not as an
+   undifferentiated stream. */
+.note-wound {
+  margin: 0 0 var(--app-space-1);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--app-ink-muted);
+}

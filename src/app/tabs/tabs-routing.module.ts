@@ -9,6 +9,8 @@ import { WoundHistoryPage } from '../pages/wound-history/wound-history.page';
 import { AddPatientPage } from '../pages/add-patient/add-patient.page';
 import { ProgressNotePage } from '../pages/progress-note/progress-note.page';
 import { ProgressNoteFormPage } from '../pages/progress-note-form/progress-note-form.page';
+import { BradenFormPage } from '../pages/braden-form/braden-form.page';
+import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
 
 const routes: Routes = [
   {
@@ -51,6 +53,13 @@ const routes: Routes = [
         path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage,  // ✅ la page Patient Assessments dans le tab
       },
 
+      // Braden is a patient-level assessment, not a wound-level one, so it
+      // sits beside the assessment list rather than under a wound.
+      {
+        path: 'skin-wound/:patientId/braden',
+        component: BradenFormPage,
+      },
+
        {
         path: 'skin-wound/:patientId/assessments/new',
         component: AssessmentFormPage, // ✅ la page Patient Assessments dans le tab
@@ -59,6 +68,13 @@ const routes: Routes = [
       {
         path: 'skin-wound/:patientId/assessments/:assessmentId/edit',
         component: AssessmentFormPage,
+      },
+      // Care plan for one wound. More specific than the :assessmentId detail
+      // route below, so it has to be declared before it -- Angular takes the
+      // first match, and 'care-plan' would otherwise be read as an id.
+      {
+        path: 'skin-wound/:patientId/assessments/:assessmentId/care-plan',
+        component: WoundCarePlanPage,
       },
       {
         path: 'skin-wound/:patientId/assessments/:assessmentId',

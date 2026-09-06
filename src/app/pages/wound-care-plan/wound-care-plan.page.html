@@ -1,0 +1,72 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button
+        [defaultHref]="'/tabs/skin-wound/' + patientId + '/assessments/' + assessmentId"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Care plan</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="care-plan-page ion-padding">
+  <ion-note class="wound" *ngIf="woundLabel">For {{ woundLabel }}</ion-note>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <ion-list lines="full">
+      <ion-item>
+        <ion-label position="stacked">Title</ion-label>
+        <ion-input formControlName="title" placeholder="e.g. Right heel — pressure injury"></ion-input>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Problem</ion-label>
+        <ion-select formControlName="category" interface="popover" placeholder="Choose one">
+          <ion-select-option *ngFor="let c of categories" [value]="c.value">{{ c.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">Start date</ion-label>
+        <ion-input type="date" formControlName="startDate"></ion-input>
+      </ion-item>
+    </ion-list>
+
+    <!-- Goals: the organization's own, never this app's. -->
+    <section class="goals" *ngIf="form.value.category">
+      <h2>Goals</h2>
+
+      <ion-note class="hint" *ngIf="catalogLoaded && !goalOptions.length">
+        No catalog goals for this problem yet. Write one below, or ask an
+        administrator to add it to the organization's catalog.
+      </ion-note>
+
+      <ion-list lines="full" *ngIf="goalOptions.length">
+        <ion-item *ngFor="let goal of goalOptions">
+          <ion-checkbox
+            labelPlacement="end"
+            [checked]="isGoalSelected(goal.id)"
+            (ionChange)="toggleGoal(goal.id, $event.detail.checked)">
+            {{ goal.text }}
+          </ion-checkbox>
+        </ion-item>
+      </ion-list>
+
+      <ion-item lines="full">
+        <ion-label position="stacked">Other goals — one per line</ion-label>
+        <ion-textarea formControlName="customGoals" [autoGrow]="true" [rows]="3"></ion-textarea>
+      </ion-item>
+    </section>
+
+    <ion-item lines="full">
+      <ion-label position="stacked">Notes</ion-label>
+      <ion-textarea formControlName="description" [autoGrow]="true" [rows]="2"></ion-textarea>
+    </ion-item>
+
+    <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+
+    <ion-button expand="block" type="submit" [disabled]="form.invalid || saving">
+      <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
+      Save care plan
+    </ion-button>
+  </form>
+</ion-content>
