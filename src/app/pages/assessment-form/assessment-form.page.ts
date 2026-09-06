@@ -39,15 +39,23 @@ import { take } from 'rxjs/operators';
 
 import {
   ACQUIRED,
+  ADDITIONAL_CARE,
+  CLEANSING,
+  DEBRIDEMENT,
+  DRESSING_APPEARANCE,
   EDEMA,
   EDGES,
   EXUDATE_AMOUNTS,
   EXUDATE_TYPES,
   INDURATION,
+  GOALS_OF_CARE,
   INFECTION_SIGNS,
   INFECTION_STATUS,
+  MODALITIES,
   ODORS,
   PAIN_FREQUENCY,
+  PRIMARY_DRESSINGS,
+  SECONDARY_DRESSINGS,
   STAGES,
   STATUS,
   SURROUNDING,
@@ -57,6 +65,7 @@ import {
   WOUND_OTHER,
   WOUND_TYPES,
 } from 'src/app/shared/wound-vocabulary';
+import { buildWoundTreatment } from 'src/app/shared/wound-treatment';
 
 /**
  * A wound assessment, as recorded at the bedside.
@@ -134,6 +143,14 @@ export class AssessmentFormPage implements OnInit {
   temperatureOptions = TEMPERATURE;
   painFrequencyOptions = PAIN_FREQUENCY;
   infectionStatusOptions = INFECTION_STATUS;
+  goalOfCareOptions = GOALS_OF_CARE;
+  dressingAppearanceOptions = DRESSING_APPEARANCE;
+  cleansingOptions = CLEANSING;
+  debridementOptions = DEBRIDEMENT;
+  primaryDressingOptions = PRIMARY_DRESSINGS;
+  secondaryDressingOptions = SECONDARY_DRESSINGS;
+  modalityOptions = MODALITIES;
+  additionalCareOptions = ADDITIONAL_CARE;
 
   loading = false;
 
@@ -193,6 +210,31 @@ export class AssessmentFormPage implements OnInit {
       status: ['New', Validators.required],
       infection: ['None'],
       notes: [''],
+    }),
+    /**
+     * What was actually done to the wound at this visit.
+     *
+     * Every control starts EMPTY, unlike the web form, which opens on
+     * 'Normal Saline' / 'Foam' / 'Film/Membrane'. Those defaults are
+     * harmless at a desk where the section is always reviewed; here they
+     * would write a dressing nobody applied into the chart of a nurse who
+     * scrolled past. Nothing below is written unless it was chosen, and if
+     * none of it was, the document carries no `treatment` at all -- which is
+     * what "not recorded" looks like.
+     */
+    orders: this.fb.group({
+      goalOfCare: [''],
+    }),
+    treatment: this.fb.group({
+      dressingAppearance: [''],
+      cleansing: [''],
+      debridement: [''],
+      primary: [''],
+      primaryOther: [''],
+      secondary: [''],
+      secondaryOther: [''],
+      modalities: [''],
+      additionalCare: this.fb.control<string[]>([]),
     }),
   });
 
@@ -287,6 +329,20 @@ export class AssessmentFormPage implements OnInit {
               status: data.progress?.status || data.status || 'New',
               infection: data.progress?.infection || 'None',
               notes: data.progress?.notes || '',
+            },
+            orders: {
+              goalOfCare: data.orders?.goalOfCare || '',
+            },
+            treatment: {
+              dressingAppearance: data.treatment?.dressingAppearance || '',
+              cleansing: data.treatment?.cleansing || '',
+              debridement: data.treatment?.debridement || '',
+              primary: data.treatment?.primary || '',
+              primaryOther: data.treatment?.primaryOther || '',
+              secondary: data.treatment?.secondary || '',
+              secondaryOther: data.treatment?.secondaryOther || '',
+              modalities: data.treatment?.modalities || '',
+              additionalCare: data.treatment?.additionalCare || [],
             },
           });
 
@@ -462,12 +518,24 @@ export class AssessmentFormPage implements OnInit {
         photoURL: null,
       };
 
+      // Only what was chosen. An empty section is left off the document
+      // entirely rather than stored as a row of blanks, so a reader can tell
+      // "no dressing recorded" from "no dressing applied".
+      const treatment = buildWoundTreatment(v.treatment);
+      if (treatment) basePayload.treatment = treatment;
+      if (v.orders.goalOfCare) basePayload.orders = { goalOfCare: v.orders.goalOfCare };
+
       let id = this.assessmentId;
 
       if (!id) {
         id = await this.assessments.create(this.patientId, basePayload);
       } else {
         basePayload.updatedAt = now;
+        // An edit that clears the treatment section has to erase what was
+        // there. Leaving the key off an update() is a no-op in Firestore, so
+        // the old dressing would survive its own deletion.
+        if (!treatment) basePayload.treatment = null;
+        if (!v.orders.goalOfCare) basePayload.orders = null;
         delete basePayload.createdAt;
         delete basePayload.createdBy;
         delete basePayload.createdByUid;
