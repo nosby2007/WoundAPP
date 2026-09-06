@@ -10,6 +10,7 @@
 <ion-content class="add-patient-page" [fullscreen]="true">
   <form [formGroup]="form" (ngSubmit)="submit()">
 
+    <!-- Always open: the only required field, and the ones asked at the door. -->
     <ion-item lines="full">
       <ion-icon name="person-outline" slot="start"></ion-icon>
       <ion-input
@@ -67,9 +68,219 @@
       </ion-input>
     </ion-item>
 
+    <!-- Everything else, collapsed. Open what this visit can actually fill. -->
+    <ion-accordion-group>
+
+      <ion-accordion value="address">
+        <ion-item slot="header">
+          <ion-icon name="home-outline" slot="start"></ion-icon>
+          <ion-label>Home address</ion-label>
+        </ion-item>
+        <div class="section" slot="content">
+          <ion-note class="hint">
+            Used for the claim's service address and as the location a home
+            visit's check-in is measured against.
+          </ion-note>
+
+          <ion-item lines="full">
+            <ion-input label="Street" labelPlacement="stacked"
+              placeholder="118 Pine Ridge Rd" formControlName="address1"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Apt / unit" labelPlacement="stacked"
+              formControlName="address2"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="City" labelPlacement="stacked" formControlName="city"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="State" labelPlacement="stacked" placeholder="GA"
+              formControlName="state"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="ZIP" labelPlacement="stacked" inputmode="numeric"
+              formControlName="zip"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Country" labelPlacement="stacked" formControlName="country"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Room" labelPlacement="stacked" formControlName="roomNumber"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Unit" labelPlacement="stacked" formControlName="unit"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Preferred language" labelPlacement="stacked"
+              formControlName="language"></ion-input>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-input label="Marital status" labelPlacement="stacked"
+              formControlName="maritalStatus"></ion-input>
+          </ion-item>
+        </div>
+      </ion-accordion>
+
+      <ion-accordion value="coverage">
+        <ion-item slot="header">
+          <ion-icon name="shield-checkmark-outline" slot="start"></ion-icon>
+          <ion-label>Coverage &amp; contacts</ion-label>
+        </ion-item>
+        <div class="section" slot="content">
+          <ion-item lines="full">
+            <ion-input label="Insurance provider" labelPlacement="stacked"
+              placeholder="e.g. CareSource" formControlName="insuranceProvider"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Member ID" labelPlacement="stacked"
+              formControlName="insuranceId"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Group number" labelPlacement="stacked"
+              formControlName="groupNumber"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Payer" labelPlacement="stacked"
+              placeholder="e.g. Georgia Medicaid" formControlName="payor"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Policy holder" labelPlacement="stacked"
+              formControlName="policyHolder"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="ID type" labelPlacement="stacked"
+              placeholder="e.g. Medicare card" formControlName="idType"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="ID number" labelPlacement="stacked"
+              formControlName="idNumber"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="SSN" labelPlacement="stacked" formControlName="ssn"></ion-input>
+          </ion-item>
+
+          <ion-item lines="full">
+            <ion-input label="Emergency contact" labelPlacement="stacked"
+              formControlName="emergencyContactName"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input type="tel" label="Emergency phone" labelPlacement="stacked"
+              formControlName="emergencyContactPhone"></ion-input>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-input label="Relationship" labelPlacement="stacked"
+              placeholder="e.g. Son" formControlName="emergencyRelation"></ion-input>
+          </ion-item>
+        </div>
+      </ion-accordion>
+
+      <ion-accordion value="clinical">
+        <ion-item slot="header">
+          <ion-icon name="medkit-outline" slot="start"></ion-icon>
+          <ion-label>Clinical background</ion-label>
+        </ion-item>
+        <div class="section" slot="content">
+          <ion-item lines="full">
+            <ion-input type="date" label="Admission date" labelPlacement="stacked"
+              formControlName="admissionDate"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Primary care provider" labelPlacement="stacked"
+              formControlName="primaryCareProvider"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Referring provider" labelPlacement="stacked"
+              formControlName="referringProvider"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Code status" labelPlacement="stacked"
+              formControlName="codeStatus"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input label="Preferred pharmacy" labelPlacement="stacked"
+              formControlName="preferredPharmacy"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input type="number" inputmode="decimal" label="Height (cm)"
+              labelPlacement="stacked" formControlName="heightCm"></ion-input>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-input type="number" inputmode="decimal" label="Weight (kg)"
+              labelPlacement="stacked" formControlName="weightKg"></ion-input>
+          </ion-item>
+
+          <ion-item lines="full">
+            <ion-input #allergyInput label="Allergy" labelPlacement="stacked"
+              placeholder="Type, then Add"
+              (keyup.enter)="addAllergy(allergyInput); allergyInput.value = ''"></ion-input>
+            <ion-button fill="clear" slot="end" type="button"
+              (click)="addAllergy(allergyInput); allergyInput.value = ''">
+              <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
+            </ion-button>
+          </ion-item>
+          <div class="chips" *ngIf="allergies.length">
+            <ion-chip *ngFor="let a of allergies; let i = index" (click)="removeAllergy(i)">
+              <ion-label>{{ a }}</ion-label>
+              <ion-icon name="close-circle"></ion-icon>
+            </ion-chip>
+          </div>
+
+          <ion-item lines="full">
+            <ion-input #diagnosisInput label="Diagnosis" labelPlacement="stacked"
+              placeholder="Type, then Add"
+              (keyup.enter)="addDiagnosis(diagnosisInput); diagnosisInput.value = ''"></ion-input>
+            <ion-button fill="clear" slot="end" type="button"
+              (click)="addDiagnosis(diagnosisInput); diagnosisInput.value = ''">
+              <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
+            </ion-button>
+          </ion-item>
+          <div class="chips" *ngIf="diagnoses.length">
+            <ion-chip *ngFor="let d of diagnoses; let i = index" (click)="removeDiagnosis(i)">
+              <ion-label>{{ d }}</ion-label>
+              <ion-icon name="close-circle"></ion-icon>
+            </ion-chip>
+          </div>
+        </div>
+      </ion-accordion>
+
+      <ion-accordion value="consent">
+        <ion-item slot="header">
+          <ion-icon name="document-text-outline" slot="start"></ion-icon>
+          <ion-label>Consent</ion-label>
+        </ion-item>
+        <div class="section" slot="content">
+          <ion-note class="hint">
+            Tick only what the patient or responsible party actually
+            acknowledged. An unticked box is recorded as not acknowledged.
+          </ion-note>
+          <ion-item lines="full">
+            <ion-checkbox formControlName="hipaaAck" labelPlacement="end">
+              HIPAA notice acknowledged
+            </ion-checkbox>
+          </ion-item>
+          <ion-item lines="full">
+            <ion-checkbox formControlName="privacyNoticeAck" labelPlacement="end">
+              Privacy notice acknowledged
+            </ion-checkbox>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-checkbox formControlName="financialAgreementAck" labelPlacement="end">
+              Financial agreement acknowledged
+            </ion-checkbox>
+          </ion-item>
+        </div>
+      </ion-accordion>
+
+    </ion-accordion-group>
+
     <div class="error global" *ngIf="errorMsg">
       {{ errorMsg }}
     </div>
+
+    <!-- A reminder, not a gate: the patient is saved either way. -->
+    <ion-note class="gaps" *ngIf="gaps.length">
+      Still missing: {{ gaps.join(' · ') }}
+    </ion-note>
 
     <ion-button
       expand="block"

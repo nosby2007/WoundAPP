@@ -72,3 +72,48 @@ ion-select::part(label) {
   --padding-top: var(--app-space-4);
   --padding-bottom: var(--app-space-4);
 }
+
+/* --- Collapsed sections ------------------------------------------------
+   The optional half of the intake. Headers read as section rows rather than
+   fields, so the eye can tell "a group you can open" from "a box to fill". */
+
+ion-accordion-group {
+  margin-top: var(--app-space-4);
+}
+
+ion-accordion ion-item[slot='header'] {
+  --background: var(--app-surface-muted, #f5f6f8);
+  font-weight: 600;
+}
+
+.section {
+  padding: var(--app-space-3) 0 var(--app-space-1);
+}
+
+.hint {
+  display: block;
+  margin: 0 var(--app-space-1) var(--app-space-3);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--app-ink-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  margin: calc(var(--app-space-2) * -1) var(--app-space-1) var(--app-space-3);
+}
+
+/* What the record still lacks, said once, above the button that saves it
+   anyway. Amber rather than red: this is a reminder, not a refusal. */
+.gaps {
+  display: block;
+  margin-top: var(--app-space-4);
+  padding: var(--app-space-3);
+  border: 1px solid rgba(191, 138, 0, 0.28);
+  border-radius: var(--app-radius);
+  background: #fff8e1;
+  font-size: 0.82rem;
+  color: #7a5b00;
+}
