@@ -1,0 +1,111 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="'/tabs/skin-wound/' + patientId + '/assessments'"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Education</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="education-page ion-padding">
+  <ion-note class="wound" *ngIf="woundLabel">About {{ woundLabel }}</ion-note>
+
+  <ion-list lines="full">
+    <ion-item>
+      <ion-label position="stacked">Topic</ion-label>
+      <ion-select [(ngModel)]="selectedTopicId" (ionChange)="onTopicChange()"
+                  interface="popover" placeholder="Choose from the catalogue">
+        <ion-select-option *ngFor="let t of topics" [value]="t.id">
+          {{ t.category ? t.category + ' — ' : '' }}{{ t.topic }}
+        </ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <!-- The org's own guidance on what to actually teach, when it wrote any. -->
+    <ion-note class="instruction" *ngIf="selectedTopic?.instructionText">
+      {{ selectedTopic?.instructionText }}
+    </ion-note>
+
+    <ion-item *ngIf="!selectedTopicId">
+      <ion-label position="stacked">Or type a topic</ion-label>
+      <ion-textarea [(ngModel)]="customTopic" [autoGrow]="true" [rows]="1"
+                    placeholder="Anything not in the catalogue yet"></ion-textarea>
+    </ion-item>
+
+    <ion-note class="hint" *ngIf="topicsLoaded && !topics.length">
+      No topics in the catalogue yet. Type one above — an administrator can
+      add it under Admin &rarr; Education topic catalog so it is proposed next
+      time.
+    </ion-note>
+
+    <ion-item>
+      <ion-label position="stacked">Who was taught</ion-label>
+      <ion-select [(ngModel)]="learners" [multiple]="true" placeholder="Select">
+        <ion-select-option *ngFor="let l of learnerOptions" [value]="l.value">{{ l.label }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Readiness</ion-label>
+      <ion-select [(ngModel)]="readiness" interface="popover" placeholder="Not recorded">
+        <ion-select-option *ngFor="let r of readinessOptions" [value]="r.value">{{ r.label }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <!-- Nothing was delivered and nothing was understood, so neither is
+         asked. Offering them here invites a nurse to fill in a session that
+         did not happen. -->
+    <ng-container *ngIf="!refused">
+      <ion-item>
+        <ion-label position="stacked">How it was delivered</ion-label>
+        <ion-select [(ngModel)]="method" [multiple]="true" placeholder="Select">
+          <ion-select-option *ngFor="let m of methodOptions" [value]="m.value">{{ m.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="stacked">How they responded</ion-label>
+        <ion-select [(ngModel)]="response" [multiple]="true" placeholder="Select">
+          <ion-select-option *ngFor="let r of responseOptions" [value]="r.value">{{ r.label }}</ion-select-option>
+        </ion-select>
+      </ion-item>
+    </ng-container>
+
+    <ion-note class="refused-note" *ngIf="refused">
+      Recorded as a refusal. Nothing was delivered and nothing was
+      understood, so neither is asked for.
+    </ion-note>
+
+    <ion-item lines="none">
+      <ion-label position="stacked">Notes</ion-label>
+      <ion-textarea [(ngModel)]="notes" [autoGrow]="true" [rows]="2"
+                    placeholder="How this session actually went"></ion-textarea>
+    </ion-item>
+  </ion-list>
+
+  <ion-note class="gaps" *ngIf="gaps.length">
+    Still missing: {{ gaps.join(' · ') }}
+  </ion-note>
+
+  <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+
+  <ion-button expand="block" (click)="save()" [disabled]="!canSave">
+    <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
+    Record education
+  </ion-button>
+
+  <section class="history" *ngIf="history.length">
+    <h2>Already taught</h2>
+    <ion-list lines="full">
+      <ion-item *ngFor="let row of history">
+        <ion-label class="ion-text-wrap">
+          <h3>{{ row.topic }}</h3>
+          <p>
+            {{ row.deliveredAt ? (row.deliveredAt | date: 'medium') : 'Just now' }}
+            <ng-container *ngIf="row.deliveredByName"> · {{ row.deliveredByName }}</ng-container>
+          </p>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+  </section>
+</ion-content>

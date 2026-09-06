@@ -45,6 +45,7 @@ import {
   logInOutline,
   logOutOutline,
   refreshOutline,
+  schoolOutline,
   timeOutline,
 } from 'ionicons/icons';
 
@@ -127,6 +128,7 @@ export class PatientAssessmentsPage implements OnInit {
       logInOutline,
       logOutOutline,
       refreshOutline,
+      schoolOutline,
       timeOutline,
     });
   }
@@ -354,6 +356,12 @@ export class PatientAssessmentsPage implements OnInit {
   openBraden() {
     if (!this.patientId) return;
     this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'braden']);
+  }
+
+  /** What the patient or caregiver was taught, on this visit. */
+  openEducation() {
+    if (!this.patientId) return;
+    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'education']);
   }
 
   newAssessment() {

@@ -11,6 +11,7 @@ import { ProgressNotePage } from '../pages/progress-note/progress-note.page';
 import { ProgressNoteFormPage } from '../pages/progress-note-form/progress-note-form.page';
 import { BradenFormPage } from '../pages/braden-form/braden-form.page';
 import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
+import { EducationPage } from '../pages/education/education.page';
 
 const routes: Routes = [
   {
@@ -51,6 +52,14 @@ const routes: Routes = [
       // },
        {
         path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage,  // ✅ la page Patient Assessments dans le tab
+      },
+
+      // Education is about the patient and their caregiver. It can be
+      // opened from a wound (and then carries ?woundId=), but it is not a
+      // property of one, so the route is patient-level like Braden's.
+      {
+        path: 'skin-wound/:patientId/education',
+        component: EducationPage,
       },
 
       // Braden is a patient-level assessment, not a wound-level one, so it
