@@ -121,6 +121,10 @@
         <ion-icon slot="start" name="document-text-outline"></ion-icon>
         Note
       </ion-button>
+      <ion-button (click)="openEducation()" [disabled]="!assessment">
+        <ion-icon slot="start" name="school-outline"></ion-icon>
+        Teach
+      </ion-button>
     </ion-buttons>
     <ion-buttons slot="end">
       <ion-button (click)="editAssessment()">

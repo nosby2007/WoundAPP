@@ -66,6 +66,10 @@ import {
   WOUND_TYPES,
 } from 'src/app/shared/wound-vocabulary';
 import { buildWoundTreatment } from 'src/app/shared/wound-treatment';
+import {
+  stripWoundIdForUpdate,
+  woundIdForCreate,
+} from 'src/app/shared/wound-identity';
 
 /**
  * A wound assessment, as recorded at the bedside.
@@ -123,6 +127,38 @@ export class AssessmentFormPage implements OnInit {
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId'); // undefined = NEW
+
+  /**
+   * WHICH WOUND THIS ASSESSMENT IS OF.
+   *
+   * The web app groups a patient's wound timeline with
+   *
+   *   const woundId = assessment.woundId ?? assessment.id;   (wound-workflow.service.ts)
+   *
+   * so an assessment with no `woundId` is, to every reader, a wound of its
+   * own. This form never wrote the field. The re-evaluation button has been
+   * passing ?woundId= all along and nothing read it, so every re-evaluation
+   * recorded in the field opened a NEW wound in the chart instead of adding
+   * a point to the existing one's timeline -- and the registry's lazy
+   * backfill then wrote a wounds/{id} document for the phantom, making it
+   * permanent.
+   *
+   * Set from the query parameter on a re-evaluation, from the stored
+   * document on an edit, and to the assessment's own id on a new wound --
+   * which is the same value the fallback above computes, now stated rather
+   * than inferred.
+   */
+  woundId: string | null = this.route.snapshot.queryParamMap.get('woundId');
+
+  /** Display only, passed by the re-evaluate button so this screen can say
+   *  which wound it is adding to without a second read. */
+  woundLabel = this.route.snapshot.queryParamMap.get('woundLabel') || '';
+
+  /** True when this form is adding a point to an existing wound's timeline
+   *  rather than opening a new wound. */
+  get isReevaluation(): boolean {
+    return !this.assessmentId && !!this.woundId;
+  }
 
   // Vocabularies, for the template.
   woundTypes = WOUND_TYPES;
@@ -280,6 +316,12 @@ export class AssessmentFormPage implements OnInit {
             this.loading = false;
             return;
           }
+
+          // Whatever the document already says. An edit must never re-derive
+          // this: a re-evaluation carries its parent wound's id, and
+          // recomputing it from the route would silently split the timeline
+          // the edit was not even about.
+          this.woundId = data.woundId ?? null;
 
           this.form.patchValue({
             describe: {
@@ -439,7 +481,7 @@ export class AssessmentFormPage implements OnInit {
 
       // The web app's WoundAssessment shape, filled from what was actually
       // asked. Nothing is invented for a question the form did not put.
-      const basePayload: any = {
+      let basePayload: any = {
         patientId: this.patientId,
 
         createdAt: now,
@@ -528,9 +570,20 @@ export class AssessmentFormPage implements OnInit {
       let id = this.assessmentId;
 
       if (!id) {
-        id = await this.assessments.create(this.patientId, basePayload);
+        // The id is allocated first so the single create write already
+        // carries the wound identity. A re-evaluation inherits its parent's
+        // woundId from the route; a new wound IS its own first assessment,
+        // so it points at itself.
+        id = this.assessments.newId(this.patientId);
+        basePayload.woundId = woundIdForCreate(this.woundId, id);
+        await this.assessments.createWithId(this.patientId, id, basePayload);
       } else {
         basePayload.updatedAt = now;
+        // Never on an update. The stored value is the wound's identity and
+        // nothing on this screen is entitled to change it -- writing the
+        // wrong one here would move an assessment to another wound's
+        // timeline, or split a wound in two, from an edit about a dressing.
+        basePayload = stripWoundIdForUpdate(basePayload);
         // An edit that clears the treatment section has to erase what was
         // there. Leaving the key off an update() is a no-op in Firestore, so
         // the old dressing would survive its own deletion.

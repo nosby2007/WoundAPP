@@ -28,6 +28,7 @@ import {
   clipboardOutline,
   createOutline,
   documentTextOutline,
+  schoolOutline,
 } from 'ionicons/icons';
 import { AssessmentsService } from '../../services/assessments.service';
 import { Subscription } from 'rxjs';
@@ -70,6 +71,7 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
       clipboardOutline,
       createOutline,
       documentTextOutline,
+      schoolOutline,
     });
   }
   private route = inject(ActivatedRoute);
@@ -178,6 +180,14 @@ editAssessment() {
    * one collection, one shape, one set of failure messages -- carrying the
    * wound as query parameters so the chart records which one it was about.
    */
+  /** What the patient or caregiver was taught about this wound. */
+  openEducation() {
+    if (!this.patientId || !this.assessmentId) return;
+    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'education'], {
+      queryParams: { woundId: this.woundId, woundLabel: this.woundLabel },
+    });
+  }
+
   openNote() {
     if (!this.patientId || !this.assessmentId) return;
     this.router.navigate(['/tabs', 'progress-note', this.patientId], {
