@@ -202,3 +202,25 @@ ion-range {
   padding-inline: 0;
   width: 100%;
 }
+
+/* Re-evaluation banner. The difference between "another look at the right
+   heel" and "a second right heel" is invisible on a form that looks
+   identical either way, so the screen says which one it is. */
+.reeval-banner {
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  border: 1px solid rgba(30, 96, 165, 0.24);
+  background: #f3f6fb;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e60a5;
+}
+
+.reeval-banner span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--app-ink-muted);
+}

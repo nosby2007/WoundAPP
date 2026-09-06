@@ -52,6 +52,7 @@ import {
   AssessmentsService,
   MobileAssessment,
 } from '../../services/assessments.service';
+import { resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
 import {
   EVV_ATTESTATION_METHODS,
@@ -381,11 +382,17 @@ export class PatientAssessmentsPage implements OnInit {
 
    /** 🔁 Nouvelle évaluation pour cette même plaie */
   reEvaluate(a: MobileAssessment) {
-    const woundId = (a as any).woundId || a.id;
+    const woundId = resolveWoundId(a as any);
+    if (!woundId) return;
+
+    // The label rides along so the form can say WHICH wound is being
+    // re-evaluated without a second read. It is display only -- `woundId`
+    // is what keeps the assessment on the same timeline.
+    const woundLabel = [a.type, a.location].filter(Boolean).join(' — ');
 
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: { woundId } },   // 🔑 c’est ça qui lie à la même plaie
+      { queryParams: { woundId, woundLabel } },
     );
   }
 

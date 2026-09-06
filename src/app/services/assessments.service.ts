@@ -10,6 +10,7 @@ import {
   doc,
   docData,
   addDoc,
+  setDoc,
   updateDoc,
   serverTimestamp,
 } from '@angular/fire/firestore';
@@ -233,6 +234,28 @@ export class AssessmentsService {
     // const payload = JSON.parse(JSON.stringify(data));
 
     return addDoc(colRef, data).then((ref) => ref.id);
+  }
+
+  /**
+   * A document id allocated before the write.
+   *
+   * A brand-new wound's `woundId` IS the id of its own first assessment --
+   * that is the identity every later re-evaluation points back to. Knowing
+   * the id up front lets the very first write carry it, instead of
+   * create-then-update: the alternative leaves a window in which the
+   * document exists with no wound identity, and the web app's registry
+   * would group it by a field that is not there yet.
+   */
+  newId(patientId: string): string {
+    return doc(collection(this.firestore, `patients/${patientId}/woundAssessments`)).id;
+  }
+
+  /** CREATE at a known id, so the first write is already complete. */
+  createWithId(patientId: string, id: string, data: any): Promise<void> {
+    return setDoc(
+      doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`),
+      data,
+    );
   }
 
   /** UPDATE du même doc */

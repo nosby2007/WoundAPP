@@ -37,6 +37,13 @@
       <!-- Sections collapse so the whole assessment fits one thumb-scroll.
            Wound and Measurements start open: they are what a re-assessment
            is for. -->
+      <!-- Which wound, and that this is history rather than a new wound.
+           A nurse who cannot tell the two apart will open duplicates. -->
+      <div class="reeval-banner" *ngIf="isReevaluation">
+        Re-evaluation<ng-container *ngIf="woundLabel"> — {{ woundLabel }}</ng-container>
+        <span>Adds to this wound's history. It does not open a new wound.</span>
+      </div>
+
       <ion-accordion-group [multiple]="true" [value]="['describe','measurements']">
 
         <!-- ============ WOUND ============ -->
