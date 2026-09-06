@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -21,6 +21,8 @@ import {
 } from '@ionic/angular/standalone';
 
 import {
+  bradenActionGroups,
+  BradenActionGroup,
   BRADEN_ACTIVITY,
   BRADEN_FRICTION,
   BRADEN_MOBILITY,
@@ -33,6 +35,7 @@ import {
   bradenTotal,
 } from '../../shared/braden';
 import { BradenRow, PatientAssessmentService } from '../../services/patient-assessment.service';
+import { BradenAction, BradenInterventionService } from '../../services/braden-intervention.service';
 
 /**
  * The Braden Scale, taken at the bedside.
@@ -60,11 +63,12 @@ import { BradenRow, PatientAssessmentService } from '../../services/patient-asse
     IonTitle, IonToolbar,
   ],
 })
-export class BradenFormPage implements OnInit {
+export class BradenFormPage implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessments = inject(PatientAssessmentService);
+  private interventions = inject(BradenInterventionService);
   private toastCtrl = inject(ToastController);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
@@ -80,6 +84,18 @@ export class BradenFormPage implements OnInit {
   errorMsg = '';
   history: BradenRow[] = [];
   historyLoaded = false;
+
+  /** The org's action catalog. Empty until an admin authors it. */
+  catalog: BradenAction[] = [];
+  catalogLoaded = false;
+
+  /**
+   * The subscale whose answer changed most recently, highlighted so the
+   * nurse's eye lands on the actions that just appeared. Cleared after a
+   * moment: a highlight that never fades stops meaning "this just changed".
+   */
+  highlighted: string | null = null;
+  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Every subscale starts unanswered. A Braden that opens on "4: No
@@ -97,6 +113,48 @@ export class BradenFormPage implements OnInit {
 
   ngOnInit(): void {
     void this.loadHistory();
+    void this.loadCatalog();
+  }
+
+  ngOnDestroy(): void {
+    if (this.highlightTimer) clearTimeout(this.highlightTimer);
+  }
+
+  /**
+   * What to do about each answer given so far.
+   *
+   * Under the score, not beside the questions: the actions for sensory
+   * perception 3 only mean anything once 3 has been chosen, and a list that
+   * changes while the nurse is still reading the options is noise.
+   */
+  get actionGroups(): BradenActionGroup[] {
+    return bradenActionGroups(this.subscales, this.catalog);
+  }
+
+  /** True once at least one answer has actions written for it. */
+  get hasAnyAction(): boolean {
+    return this.actionGroups.some((group) => group.actions.length > 0);
+  }
+
+  onSubscaleAnswered(subscale: string): void {
+    this.highlighted = subscale;
+    if (this.highlightTimer) clearTimeout(this.highlightTimer);
+    this.highlightTimer = setTimeout(() => {
+      this.highlighted = null;
+      this.highlightTimer = null;
+    }, 2500);
+  }
+
+  private async loadCatalog(): Promise<void> {
+    try {
+      this.catalog = await this.interventions.list();
+    } catch (err) {
+      // A catalog that will not load must not block recording the score.
+      console.warn('[BradenFormPage] action catalog unavailable', err);
+      this.catalog = [];
+    } finally {
+      this.catalogLoaded = true;
+    }
   }
 
   get subscales() {

@@ -70,3 +70,87 @@ form {
   text-transform: uppercase;
   color: var(--app-ink-muted);
 }
+
+/* --- Actions ------------------------------------------------------------
+   What to do about each answer, under the score. The wording is the
+   organization's, read from its catalog; none of it is authored in this app. */
+
+.actions {
+  max-width: 720px;
+  margin: var(--app-space-4) auto 0;
+}
+
+.actions h2 {
+  margin: 0 var(--app-space-1) var(--app-space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
+.action-group {
+  margin-bottom: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  /* The highlight fades rather than snapping off, so a nurse who looked away
+     for a second still sees which group moved. */
+  transition: background-color 400ms ease, border-color 400ms ease;
+}
+
+.action-group.just-changed {
+  border-color: rgba(30, 96, 165, 0.45);
+  background: #eef4fc;
+}
+
+.action-head {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--app-surface-muted, #eceff3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--app-ink-muted);
+}
+
+.action-group ul {
+  margin: var(--app-space-2) 0 0;
+  padding-left: 1.1rem;
+}
+
+.action-group li {
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.action-group .none {
+  margin: var(--app-space-2) 0 0;
+  font-size: 0.82rem;
+  color: var(--app-ink-muted);
+}
+
+.catalog-empty {
+  display: block;
+  margin-top: var(--app-space-2);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-muted, #f5f6f8);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--app-ink-muted);
+}

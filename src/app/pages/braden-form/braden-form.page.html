@@ -13,42 +13,48 @@
     <ion-list lines="full">
       <ion-item>
         <ion-label position="stacked">Sensory perception</ion-label>
-        <ion-select formControlName="sensory" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="sensory" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('sensory')">
           <ion-select-option *ngFor="let o of sensoryOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">Moisture</ion-label>
-        <ion-select formControlName="moisture" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="moisture" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('moisture')">
           <ion-select-option *ngFor="let o of moistureOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">Activity</ion-label>
-        <ion-select formControlName="activity" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="activity" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('activity')">
           <ion-select-option *ngFor="let o of activityOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">Mobility</ion-label>
-        <ion-select formControlName="mobility" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="mobility" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('mobility')">
           <ion-select-option *ngFor="let o of mobilityOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">Nutrition</ion-label>
-        <ion-select formControlName="nutrition" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="nutrition" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('nutrition')">
           <ion-select-option *ngFor="let o of nutritionOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">Friction &amp; shear</ion-label>
-        <ion-select formControlName="friction" interface="popover" placeholder="Not answered">
+        <ion-select formControlName="friction" interface="popover" placeholder="Not answered"
+                    (ionChange)="onSubscaleAnswered('friction')">
           <ion-select-option *ngFor="let o of frictionOptions" [value]="o.value">{{ o.label }}</ion-select-option>
         </ion-select>
       </ion-item>
@@ -63,6 +69,37 @@
     <ng-template #incomplete>
       <ion-note class="pending">Answer all six subscales to get a score.</ion-note>
     </ng-template>
+
+    <!-- Under the score, because an action for "sensory perception 3" only
+         means anything once 3 has been chosen. The group that just changed
+         is highlighted so the eye lands on what appeared. -->
+    <section class="actions" *ngIf="actionGroups.length">
+      <h2>Actions</h2>
+
+      <div class="action-group"
+           *ngFor="let group of actionGroups"
+           [class.just-changed]="highlighted === group.subscale">
+        <div class="action-head">
+          {{ group.label }}<span class="score-chip">{{ group.score }}</span>
+        </div>
+
+        <ul *ngIf="group.actions.length">
+          <li *ngFor="let action of group.actions">{{ action }}</li>
+        </ul>
+
+        <!-- Said, not hidden. An answered subscale with no actions means the
+             organization has not written any for it -- which an administrator
+             can fix, and which is not the same as "nothing to do". -->
+        <p class="none" *ngIf="!group.actions.length">
+          No actions written for this answer yet.
+        </p>
+      </div>
+
+      <ion-note class="catalog-empty" *ngIf="catalogLoaded && !hasAnyAction">
+        Actions are written by an administrator, under Admin &rarr; Braden
+        actions in the web app. This app ships none of its own.
+      </ion-note>
+    </section>
 
     <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 

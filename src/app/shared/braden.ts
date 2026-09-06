@@ -136,3 +136,78 @@ export function buildBradenAnswers(
     riskText: bradenRiskText(total),
   };
 }
+
+/* --- Actions ------------------------------------------------------------
+ * What to do about an answer. The wording is admin-authored and read from
+ * organizations/{orgId}/bradenInterventionCatalog -- see
+ * services/braden-intervention.service.ts. Only the shaping is here. */
+
+export type BradenSubscale =
+  | 'sensory'
+  | 'moisture'
+  | 'activity'
+  | 'mobility'
+  | 'nutrition'
+  | 'friction';
+
+/** Display order and labels, matching the order the form asks them in. */
+export const BRADEN_SUBSCALE_LABELS: Array<{ value: BradenSubscale; label: string }> = [
+  { value: 'sensory', label: 'Sensory perception' },
+  { value: 'moisture', label: 'Moisture' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'mobility', label: 'Mobility' },
+  { value: 'nutrition', label: 'Nutrition' },
+  { value: 'friction', label: 'Friction & shear' },
+];
+
+export interface BradenActionGroup {
+  subscale: BradenSubscale;
+  label: string;
+  score: number;
+  /** Empty when the organization has authored nothing for this answer. */
+  actions: string[];
+}
+
+/**
+ * The action list to show under the score.
+ *
+ * ONLY FOR SUBSCALES THAT HAVE AN ANSWER. An unanswered subscale has no
+ * score, so there is nothing it could be showing actions for -- listing it
+ * with an empty body would read as "nothing to do here", which is a
+ * different and false statement.
+ *
+ * A group with no actions is still returned when the subscale IS answered:
+ * the screen says the organization has not written any for that answer,
+ * which is the truth and is actionable (an admin can add them). Dropping it
+ * silently would leave the nurse thinking the score needs nothing.
+ */
+export function bradenActionGroups(
+  subscales: BradenSubscales,
+  catalog: Array<{ subscale: string; score: number; text: string }>,
+): BradenActionGroup[] {
+  const answers: Record<BradenSubscale, number | null | undefined> = {
+    sensory: subscales.sensory,
+    moisture: subscales.moisture,
+    activity: subscales.activity,
+    mobility: subscales.mobility,
+    nutrition: subscales.nutrition,
+    friction: subscales.friction,
+  };
+
+  const groups: BradenActionGroup[] = [];
+  for (const { value, label } of BRADEN_SUBSCALE_LABELS) {
+    const score = answers[value];
+    if (typeof score !== 'number' || !Number.isFinite(score)) continue;
+
+    groups.push({
+      subscale: value,
+      label,
+      score,
+      actions: catalog
+        .filter((item) => item.subscale === value && Number(item.score) === score)
+        .map((item) => (item.text ?? '').trim())
+        .filter((text) => !!text),
+    });
+  }
+  return groups;
+}
