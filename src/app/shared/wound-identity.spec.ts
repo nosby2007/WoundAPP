@@ -1,4 +1,5 @@
 import {
+  groupAssessmentsByWound,
   latestAssessmentPerWound,
   resolveWoundId,
   stripWoundIdForUpdate,
@@ -117,5 +118,66 @@ describe('latestAssessmentPerWound', () => {
       { id: 'newer', woundId: 'w2', assessedAt: at('2026-09-06T10:00:00Z') },
     ]);
     expect(rows.map((r) => r.id)).toEqual(['newer', 'older']);
+  });
+});
+
+describe('groupAssessmentsByWound', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('shows a re-evaluated wound once, not twice', () => {
+    // The reported bug: the web grouped these into one wound and the mobile
+    // list still showed two rows -- a second wound to dress, with its own
+    // healing trajectory, in an app whose job is to say how many wounds
+    // this patient has.
+    const groups = groupAssessmentsByWound([
+      { id: 'a1', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'a2', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+    ]);
+    expect(groups.length).toBe(1);
+    expect(groups[0].woundId).toBe('w1');
+    expect(groups[0].latest.id).toBe('a2');
+  });
+
+  it('counts the assessments behind the one it shows', () => {
+    const groups = groupAssessmentsByWound([
+      { id: 'a1', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'a2', woundId: 'w1', assessedAt: at('2026-09-03T10:00:00Z') },
+      { id: 'a3', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+      { id: 'b1', woundId: 'w2', assessedAt: at('2026-09-05T10:00:00Z') },
+    ]);
+    expect(groups.map((g) => [g.woundId, g.assessmentCount])).toEqual([
+      ['w1', 3], ['w2', 1],
+    ]);
+  });
+
+  it('counts an undated assessment even though it cannot be the latest', () => {
+    // It is still history. Leaving it out of the count would under-report
+    // how much is behind the wound.
+    const groups = groupAssessmentsByWound([
+      { id: 'dated', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+      { id: 'undated', woundId: 'w1', assessedAt: null },
+    ]);
+    expect(groups[0].assessmentCount).toBe(2);
+    expect(groups[0].latest.id).toBe('dated');
+  });
+
+  it('keeps separate wounds separate', () => {
+    const groups = groupAssessmentsByWound([
+      { id: 'a1', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'b1', woundId: 'w2', assessedAt: at('2026-09-06T10:00:00Z') },
+    ]);
+    expect(groups.map((g) => g.woundId)).toEqual(['w2', 'w1']);
+  });
+
+  it('agrees with latestAssessmentPerWound', () => {
+    // Both apps and the progress note must count wounds the same way; the
+    // two helpers are one rule, and this pins that they stay so.
+    const rows = [
+      { id: 'a1', woundId: 'w1', assessedAt: at('2026-09-01T10:00:00Z') },
+      { id: 'a2', woundId: 'w1', assessedAt: at('2026-09-06T10:00:00Z') },
+      { id: 'b1', woundId: 'w2', assessedAt: at('2026-09-05T10:00:00Z') },
+    ];
+    expect(latestAssessmentPerWound(rows)).toEqual(
+      groupAssessmentsByWound(rows).map((g) => g.latest));
   });
 });

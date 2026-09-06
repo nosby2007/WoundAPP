@@ -76,20 +76,30 @@ export function resolveWoundId(
   return own ? own : null;
 }
 
+/** One wound, as the chart shows it: its newest assessment, and how many
+ *  assessments stand behind that one. */
+export interface WoundGroup<T> {
+  woundId: string;
+  latest: T;
+  /** Total assessments on this wound, the latest included. 1 = never
+   *  re-evaluated. */
+  assessmentCount: number;
+}
+
 /**
- * The current state of each of a patient's wounds: the newest assessment per
- * wound, newest wound first.
+ * Groups a patient's assessments into wounds: one entry per wound, carrying
+ * its newest assessment, newest wound first.
  *
- * Same grouping the web's registry does (`woundId ?? id`, then sort by
- * assessedAt), so a note built here lists the wounds the chart lists. Doing
- * it differently would produce a note that disagrees with the screen it was
- * generated from -- which is worse than no note, because it looks
- * authoritative.
+ * THIS IS THE RULE THE WEB USES (`woundId ?? id`, then sort by assessedAt),
+ * and both apps have to use it or they disagree about how many wounds the
+ * patient has. That is not a cosmetic disagreement: a re-evaluation shown as
+ * a second wound is a second healing trajectory, a second row in every count,
+ * and a second thing to dress.
  */
-export function latestAssessmentPerWound<
+export function groupAssessmentsByWound<
   T extends { id?: string | null; woundId?: string | null; assessedAt?: Date | null }
->(assessments: T[]): T[] {
-  const byWound = new Map<string, T>();
+>(assessments: T[]): Array<WoundGroup<T>> {
+  const byWound = new Map<string, WoundGroup<T>>();
 
   for (const assessment of assessments) {
     const woundId = resolveWoundId(assessment);
@@ -97,21 +107,37 @@ export function latestAssessmentPerWound<
 
     const current = byWound.get(woundId);
     if (!current) {
-      byWound.set(woundId, assessment);
+      byWound.set(woundId, { woundId, latest: assessment, assessmentCount: 1 });
       continue;
     }
+
+    current.assessmentCount += 1;
+
     // An assessment with no date cannot displace one that has a date: "no
     // recorded time" is not "now".
     const candidateAt = assessment.assessedAt?.getTime?.() ?? null;
-    const currentAt = current.assessedAt?.getTime?.() ?? null;
+    const currentAt = current.latest.assessedAt?.getTime?.() ?? null;
     if (candidateAt !== null && (currentAt === null || candidateAt > currentAt)) {
-      byWound.set(woundId, assessment);
+      current.latest = assessment;
     }
   }
 
   return Array.from(byWound.values()).sort((left, right) => {
-    const l = left.assessedAt?.getTime?.() ?? 0;
-    const r = right.assessedAt?.getTime?.() ?? 0;
+    const l = left.latest.assessedAt?.getTime?.() ?? 0;
+    const r = right.latest.assessedAt?.getTime?.() ?? 0;
     return r - l;
   });
+}
+
+/**
+ * The current state of each of a patient's wounds: the newest assessment per
+ * wound, newest wound first.
+ *
+ * The same grouping as above, without the counts -- kept because the progress
+ * note only needs the assessments themselves.
+ */
+export function latestAssessmentPerWound<
+  T extends { id?: string | null; woundId?: string | null; assessedAt?: Date | null }
+>(assessments: T[]): T[] {
+  return groupAssessmentsByWound(assessments).map((group) => group.latest);
 }

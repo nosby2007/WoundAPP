@@ -133,14 +133,17 @@
 
     <!-- Empty -->
     <div *ngIf="!loading() && !errorMsg() && !filteredAssessments().length" class="empty">
-      No assessments for this patient.
+      No wounds recorded for this patient.
     </div>
 
     <!-- List -->
     <ion-list *ngIf="!loading() && !errorMsg() && filteredAssessments().length">
+  <!-- filteredAssessments(), not assessments(). This used to render the raw
+       list while the guard above tested the filtered one, so the search box
+       could only ever hide the whole list -- it never filtered a row. -->
   <ion-item
     button
-    *ngFor="let a of assessments()"
+    *ngFor="let a of filteredAssessments()"
     (click)="openAssessment(a)"
     class="assessment-item"
   >
@@ -159,6 +162,12 @@
           {{ a.location || 'Location N/A' }}
           <span *ngIf="a.assessedAt">
             · {{ a.assessedAt | date: 'MM/dd/yyyy' }}
+          </span>
+          <!-- Says the earlier assessments are still there. Without it, a
+               wound that has been re-evaluated looks like one that has not,
+               and the rows that stopped appearing look lost. -->
+          <span *ngIf="a.assessmentCount > 1" class="reeval-count">
+            · {{ a.assessmentCount }} assessments
           </span>
         </p>
       </div>
