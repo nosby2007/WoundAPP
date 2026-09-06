@@ -175,3 +175,34 @@ ion-list {
   font-size: 12.5px;
   opacity: .85;
 }
+
+
+/* EVV patient / responsible-party attestation */
+.evv-attest {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0, 0, 0, .15);
+}
+.evv-attest-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.evv-attest ion-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --background: transparent;
+  font-size: 13px;
+}
+.evv-attest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.evv-attest-note {
+  font-size: 11.5px;
+  opacity: .7;
+  margin-top: 6px;
+  line-height: 1.4;
+}
