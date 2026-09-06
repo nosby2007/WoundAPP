@@ -38,4 +38,28 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        EVV location capture.
+
+        The Cures Act (s.12006) requires the LOCATION of service on every
+        Medicaid visit, and VisitLocationService reads it once per
+        check-in and once per check-out. Without these the plugin refuses
+        immediately and every visit is recorded with
+        location.status = 'denied' -- honest, and useless.
+
+        COARSE alongside FINE because Android 12+ lets the user grant only
+        approximate location; the app must still work then, and the fix's
+        own accuracyMeters is what says how much the reading is worth.
+
+        Not background location: nothing here watches a position between
+        checkpoints. EVV asks where the visit happened, not where the
+        clinician has been.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- The handset need not have GPS hardware: a network fix still
+         produces a reading, and its accuracy is recorded with it. -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

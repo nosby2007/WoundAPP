@@ -17,6 +17,38 @@
   </ion-refresher>
 
   <div class="page">
+
+    <!-- EVV: when the clinician arrived and left, and where. -->
+    <div class="evv-card" [class.evv-on]="openVisit()">
+      <div class="evv-row">
+        <ion-icon name="location-outline"></ion-icon>
+        <div class="evv-text">
+          <strong *ngIf="!openVisit()">Not checked in</strong>
+          <strong *ngIf="openVisit()">On site</strong>
+          <ion-note *ngIf="openVisit()">{{ locationText() }}</ion-note>
+          <ion-note *ngIf="!openVisit()">Record your arrival so the visit can be verified.</ion-note>
+        </div>
+        <ion-button
+          *ngIf="!openVisit()"
+          size="small"
+          [disabled]="evvBusy()"
+          (click)="checkIn()">
+          <ion-icon slot="start" name="log-in-outline"></ion-icon>
+          Check in
+        </ion-button>
+        <ion-button
+          *ngIf="openVisit()"
+          size="small"
+          color="medium"
+          [disabled]="evvBusy()"
+          (click)="checkOut()">
+          <ion-icon slot="start" name="log-out-outline"></ion-icon>
+          Check out
+        </ion-button>
+      </div>
+      <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
+    </div>
+
     <!-- Search -->
     <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)">
     </ion-searchbar>
