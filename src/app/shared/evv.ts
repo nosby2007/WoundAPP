@@ -113,3 +113,69 @@ export function evvVisitDurationMinutes(
   const minutes = (end.getTime() - start.getTime()) / 60_000;
   return minutes < 0 ? null : Math.round(minutes);
 }
+
+/**
+ * What the patient, or their responsible party, attested.
+ *
+ * Captured HERE and not in the web app because the web app is not
+ * portable: the visit happens in someone's home, and the person who can
+ * attest is standing in front of the clinician, once.
+ *
+ * `method` mirrors the union the web app's Georgia Medicaid evidence
+ * service already defines, so sealing an evidence snapshot reads this
+ * straight across rather than translating between two notions of one
+ * fact. Keep it identical.
+ *
+ * 'unable_to_attest' is not a failure to be avoided. A wound patient may
+ * be cognitively impaired, asleep, or alone with no responsible party
+ * present; recording that honestly is worth more than an attestation
+ * nobody gave. It requires a reason.
+ *
+ * 'electronic_attestation' exists in the union because the web defines
+ * it, but this app captures no signature -- there is no signature pad --
+ * so it is deliberately NOT offered in the UI.
+ */
+export interface EvvPatientAttestation {
+  method: 'electronic_attestation' | 'verbal' | 'unable_to_attest' | 'not_required';
+  attestedByName?: string | null;
+  relationship?: string | null;
+  attestedAtIso?: string | null;
+  reason?: string | null;
+  /** The clinician who wrote it down -- never the person attesting. */
+  recordedByUid: string;
+  recordedByName?: string | null;
+  recordedAt: unknown;
+}
+
+/** The options a clinician can actually choose in the field. */
+export const EVV_ATTESTATION_METHODS: ReadonlyArray<{
+  value: EvvPatientAttestation['method'];
+  label: string;
+  needsName: boolean;
+  needsReason: boolean;
+}> = [
+  { value: 'verbal', label: 'Confirmed verbally', needsName: true, needsReason: false },
+  { value: 'unable_to_attest', label: 'Unable to attest', needsName: false, needsReason: true },
+  { value: 'not_required', label: 'Not required for this program', needsName: false, needsReason: false },
+];
+
+/**
+ * Why an attestation cannot be recorded as entered, or null when it can.
+ *
+ * A verbal attestation with nobody named is not an attestation, and an
+ * "unable to attest" with no reason says nothing an auditor could use.
+ */
+export function describeAttestationProblem(
+  method: EvvPatientAttestation['method'] | null | undefined,
+  attestedByName: string | null | undefined,
+  reason: string | null | undefined
+): string | null {
+  if (!method) return 'Choose what the patient or responsible party said.';
+  if (method === 'verbal' && !(attestedByName ?? '').trim()) {
+    return 'Name the person who confirmed it.';
+  }
+  if (method === 'unable_to_attest' && !(reason ?? '').trim()) {
+    return 'Say why nobody could attest.';
+  }
+  return null;
+}
