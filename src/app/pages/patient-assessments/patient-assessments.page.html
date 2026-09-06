@@ -41,11 +41,61 @@
           size="small"
           color="medium"
           [disabled]="evvBusy()"
-          (click)="checkOut()">
+          (click)="beginCheckOut()">
           <ion-icon slot="start" name="log-out-outline"></ion-icon>
           Check out
         </ion-button>
       </div>
+      <!-- Asked once, on the way out, by the person who is actually there. -->
+      <div class="evv-attest" *ngIf="attesting()">
+        <div class="evv-attest-title">Did the patient or their responsible party confirm this visit?</div>
+
+        <ion-radio-group [ngModel]="attestMethod()" (ngModelChange)="attestMethod.set($event)">
+          <ion-item lines="none" *ngFor="let m of attestationMethods">
+            <ion-radio [value]="m.value" labelPlacement="end" justify="start">{{ m.label }}</ion-radio>
+          </ion-item>
+        </ion-radio-group>
+
+        <ion-item lines="none" *ngIf="needsName()">
+          <ion-input
+            label="Who confirmed it"
+            labelPlacement="stacked"
+            placeholder="Name"
+            [ngModel]="attestName()"
+            (ngModelChange)="attestName.set($event)"></ion-input>
+        </ion-item>
+        <ion-item lines="none" *ngIf="needsName()">
+          <ion-input
+            label="Relationship"
+            labelPlacement="stacked"
+            placeholder="patient / responsible party"
+            [ngModel]="attestRelationship()"
+            (ngModelChange)="attestRelationship.set($event)"></ion-input>
+        </ion-item>
+        <ion-item lines="none" *ngIf="needsReason()">
+          <ion-input
+            label="Why not"
+            labelPlacement="stacked"
+            placeholder="e.g. patient asleep, no RP present"
+            [ngModel]="attestReason()"
+            (ngModelChange)="attestReason.set($event)"></ion-input>
+        </ion-item>
+
+        <div class="evv-attest-actions">
+          <ion-button size="small" [disabled]="!attestMethod() || evvBusy()" (click)="confirmAttestation()">
+            Record &amp; check out
+          </ion-button>
+          <ion-button size="small" fill="clear" color="medium" [disabled]="evvBusy()" (click)="checkOutWithoutAttestation()">
+            Check out without
+          </ion-button>
+          <ion-button size="small" fill="clear" color="medium" (click)="cancelAttestation()">Cancel</ion-button>
+        </div>
+        <div class="evv-attest-note">
+          Leaving it blank records that nobody was asked — which is honest. Choosing
+          &ldquo;not required&rdquo; when it was not asked is not.
+        </div>
+      </div>
+
       <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
     </div>
 

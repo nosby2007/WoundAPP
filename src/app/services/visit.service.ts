@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
-import { EvvCheckpoint, EvvLocation } from '../shared/evv';
+import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
 
 /**
@@ -155,16 +155,53 @@ export class VisitService {
    * expressed by checkIn && !checkOut; writing a second copy of that into
    * status would create two records of one fact, free to disagree.
    */
-  async checkOut(patientId: string, visitId: string): Promise<{ location: EvvLocation }> {
+  async checkOut(
+    patientId: string,
+    visitId: string,
+    attestation?: {
+      method: EvvPatientAttestation['method'];
+      attestedByName?: string | null;
+      relationship?: string | null;
+      reason?: string | null;
+    } | null
+  ): Promise<{ location: EvvLocation }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking out.');
 
+    // Refused rather than stored half-formed: a verbal attestation with
+    // nobody named is not an attestation, and an "unable to attest" with
+    // no reason says nothing an auditor could use.
+    if (attestation) {
+      const problem = describeAttestationProblem(
+        attestation.method, attestation.attestedByName, attestation.reason
+      );
+      if (problem) throw new Error(problem);
+    }
+
     const location = await this.location.capture();
-    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), {
+    const patch: Record<string, unknown> = {
       checkOut: this.buildCheckpoint(location),
       updatedAt: serverTimestamp(),
       updatedBy: user.uid,
-    });
+    };
+
+    // Written only when there is one. An ABSENT attestation means nobody
+    // was asked, which is a reportable state -- it must never be filled
+    // in with an implied 'not_required'.
+    if (attestation) {
+      patch['patientAttestation'] = {
+        method: attestation.method,
+        attestedByName: (attestation.attestedByName ?? '').trim() || null,
+        relationship: (attestation.relationship ?? '').trim() || null,
+        attestedAtIso: new Date().toISOString(),
+        reason: (attestation.reason ?? '').trim() || null,
+        recordedByUid: user.uid,
+        recordedByName: user.displayName ?? null,
+        recordedAt: serverTimestamp(),
+      } satisfies EvvPatientAttestation;
+    }
+
+    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch);
     return { location };
   }
 

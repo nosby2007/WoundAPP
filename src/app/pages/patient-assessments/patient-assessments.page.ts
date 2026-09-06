@@ -24,7 +24,10 @@ import {
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
+  IonInput,
   IonNote,
+  IonRadio,
+  IonRadioGroup,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -50,7 +53,11 @@ import {
   MobileAssessment,
 } from '../../services/assessments.service';
 import { FieldVisit, VisitService } from '../../services/visit.service';
-import { describeEvvLocation } from '../../shared/evv';
+import {
+  EVV_ATTESTATION_METHODS,
+  EvvPatientAttestation,
+  describeEvvLocation,
+} from '../../shared/evv';
 
 // Helper local pour nettoyer les ids qui ressemblent à "[Signal: xxx]"
 function normalizePatientId(raw: string | null): string {
@@ -91,6 +98,9 @@ function normalizePatientId(raw: string | null): string {
     IonTitle,
     IonToolbar,
     IonNote,
+    IonInput,
+    IonRadio,
+    IonRadioGroup,
   ],
   templateUrl: './patient-assessments.page.html',
   styleUrls: ['./patient-assessments.page.scss'],
@@ -161,13 +171,71 @@ export class PatientAssessmentsPage implements OnInit {
     }
   }
 
-  async checkOut(): Promise<void> {
+  // ------------------------------------------- patient attestation
+
+  /** The attestation panel is open, between "Check out" and confirming. */
+  attesting = signal(false);
+  attestMethod = signal<EvvPatientAttestation['method'] | null>(null);
+  attestName = signal('');
+  attestRelationship = signal('patient');
+  attestReason = signal('');
+  readonly attestationMethods = EVV_ATTESTATION_METHODS;
+
+  /** Check-out asks first. The person who can attest is standing there
+   *  once; the web app cannot ask them because it does not travel. */
+  beginCheckOut(): void {
+    if (!this.openVisit() || this.evvBusy()) return;
+    this.attestMethod.set(null);
+    this.attestName.set('');
+    this.attestReason.set('');
+    this.evvMessage.set('');
+    this.attesting.set(true);
+  }
+
+  cancelAttestation(): void {
+    this.attesting.set(false);
+  }
+
+  needsName(): boolean {
+    return this.attestationMethods.find((m) => m.value === this.attestMethod())?.needsName ?? false;
+  }
+
+  needsReason(): boolean {
+    return this.attestationMethods.find((m) => m.value === this.attestMethod())?.needsReason ?? false;
+  }
+
+  /**
+   * Leave without recording one.
+   *
+   * Deliberately offered. An ABSENT attestation means nobody was asked,
+   * which is a reportable state -- forcing a choice here would push a
+   * clinician into picking 'not_required' to get out of the screen, and
+   * that is a false statement rather than a missing one.
+   */
+  async checkOutWithoutAttestation(): Promise<void> {
+    this.attesting.set(false);
+    await this.checkOut(null);
+  }
+
+  async confirmAttestation(): Promise<void> {
+    const method = this.attestMethod();
+    if (!method) return;
+    this.attesting.set(false);
+    await this.checkOut({
+      method,
+      attestedByName: this.attestName(),
+      relationship: this.attestRelationship(),
+      reason: this.attestReason(),
+    });
+  }
+
+  async checkOut(attestation: Parameters<VisitService['checkOut']>[2] = null): Promise<void> {
     const visit = this.openVisit();
     if (!visit || this.evvBusy()) return;
     this.evvBusy.set(true);
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkOut(this.patientId, visit.id);
+      const { location } = await this.visits.checkOut(this.patientId, visit.id, attestation);
       await this.refreshOpenVisit();
       this.evvMessage.set(
         location.status === 'captured'
