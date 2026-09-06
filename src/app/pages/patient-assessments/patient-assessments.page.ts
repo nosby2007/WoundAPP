@@ -54,7 +54,7 @@ import {
   AssessmentsService,
   MobileAssessment,
 } from '../../services/assessments.service';
-import { resolveWoundId } from '../../shared/wound-identity';
+import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
 import {
   EVV_ATTESTATION_METHODS,
@@ -262,13 +262,33 @@ export class PatientAssessmentsPage implements OnInit {
 
   loading = signal(true);
   errorMsg = signal('');
+  /** Every assessment document, ungrouped. The screen shows wounds, not
+   *  documents -- see `wounds` below. */
   assessments = signal<MobileAssessment[]>([]);
 
   search = signal('');
 
+  /**
+   * ONE ROW PER WOUND, NOT PER ASSESSMENT.
+   *
+   * This list used to show every assessment document, which was right only
+   * while every assessment WAS its own wound. Now that a re-evaluation
+   * carries its parent's woundId, showing them ungrouped puts the same wound
+   * on screen twice -- and the second row reads as a second wound to dress,
+   * with its own healing trajectory, in an app whose whole job is to say how
+   * many wounds this patient has.
+   *
+   * Grouped by the same rule the web registry uses, so the two agree.
+   */
+  wounds = computed(() =>
+    groupAssessmentsByWound(this.assessments()).map((group) => ({
+      ...group.latest,
+      assessmentCount: group.assessmentCount,
+    })));
+
   filteredAssessments = computed(() => {
     const q = this.search().toLowerCase().trim();
-    const list = this.assessments();
+    const list = this.wounds();
     if (!q) return list;
 
     return list.filter(a =>

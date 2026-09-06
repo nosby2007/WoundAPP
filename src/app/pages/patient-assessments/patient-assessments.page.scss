@@ -215,3 +215,11 @@ ion-list {
   margin-top: 6px;
   line-height: 1.4;
 }
+
+/* How many assessments stand behind the one shown. The list is one row per
+   WOUND, so without this a re-evaluated wound is indistinguishable from a
+   wound seen once -- and the extra rows that stopped appearing read as lost
+   data rather than as history. */
+.reeval-count {
+  font-weight: 600;
+}
