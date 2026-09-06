@@ -1,0 +1,76 @@
+.wound-note-page ion-list,
+.wound-note-page ion-segment,
+.wound-note-page ion-button,
+.wound-note-page .note-field,
+.wound-note-page .note-head {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: var(--app-space-6) 0;
+}
+
+/* Said before the note, because a nurse who does not know it was assembled
+   from the chart will re-read every line looking for what they must fill in. */
+.built-from {
+  display: block;
+  max-width: 720px;
+  margin: 0 auto var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-muted, #f5f6f8);
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--app-ink-muted);
+}
+
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--app-space-4);
+}
+
+.note-head h2 {
+  margin: 0 0 var(--app-space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
+/* The note stops regenerating once it has been edited. Saying so is the
+   difference between "the app ignored my dropdown" and "my correction is
+   safe". */
+.edited-warning {
+  display: block;
+  max-width: 720px;
+  margin: 0 auto var(--app-space-2);
+  padding: var(--app-space-3);
+  border: 1px solid rgba(191, 138, 0, 0.28);
+  border-radius: var(--app-radius);
+  background: #fff8e1;
+  font-size: 0.82rem;
+  color: #7a5b00;
+}
+
+/* Monospaced: the note is tab-aligned, and a proportional font turns the
+   assessment table into a ragged list. */
+.note-field ion-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.error {
+  max-width: 720px;
+  margin: var(--app-space-3) auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-danger);
+}

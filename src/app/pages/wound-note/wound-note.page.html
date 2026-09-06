@@ -1,0 +1,70 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="'/tabs/skin-wound/' + patientId + '/assessments'"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Wound progress note</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="wound-note-page ion-padding">
+  <div class="center" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+  </div>
+
+  <div class="error" *ngIf="!loading && errorMsg">{{ errorMsg }}</div>
+
+  <ng-container *ngIf="!loading && snapshot">
+    <ion-note class="built-from">
+      Built from this visit: {{ woundCount }} wound<span *ngIf="woundCount !== 1">s</span>,
+      the Braden score, the orders on file and the education recorded.
+      Nothing below was typed twice.
+    </ion-note>
+
+    <!-- The two things that are the clinician's own. -->
+    <ion-segment [(ngModel)]="visitKind" (ionChange)="onVisitKindChange()">
+      <ion-segment-button value="admission">
+        <ion-label>Admission</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="follow_up">
+        <ion-label>Weekly review</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+
+    <ion-list lines="full">
+      <ion-item>
+        <ion-label position="stacked">Reason for wound consult</ion-label>
+        <ion-textarea [(ngModel)]="reasonForConsult" (ionBlur)="onChoiceChange()"
+                      [autoGrow]="true" [rows]="1"></ion-textarea>
+      </ion-item>
+      <ion-item lines="none">
+        <ion-label position="stacked">Recommendation</ion-label>
+        <ion-textarea [(ngModel)]="recommendation" (ionBlur)="onChoiceChange()"
+                      [autoGrow]="true" [rows]="1"></ion-textarea>
+      </ion-item>
+    </ion-list>
+
+    <div class="note-head">
+      <h2>Note</h2>
+      <ion-button size="small" fill="clear" *ngIf="edited" (click)="rebuild()">
+        Rebuild from the chart
+      </ion-button>
+    </div>
+
+    <ion-note class="edited-warning" *ngIf="edited">
+      Edited. Changing the choices above no longer rewrites the note — use
+      Rebuild to start again from the chart.
+    </ion-note>
+
+    <ion-item class="note-field" lines="none">
+      <ion-textarea [(ngModel)]="noteText" (ionInput)="onNoteEdited()"
+                    [autoGrow]="true" [rows]="20"
+                    aria-label="Wound progress note"></ion-textarea>
+    </ion-item>
+
+    <ion-button expand="block" (click)="save()" [disabled]="saving || !noteText.trim()">
+      <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
+      File the note
+    </ion-button>
+  </ng-container>
+</ion-content>

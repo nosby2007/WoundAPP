@@ -44,6 +44,7 @@ import {
   locationOutline,
   logInOutline,
   logOutOutline,
+  readerOutline,
   refreshOutline,
   schoolOutline,
   timeOutline,
@@ -127,6 +128,7 @@ export class PatientAssessmentsPage implements OnInit {
       locationOutline,
       logInOutline,
       logOutOutline,
+      readerOutline,
       refreshOutline,
       schoolOutline,
       timeOutline,
@@ -356,6 +358,15 @@ export class PatientAssessmentsPage implements OnInit {
   openBraden() {
     if (!this.patientId) return;
     this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'braden']);
+  }
+
+  /**
+   * The wound progress note for this visit -- assembled from the
+   * assessments, the Braden, the orders and the education, not retyped.
+   */
+  openWoundNote() {
+    if (!this.patientId) return;
+    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'wound-note']);
   }
 
   /** What the patient or caregiver was taught, on this visit. */
