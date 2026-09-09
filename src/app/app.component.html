@@ -1,41 +1,30 @@
 <nav class="navbar" *ngIf="authService.isLoggedIn()">
-  <a class="navbar-brand badge fs-1  text-wrap" href="">WoundCareApp</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+  <a class="navbar-brand badge fs-1 text-wrap" routerLink="/today">WoundCareApp</a>
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
   <ul class="nav-list">
-    
     <span style="float:left">
       <a routerLink="/reception">Contact Support</a>
-      <a *ngIf = "!loggedInUser" routerLink="/login">Sign In</a>
-       </span>
-       <span style="float:right;">
-     | <a href="javascript:void(0);"> {{jstoday}}</a>
-       </span>
-        <li class="nav-item user-info nav-item-right">
-          <span>Bienvenue, {{ userName }}</span>
-        </li>
-        <li class="nav-item nav-item-right">
-          <button class="logout-btn" (click)="authService.logout()">Déconnexion</button>
-        </li>
+      <a *ngIf="!loggedInUser" routerLink="/login">Sign In</a>
+    </span>
+    <span style="float:right;">| <a href="javascript:void(0);">{{jstoday}}</a></span>
+    <li class="nav-item user-info nav-item-right"><span>Bienvenue, {{ userName }}</span></li>
+    <li class="nav-item nav-item-right"><button class="logout-btn" (click)="authService.logout()">Déconnexion</button></li>
   </ul>
 </nav>
-  <app-nav *ngIf="showNavbar"></app-nav>
-  <br>
-  
-   <div class="container mt-12">
-      <router-outlet></router-outlet>
-   </div>
 
+<app-nav *ngIf="showNavbar"></app-nav>
+<br>
 
+<div class="container mt-12 app-route-content">
+  <router-outlet></router-outlet>
+</div>
 
-
-<!--footer-->
-
-<!--Menu-->
-
-
-<!--footer-->
-
-
-
+<nav class="mobile-work-nav" *ngIf="authService.isLoggedIn()" aria-label="Mobile work navigation">
+  <a routerLink="/patientList" routerLinkActive="active"><span class="nav-icon">👥</span><span>Patients</span></a>
+  <a routerLink="/today" routerLinkActive="active"><span class="nav-icon">📅</span><span>Today</span></a>
+  <a routerLink="/patientCli" routerLinkActive="active"><span class="nav-icon">📝</span><span>Note</span></a>
+  <a routerLink="/chat" routerLinkActive="active"><span class="nav-icon">💬</span><span>Chat</span></a>
+  <a routerLink="/home" routerLinkActive="active"><span class="nav-icon">☰</span><span>More</span></a>
+</nav>
