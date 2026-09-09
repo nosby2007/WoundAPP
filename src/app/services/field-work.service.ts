@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { Observable } from 'rxjs';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
@@ -24,10 +24,19 @@ export interface FieldVisit {
   patientTelephone?: string;
   assignedToUid?: string;
   assignedToName?: string;
+  assignedToRole?: string;
+  workflowKind?: 'general' | 'wound';
+  woundId?: string | null;
+  woundLabel?: string | null;
+  woundLocation?: string | null;
+  episodeId?: string | null;
+  episodeTitle?: string | null;
+  facilityId?: string | null;
   start: any;
   end?: any;
   status: string;
   completedAt?: any;
+  nextAppointmentId?: string | null;
   patient?: FieldPatient | null;
 }
 
@@ -156,6 +165,83 @@ export class FieldWorkService {
       completedByUid: uid,
       updatedAt: serverTimestamp(),
       statusReason: null,
+    });
+  }
+
+  /**
+   * Create the clinician's own next visit after the current appointment is completed.
+   *
+   * The transaction is intentionally idempotent at the current appointment boundary:
+   * once nextAppointmentId is stamped, retries return that id instead of producing a
+   * duplicate visit. The caller can only schedule itself; server rules are expected to
+   * enforce the same invariant (`assignedToUid == request.auth.uid`).
+   */
+  async scheduleNextVisit(currentAppointmentId: string, start: Date, durationMinutes = 60): Promise<string> {
+    const user = auth.currentUser;
+    const orgId = await this.tenant.currentOrgId();
+    if (!user || !orgId) throw new Error('Sign in required');
+    if (!currentAppointmentId) throw new Error('Current appointment is required');
+    if (!(start instanceof Date) || Number.isNaN(start.getTime())) throw new Error('Choose a valid next visit date and time');
+    if (start.getTime() <= Date.now()) throw new Error('The next visit must be scheduled in the future');
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) throw new Error('Visit duration is invalid');
+
+    const currentRef = doc(db, 'appointments', currentAppointmentId);
+    return runTransaction(db, async transaction => {
+      const currentSnap = await transaction.get(currentRef);
+      if (!currentSnap.exists()) throw new Error('Current appointment no longer exists');
+      const current: any = currentSnap.data();
+
+      if (current.orgId !== orgId || current.assignedToUid !== user.uid) {
+        throw new Error('You can only schedule a follow-up for your own assigned visit');
+      }
+      if (current.status !== 'completed') {
+        throw new Error('Complete the current visit before scheduling the next visit');
+      }
+      if (typeof current.nextAppointmentId === 'string' && current.nextAppointmentId) {
+        return current.nextAppointmentId;
+      }
+
+      const nextRef = doc(collection(db, 'appointments'));
+      const end = new Date(start.getTime() + durationMinutes * 60_000);
+      const next: Record<string, unknown> = {
+        orgId,
+        facilityId: current.facilityId ?? current.patient?.facilityId ?? null,
+        patientId: current.patientId ?? null,
+        patientName: current.patientName ?? 'Patient',
+        workflowKind: current.workflowKind ?? 'general',
+        woundId: current.woundId ?? null,
+        woundLabel: current.woundLabel ?? null,
+        woundLocation: current.woundLocation ?? null,
+        episodeId: current.episodeId ?? null,
+        episodeTitle: current.episodeTitle ?? null,
+        visitType: current.visitType ?? null,
+        appointmentDetails: current.appointmentDetails ?? '',
+        homeAddress: current.homeAddress ?? '',
+        patientTelephone: current.patientTelephone ?? '',
+        assignedToUid: user.uid,
+        assignedToName: current.assignedToName ?? user.displayName ?? '',
+        assignedToRole: current.assignedToRole ?? '',
+        createdByUid: user.uid,
+        start: Timestamp.fromDate(start),
+        end: Timestamp.fromDate(end),
+        status: 'scheduled',
+        statusReason: null,
+        visitNote: '',
+        completedAt: null,
+        completedByUid: null,
+        source: 'field_followup',
+        previousAppointmentId: currentAppointmentId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      transaction.set(nextRef, next);
+      transaction.update(currentRef, {
+        nextAppointmentId: nextRef.id,
+        nextVisitScheduledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return nextRef.id;
     });
   }
 

@@ -24,6 +24,7 @@ import {
 import {
   arrowBackOutline,
   callOutline,
+  calendarOutline,
   checkmarkCircleOutline,
   folderOpenOutline,
   locationOutline,
@@ -146,6 +147,50 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
           </ion-card-content>
         </ion-card>
 
+        <ion-card class="followup-card" *ngIf="visit.status === 'completed'">
+          <ion-card-content>
+            <div class="section-head">
+              <div><p class="eyebrow dark">CONTINUITY</p><h2>Schedule next visit</h2></div>
+              <ion-icon [icon]="calendarOutline"></ion-icon>
+            </div>
+
+            <ng-container *ngIf="!nextAppointmentId; else nextScheduledTpl">
+              <p class="followup-copy">Create your own next visit before leaving the patient. Use the ordered visit frequency; this does not assign another clinician.</p>
+              <div class="preset-row">
+                <ion-button size="small" fill="outline" (click)="setNextVisitDays(1)">Tomorrow</ion-button>
+                <ion-button size="small" fill="outline" (click)="setNextVisitDays(2)">+2 days</ion-button>
+                <ion-button size="small" fill="outline" (click)="setNextVisitDays(3)">+3 days</ion-button>
+                <ion-button size="small" fill="outline" (click)="setNextVisitDays(7)">+7 days</ion-button>
+              </div>
+              <ion-item lines="none" class="next-date">
+                <ion-input type="datetime-local" label="Next visit date & time" labelPlacement="stacked" [(ngModel)]="nextVisitLocal"></ion-input>
+              </ion-item>
+              <ion-item lines="none" class="next-date">
+                <ion-select label="Planned duration" labelPlacement="stacked" [(ngModel)]="nextVisitDurationMinutes">
+                  <ion-select-option [value]="30">30 minutes</ion-select-option>
+                  <ion-select-option [value]="45">45 minutes</ion-select-option>
+                  <ion-select-option [value]="60">60 minutes</ion-select-option>
+                  <ion-select-option [value]="90">90 minutes</ion-select-option>
+                  <ion-select-option [value]="120">120 minutes</ion-select-option>
+                </ion-select>
+              </ion-item>
+              <div class="status-banner" *ngIf="scheduleMessage" [class.error]="scheduleError">{{ scheduleMessage }}</div>
+              <ion-button expand="block" [disabled]="schedulingNext || !nextVisitLocal" (click)="scheduleNextVisit()">
+                <ion-spinner *ngIf="schedulingNext" name="crescent"></ion-spinner>
+                <span *ngIf="!schedulingNext">Create my next visit</span>
+              </ion-button>
+              <ion-note>The appointment is assigned only to you. Frontdesk/Scheduler can later reassign it if operationally necessary.</ion-note>
+            </ng-container>
+
+            <ng-template #nextScheduledTpl>
+              <div class="next-created">
+                <ion-icon [icon]="checkmarkCircleOutline"></ion-icon>
+                <div><strong>Next visit scheduled</strong><p>The follow-up is now in your schedule and will appear in Today on that date.</p></div>
+              </div>
+            </ng-template>
+          </ion-card-content>
+        </ion-card>
+
         <ion-card class="info-card">
           <ion-card-content>
             <p class="eyebrow dark">ASSIGNMENT</p>
@@ -163,12 +208,13 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
     </ion-content>
   `,
   styles: [`
-    :host{--ink:#10233f;--muted:#64748b;--line:#e6edf3;--green:#0b7551;--navy:#163959}ion-toolbar{--background:#fff;--color:var(--ink)}.page{padding:16px 16px 34px;background:#f5f8fb;min-height:100%}.hero{background:linear-gradient(145deg,#0a7250 0%,#113c56 78%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 20px 45px rgba(15,50,70,.18)}.hero-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.hero h1{font-size:28px;line-height:1.1;margin:3px 0 7px}.hero p{margin:0;opacity:.83}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 6px}.eyebrow.dark{color:#547086}.hero-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:20px}.hero-grid div{background:rgba(255,255,255,.09);padding:12px;border-radius:16px}.hero-grid span,.info-row span,.evv-proof span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72;margin-bottom:4px}.hero-grid strong{font-size:13px}.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0}.quick{border:0;background:#fff;color:var(--ink);border-radius:16px;min-height:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-decoration:none;box-shadow:0 5px 18px rgba(30,55,75,.06)}.quick ion-icon{font-size:22px;color:var(--green)}ion-card{margin:12px 0;border-radius:24px;box-shadow:0 8px 28px rgba(30,55,75,.07)}ion-card-content{padding:20px}.section-head{display:flex;justify-content:space-between;gap:12px}.section-head h2,.info-card h2{margin:0;color:var(--ink);font-size:20px}.section-head>ion-icon{font-size:30px;color:var(--green)}.timeline{margin:20px 0}.step{display:grid;grid-template-columns:36px 1fr;gap:10px;position:relative;padding-bottom:18px}.step:not(:last-child):before{content:'';position:absolute;left:17px;top:34px;bottom:1px;width:2px;background:#dfe8ee}.step>span{height:34px;width:34px;border-radius:50%;display:grid;place-items:center;background:#edf2f6;color:#718096;font-weight:800}.step.done>span{background:#d9f3e8;color:#08724d}.step strong{color:var(--ink)}.step p{margin:3px 0 0;color:var(--muted);font-size:12px}.status-banner{background:#e9f6ef;color:#0b6849;border-radius:14px;padding:11px 13px;margin:12px 0;font-size:13px}.status-banner.error{background:#fff0f0;color:#a33333}.primary-action{margin-top:16px;height:48px}.evv-proof{display:flex;gap:12px;align-items:center;background:#f1f7f5;border-radius:18px;padding:13px;margin:8px 0 16px}.proof-icon{width:40px;height:40px;border-radius:14px;background:#dbefe7;display:grid;place-items:center;color:var(--green);font-size:22px}.evv-proof strong{display:block;color:var(--ink);font-size:12px}.attestation{background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:14px}.attestation ion-item{--background:transparent;--padding-start:0;--inner-padding-end:0}.attestation ion-note{font-size:11px}.complete-state{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px}.complete-state ion-icon{font-size:30px;color:var(--green)}.complete-state strong{color:var(--ink)}.complete-state p{margin:3px 0;color:var(--muted);font-size:12px}.instructions{color:#42566b;line-height:1.55}.info-row{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.info-row ion-icon{font-size:22px;color:var(--green)}.info-row strong{color:var(--ink)}.state{min-height:70vh;display:grid;place-items:center;align-content:center;text-align:center;padding:28px;color:var(--muted)}.state h2{color:var(--ink)}@media(max-width:430px){.hero-grid{grid-template-columns:1fr}.hero h1{font-size:25px}}
+    :host{--ink:#10233f;--muted:#64748b;--line:#e6edf3;--green:#0b7551;--navy:#163959}ion-toolbar{--background:#fff;--color:var(--ink)}.page{padding:16px 16px 34px;background:#f5f8fb;min-height:100%}.hero{background:linear-gradient(145deg,#0a7250 0%,#113c56 78%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 20px 45px rgba(15,50,70,.18)}.hero-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.hero h1{font-size:28px;line-height:1.1;margin:3px 0 7px}.hero p{margin:0;opacity:.83}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 6px}.eyebrow.dark{color:#547086}.hero-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:20px}.hero-grid div{background:rgba(255,255,255,.09);padding:12px;border-radius:16px}.hero-grid span,.info-row span,.evv-proof span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72;margin-bottom:4px}.hero-grid strong{font-size:13px}.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0}.quick{border:0;background:#fff;color:var(--ink);border-radius:16px;min-height:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-decoration:none;box-shadow:0 5px 18px rgba(30,55,75,.06)}.quick ion-icon{font-size:22px;color:var(--green)}ion-card{margin:12px 0;border-radius:24px;box-shadow:0 8px 28px rgba(30,55,75,.07)}ion-card-content{padding:20px}.section-head{display:flex;justify-content:space-between;gap:12px}.section-head h2,.info-card h2{margin:0;color:var(--ink);font-size:20px}.section-head>ion-icon{font-size:30px;color:var(--green)}.timeline{margin:20px 0}.step{display:grid;grid-template-columns:36px 1fr;gap:10px;position:relative;padding-bottom:18px}.step:not(:last-child):before{content:'';position:absolute;left:17px;top:34px;bottom:1px;width:2px;background:#dfe8ee}.step>span{height:34px;width:34px;border-radius:50%;display:grid;place-items:center;background:#edf2f6;color:#718096;font-weight:800}.step.done>span{background:#d9f3e8;color:#08724d}.step strong{color:var(--ink)}.step p{margin:3px 0 0;color:var(--muted);font-size:12px}.status-banner{background:#e9f6ef;color:#0b6849;border-radius:14px;padding:11px 13px;margin:12px 0;font-size:13px}.status-banner.error{background:#fff0f0;color:#a33333}.primary-action{margin-top:16px;height:48px}.evv-proof{display:flex;gap:12px;align-items:center;background:#f1f7f5;border-radius:18px;padding:13px;margin:8px 0 16px}.proof-icon{width:40px;height:40px;border-radius:14px;background:#dbefe7;display:grid;place-items:center;color:var(--green);font-size:22px}.evv-proof strong{display:block;color:var(--ink);font-size:12px}.attestation{background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:14px}.attestation ion-item{--background:transparent;--padding-start:0;--inner-padding-end:0}.attestation ion-note{font-size:11px}.complete-state{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px}.complete-state ion-icon{font-size:30px;color:var(--green)}.complete-state strong{color:var(--ink)}.complete-state p{margin:3px 0;color:var(--muted);font-size:12px}.instructions{color:#42566b;line-height:1.55}.info-row{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.info-row ion-icon{font-size:22px;color:var(--green)}.info-row strong{color:var(--ink)}.followup-card{border:1px solid #dcebe5}.followup-copy{color:var(--muted);line-height:1.5}.preset-row{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.next-date{--background:#f8fafc;border:1px solid var(--line);border-radius:14px;margin:10px 0}.next-created{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px;margin-top:14px}.next-created ion-icon{font-size:30px;color:var(--green)}.next-created p{margin:3px 0;color:var(--muted);font-size:12px}.state{min-height:70vh;display:grid;place-items:center;align-content:center;text-align:center;padding:28px;color:var(--muted)}.state h2{color:var(--ink)}@media(max-width:430px){.hero-grid{grid-template-columns:1fr}.hero h1{font-size:25px}}
   `],
 })
 export class FieldVisitPage implements OnInit {
   readonly arrowBackOutline = arrowBackOutline;
   readonly callOutline = callOutline;
+  readonly calendarOutline = calendarOutline;
   readonly checkmarkCircleOutline = checkmarkCircleOutline;
   readonly folderOpenOutline = folderOpenOutline;
   readonly locationOutline = locationOutline;
@@ -187,6 +233,12 @@ export class FieldVisitPage implements OnInit {
   attestedByName = '';
   relationship = '';
   attestationReason = '';
+  nextVisitLocal = '';
+  nextVisitDurationMinutes = 60;
+  schedulingNext = false;
+  scheduleMessage = '';
+  scheduleError = false;
+  nextAppointmentId: string | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -202,6 +254,7 @@ export class FieldVisitPage implements OnInit {
     const id = this.route.snapshot.paramMap.get('appointmentId') || '';
     try {
       this.visit = await this.work.getVisit(id);
+      this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
         this.activeEvv = await this.visits.openVisit(this.visit.patientId);
       }
@@ -252,5 +305,48 @@ export class FieldVisitPage implements OnInit {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
     } finally { this.busy = false; }
+  }
+
+  setNextVisitDays(days: number): void {
+    const base = new Date();
+    const currentStart = this.work.toDate(this.visit?.start);
+    if (currentStart) {
+      base.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
+    } else {
+      base.setHours(9, 0, 0, 0);
+    }
+    base.setDate(base.getDate() + days);
+    this.nextVisitLocal = this.toLocalInput(base);
+    this.scheduleMessage = '';
+    this.scheduleError = false;
+  }
+
+  async scheduleNextVisit(): Promise<void> {
+    if (!this.visit || this.schedulingNext || !this.nextVisitLocal) return;
+    const start = new Date(this.nextVisitLocal);
+    if (Number.isNaN(start.getTime())) {
+      this.scheduleError = true;
+      this.scheduleMessage = 'Choose a valid next visit date and time.';
+      return;
+    }
+
+    this.schedulingNext = true;
+    this.scheduleError = false;
+    this.scheduleMessage = '';
+    try {
+      this.nextAppointmentId = await this.work.scheduleNextVisit(this.visit.id, start, this.nextVisitDurationMinutes);
+      this.visit = { ...this.visit, nextAppointmentId: this.nextAppointmentId };
+      this.scheduleMessage = 'Next visit created and assigned to you.';
+    } catch (error: any) {
+      this.scheduleError = true;
+      this.scheduleMessage = error?.message || 'Unable to schedule the next visit.';
+    } finally {
+      this.schedulingNext = false;
+    }
+  }
+
+  private toLocalInput(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 }
