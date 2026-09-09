@@ -16,6 +16,8 @@ import { WoundNotePage } from '../pages/wound-note/wound-note.page';
 import { TodayPage } from '../pages/today/today.page';
 import { ChatPage } from '../pages/chat/chat.page';
 import { MorePage } from '../pages/more/more.page';
+import { FieldVisitPage } from '../pages/field-visit/field-visit.page';
+import { FieldTaskPage } from '../pages/field-task/field-task.page';
 
 const routes: Routes = [
   {
@@ -24,6 +26,8 @@ const routes: Routes = [
     children: [
       { path: 'patients', component: PatientsPage },
       { path: 'today', component: TodayPage },
+      { path: 'today/visit/:appointmentId', component: FieldVisitPage },
+      { path: 'today/task/:taskId', component: FieldTaskPage },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },
       { path: 'add-patient', component: AddPatientPage },
