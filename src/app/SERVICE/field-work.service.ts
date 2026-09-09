@@ -51,6 +51,7 @@ export interface FieldTask {
   workNote?: string;
   statusReason?: string | null;
   createdAt?: any;
+  completedAt?: any;
   patient?: FieldPatientSummary | null;
 }
 
@@ -79,9 +80,7 @@ export class FieldWorkService {
         return combineLatest([
           this.listTodayVisits$(orgId, user.uid),
           this.listMyTasks$(orgId, user.uid),
-        ]).pipe(
-          map(([visits, tasks]) => this.buildToday(user.uid, visits, tasks)),
-        );
+        ]).pipe(map(([visits, tasks]) => this.buildToday(user.uid, visits, tasks)));
       }),
       shareReplay({ bufferSize: 1, refCount: true }),
     );
@@ -91,9 +90,7 @@ export class FieldWorkService {
     const user = await this.afAuth.currentUser;
     if (!user) throw new Error('You must be signed in.');
     await this.afs.doc(`appointments/${visitId}`).update({
-      status: 'completed',
-      statusReason: null,
-      visitNote: note,
+      status: 'completed', statusReason: null, visitNote: note,
       completedAt: firebase.firestore.FieldValue.serverTimestamp(),
       completedByUid: user.uid,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -104,8 +101,7 @@ export class FieldWorkService {
     const user = await this.afAuth.currentUser;
     if (!user) throw new Error('You must be signed in.');
     await this.afs.doc(`appointments/${visitId}`).update({
-      status: 'not_done',
-      statusReason: reason || 'Not done',
+      status: 'not_done', statusReason: reason || 'Not done',
       completedAt: firebase.firestore.FieldValue.serverTimestamp(),
       completedByUid: user.uid,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -116,9 +112,7 @@ export class FieldWorkService {
     const user = await this.afAuth.currentUser;
     if (!user) throw new Error('You must be signed in.');
     await this.afs.doc(`tasks/${taskId}`).update({
-      status: 'done',
-      statusReason: null,
-      workNote,
+      status: 'done', statusReason: null, workNote,
       completedAt: firebase.firestore.FieldValue.serverTimestamp(),
       completedByUid: user.uid,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -129,8 +123,7 @@ export class FieldWorkService {
     const user = await this.afAuth.currentUser;
     if (!user) throw new Error('You must be signed in.');
     await this.afs.doc(`tasks/${taskId}`).update({
-      status: 'not_done',
-      statusReason: reason || 'Not done',
+      status: 'not_done', statusReason: reason || 'Not done',
       completedAt: firebase.firestore.FieldValue.serverTimestamp(),
       completedByUid: user.uid,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -156,13 +149,12 @@ export class FieldWorkService {
   }
 
   private listMyTasks$(orgId: string, uid: string): Observable<FieldTask[]> {
-    return this.afs.collection<FieldTask>('tasks', ref =>
-      ref.where('orgId', '==', orgId)
-        .where('assignedToUid', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .limit(200)
-    ).snapshotChanges().pipe(
-      map(snaps => snaps.map(s => ({ id: s.payload.doc.id, ...(s.payload.doc.data() as FieldTask) }))),
+    return combineLatest([
+      this.listTasksByStatus$(orgId, uid, 'open'),
+      this.listTasksByStatus$(orgId, uid, 'done'),
+      this.listTasksByStatus$(orgId, uid, 'not_done'),
+    ]).pipe(
+      map(([open, done, notDone]) => [...open, ...done, ...notDone]),
       switchMap(tasks => this.enrichTasks$(tasks)),
       catchError(error => {
         console.warn('[FieldWork] Unable to load assigned tasks.', error);
@@ -171,18 +163,26 @@ export class FieldWorkService {
     );
   }
 
+  private listTasksByStatus$(orgId: string, uid: string, status: MobileTaskStatus): Observable<FieldTask[]> {
+    return this.afs.collection<FieldTask>('tasks', ref =>
+      ref.where('orgId', '==', orgId)
+        .where('assignedToUid', '==', uid)
+        .where('status', '==', status)
+        .orderBy('createdAt', 'desc')
+        .limit(100)
+    ).snapshotChanges().pipe(
+      map(snaps => snaps.map(s => ({ id: s.payload.doc.id, ...(s.payload.doc.data() as FieldTask) }))),
+    );
+  }
+
   private enrichVisits$(items: FieldVisit[]): Observable<FieldVisit[]> {
     if (!items.length) return of([]);
-    return combineLatest(items.map(item => this.patient$(item.patientId).pipe(
-      map(patient => ({ ...item, patient })),
-    )));
+    return combineLatest(items.map(item => this.patient$(item.patientId).pipe(map(patient => ({ ...item, patient })))));
   }
 
   private enrichTasks$(items: FieldTask[]): Observable<FieldTask[]> {
     if (!items.length) return of([]);
-    return combineLatest(items.map(item => this.patient$(item.patientId).pipe(
-      map(patient => ({ ...item, patient })),
-    )));
+    return combineLatest(items.map(item => this.patient$(item.patientId).pipe(map(patient => ({ ...item, patient })))));
   }
 
   private patient$(patientId?: string | null): Observable<FieldPatientSummary | null> {
@@ -209,9 +209,9 @@ export class FieldWorkService {
 
     for (const task of tasks) {
       const due = this.toDate(task.dueAt);
-      const completed = task.status === 'done';
-      if (completed) {
-        if (due && due >= start && due < end) completedTodayTasks.push(task);
+      const completedAt = this.toDate(task.completedAt);
+      if (task.status === 'done') {
+        if (completedAt && completedAt >= start && completedAt < end) completedTodayTasks.push(task);
         continue;
       }
       if (due && due < start) overdueTasks.push(task);
@@ -229,10 +229,8 @@ export class FieldWorkService {
   }
 
   private dayBounds(value: Date): { start: Date; end: Date } {
-    const start = new Date(value);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const start = new Date(value); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
     return { start, end };
   }
 
