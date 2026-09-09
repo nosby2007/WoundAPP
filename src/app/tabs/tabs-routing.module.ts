@@ -1,7 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { TabsPage } from './tabs.page';
-import { PatientsPage } from '../pages/patients/patients.page'; // ✅ standalone
+import { PatientsPage } from '../pages/patients/patients.page';
 import { PatientAssessmentsPage } from '../pages/patient-assessments/patient-assessments.page';
 import { AssessmentDetailPage } from '../pages/assessments-details/assessments-details.page';
 import { AssessmentFormPage } from '../pages/assessment-form/assessment-form.page';
@@ -13,103 +13,32 @@ import { BradenFormPage } from '../pages/braden-form/braden-form.page';
 import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
 import { EducationPage } from '../pages/education/education.page';
 import { WoundNotePage } from '../pages/wound-note/wound-note.page';
+import { TodayPage } from '../pages/today/today.page';
+import { ChatPage } from '../pages/chat/chat.page';
 
 const routes: Routes = [
   {
     path: '',
     component: TabsPage,
     children: [
-      {
-        path: 'patients',
-        component: PatientsPage,   // ✅ la page Patients dans le tab
-      },
-
-      {
-        path: 'add-patient',
-        component: AddPatientPage, // Field intake: register a patient, then go straight into their assessments
-      },
-
-      // Quick bedside documentation. The tab lands on the roster because a
-      // note needs a patient; picking one opens the note itself.
-      {
-        path: 'progress-note',
-        component: ProgressNotePage,
-      },
-      {
-        path: 'progress-note/:patientId',
-        component: ProgressNoteFormPage,
-      },
-
-      // Tu pourras réutiliser tab2 / tab3 plus tard
-      // {
-      //   path: 'tab2',
-      //   loadChildren: () =>
-      //     import('../tab2/tab2.module').then(m => m.Tab2PageModule),
-      // },
-      // {
-      //   path: 'tab3',
-      //   loadChildren: () =>
-      //     import('../tab3/tab3.module').then(m => m.Tab3PageModule),
-      // },
-       {
-        path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage,  // ✅ la page Patient Assessments dans le tab
-      },
-
-      // The wound progress note covers every wound of the visit, so it is
-      // patient-level rather than reached from one assessment.
-      {
-        path: 'skin-wound/:patientId/wound-note',
-        component: WoundNotePage,
-      },
-
-      // Education is about the patient and their caregiver. It can be
-      // opened from a wound (and then carries ?woundId=), but it is not a
-      // property of one, so the route is patient-level like Braden's.
-      {
-        path: 'skin-wound/:patientId/education',
-        component: EducationPage,
-      },
-
-      // Braden is a patient-level assessment, not a wound-level one, so it
-      // sits beside the assessment list rather than under a wound.
-      {
-        path: 'skin-wound/:patientId/braden',
-        component: BradenFormPage,
-      },
-
-       {
-        path: 'skin-wound/:patientId/assessments/new',
-        component: AssessmentFormPage, // ✅ la page Patient Assessments dans le tab
-      },
-
-      {
-        path: 'skin-wound/:patientId/assessments/:assessmentId/edit',
-        component: AssessmentFormPage,
-      },
-      // Care plan for one wound. More specific than the :assessmentId detail
-      // route below, so it has to be declared before it -- Angular takes the
-      // first match, and 'care-plan' would otherwise be read as an id.
-      {
-        path: 'skin-wound/:patientId/assessments/:assessmentId/care-plan',
-        component: WoundCarePlanPage,
-      },
-      {
-        path: 'skin-wound/:patientId/assessments/:assessmentId',
-        component: AssessmentDetailPage,  // ✅ la page Patient Assessments dans le tab
-      },
-       {
-        path: 'skin-wound/:patientId/wounds/:woundId/history',
-        component: WoundHistoryPage,           // ✅ nouvelle page
-      },
-
-      {
-        path: '',
-        redirectTo: '/tabs/patients',
-        pathMatch: 'full',
-      },
+      { path: 'patients', component: PatientsPage },
+      { path: 'today', component: TodayPage },
+      { path: 'chat', component: ChatPage },
+      { path: 'add-patient', component: AddPatientPage },
+      { path: 'progress-note', component: ProgressNotePage },
+      { path: 'progress-note/:patientId', component: ProgressNoteFormPage },
+      { path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage },
+      { path: 'skin-wound/:patientId/wound-note', component: WoundNotePage },
+      { path: 'skin-wound/:patientId/education', component: EducationPage },
+      { path: 'skin-wound/:patientId/braden', component: BradenFormPage },
+      { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage },
+      { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage },
+      { path: 'skin-wound/:patientId/assessments/:assessmentId/care-plan', component: WoundCarePlanPage },
+      { path: 'skin-wound/:patientId/assessments/:assessmentId', component: AssessmentDetailPage },
+      { path: 'skin-wound/:patientId/wounds/:woundId/history', component: WoundHistoryPage },
+      { path: '', redirectTo: '/tabs/patients', pathMatch: 'full' },
     ],
   },
-  
 ];
 
 @NgModule({
