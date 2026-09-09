@@ -16,6 +16,7 @@ export interface MobileStaffDirectoryEntry {
 
 export interface MobileConversation {
   id: string;
+  orgId?: string | null;
   members: string[];
   memberNames?: Record<string, string>;
   unread?: Record<string, number>;
@@ -30,6 +31,7 @@ export interface MobileConversation {
 
 export interface MobileChatMessage {
   id: string;
+  orgId?: string | null;
   fromUid: string;
   fromName: string;
   text: string;
@@ -48,7 +50,10 @@ export class SecureChatService {
     private functions: AngularFireFunctions,
     private tenant: TenantService,
   ) {
-    this.meUid$ = this.auth.authState.pipe(map(user => user?.uid || null), shareReplay({ bufferSize: 1, refCount: true }));
+    this.meUid$ = this.auth.authState.pipe(
+      map(user => user?.uid || null),
+      shareReplay({ bufferSize: 1, refCount: true }),
+    );
 
     this.staff$ = combineLatest([this.meUid$, this.tenant.orgId$]).pipe(
       switchMap(([uid, orgId]) => {
@@ -78,7 +83,7 @@ export class SecureChatService {
       switchMap(uid => {
         if (!uid) return of([] as MobileConversation[]);
         return this.afs.collection<any>('conversations', ref =>
-          ref.where('members', 'array-contains', uid).orderBy('updatedAt', 'desc')
+          ref.where('members', 'array-contains', uid)
         ).snapshotChanges().pipe(
           map(snaps => snaps.map(s => {
             const data = s.payload.doc.data() as any;
@@ -91,7 +96,7 @@ export class SecureChatService {
               otherName: data.memberNames?.[otherUid] || 'Staff',
               myUnread: Number(data.unread?.[uid] || 0),
             } as MobileConversation;
-          })),
+          }).sort((a, b) => this.timeValue(b.updatedAt || b.lastAt) - this.timeValue(a.updatedAt || a.lastAt))),
           catchError(error => {
             console.warn('[Chat] conversation list unavailable.', error);
             return of([] as MobileConversation[]);
@@ -156,11 +161,18 @@ export class SecureChatService {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
+  private timeValue(value: any): number {
+    return this.toDate(value)?.getTime() || 0;
+  }
+
   private async myDisplayName(): Promise<string> {
     const user = await this.auth.currentUser;
     if (!user) return 'Staff';
     if (user.displayName) return user.displayName;
-    const doc = await this.afs.doc<any>(`staffPublic/${user.uid}`).valueChanges().pipe(take(1), catchError(() => of(null))).toPromise();
+    const doc = await this.afs.doc<any>(`staffPublic/${user.uid}`).valueChanges().pipe(
+      take(1),
+      catchError(() => of(null)),
+    ).toPromise();
     return String(doc?.displayName || user.email || 'Staff');
   }
 }
