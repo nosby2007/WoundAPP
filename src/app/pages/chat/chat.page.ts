@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IonAvatar, IonBadge, IonButton, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonLabel, IonList, IonNote, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { chevronBackOutline, sendOutline } from 'ionicons/icons';
 import { Observable, of } from 'rxjs';
 import { ChatMessage, Conversation, SecureChatService, StaffEntry } from '../../services/secure-chat.service';
 
@@ -31,11 +32,11 @@ import { ChatMessage, Conversation, SecureChatService, StaffEntry } from '../../
         </section>
 
         <section class="thread" *ngIf="active; else choose">
-          <div class="thread-head"><ion-button fill="clear" size="small" (click)="active=null"><ion-icon name="chevron-back-outline"></ion-icon></ion-button><div><strong>{{ active.otherName }}</strong><p>Secure staff message</p></div></div>
+          <div class="thread-head"><ion-button fill="clear" size="small" (click)="active=null"><ion-icon [icon]="chevronBackOutline"></ion-icon></ion-button><div><strong>{{ active.otherName }}</strong><p>Secure staff message</p></div></div>
           <div class="messages">
             <div *ngFor="let m of messages$ | async" class="bubble" [class.mine]="m.fromUid !== active.otherUid"><small>{{ m.fromName }}</small><div>{{ m.text }}</div></div>
           </div>
-          <div class="composer"><ion-input [(ngModel)]="draft" placeholder="Message" (keyup.enter)="send()"></ion-input><ion-button (click)="send()" [disabled]="!draft.trim()"><ion-icon name="send-outline"></ion-icon></ion-button></div>
+          <div class="composer"><ion-input [(ngModel)]="draft" placeholder="Message" (keyup.enter)="send()"></ion-input><ion-button (click)="send()" [disabled]="!draft.trim()"><ion-icon [icon]="sendOutline"></ion-icon></ion-button></div>
         </section>
         <ng-template #choose><section class="empty"><ion-note>Select a staff member or conversation.</ion-note></section></ng-template>
       </div>
@@ -46,6 +47,8 @@ import { ChatMessage, Conversation, SecureChatService, StaffEntry } from '../../
   `]
 })
 export class ChatPage {
+  readonly chevronBackOutline = chevronBackOutline;
+  readonly sendOutline = sendOutline;
   active: Conversation | null = null;
   messages$: Observable<ChatMessage[]> = of([]);
   draft = '';
