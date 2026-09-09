@@ -139,7 +139,7 @@ export class FieldWorkService {
         .where('start', '<', firebase.firestore.Timestamp.fromDate(end))
         .orderBy('start', 'asc')
     ).snapshotChanges().pipe(
-      map(snaps => snaps.map(s => ({ id: s.payload.doc.id, ...(s.payload.doc.data() as FieldVisit) }))),
+      map(snaps => snaps.map(s => ({ ...(s.payload.doc.data() as FieldVisit), id: s.payload.doc.id }))),
       switchMap(visits => this.enrichVisits$(visits)),
       catchError(error => {
         console.warn('[FieldWork] Unable to load assigned visits.', error);
@@ -171,7 +171,7 @@ export class FieldWorkService {
         .orderBy('createdAt', 'desc')
         .limit(100)
     ).snapshotChanges().pipe(
-      map(snaps => snaps.map(s => ({ id: s.payload.doc.id, ...(s.payload.doc.data() as FieldTask) }))),
+      map(snaps => snaps.map(s => ({ ...(s.payload.doc.data() as FieldTask), id: s.payload.doc.id }))),
     );
   }
 
