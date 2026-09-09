@@ -39,13 +39,25 @@ export interface MobileWoundRound {
 export class WoundRoundMobileService {
   constructor(private tenant: TenantService) {}
 
+  /**
+   * Facility catalog is owned by the organization document in JADE-SHOP:
+   * organizations/{orgId}/facilities/{facilityId}.
+   * Keep mobile on that same canonical path so Intake, Web Wound Rounds and
+   * Mobile Wound Rounds resolve the exact same facility IDs.
+   */
   facilities$(): Observable<MobileFacility[]> {
     return new Observable(subscriber => {
       let stop = () => {};
       this.tenant.currentOrgId().then(orgId => {
         if (!orgId) { subscriber.next([]); return; }
-        stop = onSnapshot(query(collection(db, 'facilities'), where('orgId', '==', orgId)), snap => {
-          subscriber.next(snap.docs.map(d => ({ id:d.id, ...d.data() } as MobileFacility)).filter(f => f.active !== false).sort((a,b) => a.name.localeCompare(b.name)));
+        const facilityCollection = collection(db, 'organizations', orgId, 'facilities');
+        stop = onSnapshot(facilityCollection, snap => {
+          subscriber.next(
+            snap.docs
+              .map(d => ({ id: d.id, orgId, ...d.data() } as MobileFacility))
+              .filter(f => f.active !== false)
+              .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          );
         }, err => subscriber.error(err));
       }).catch(err => subscriber.error(err));
       return () => stop();
