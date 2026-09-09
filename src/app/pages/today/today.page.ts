@@ -3,7 +3,8 @@ import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { callOutline, folderOpenOutline, navigateOutline } from 'ionicons/icons';
-import { FieldTask, FieldVisit, FieldWorkService } from '../../services/field-work.service';
+import { Observable } from 'rxjs';
+import { FieldTask, FieldVisit, FieldWorkService, TodayWork } from '../../services/field-work.service';
 
 @Component({
   selector: 'app-today',
@@ -12,7 +13,7 @@ import { FieldTask, FieldVisit, FieldWorkService } from '../../services/field-wo
   template: `
     <ion-header><ion-toolbar><ion-title>Today</ion-title></ion-toolbar></ion-header>
     <ion-content class="ion-padding">
-      <ng-container *ngIf="work.today$() | async as day; else loading">
+      <ng-container *ngIf="day$ | async as day; else loading">
         <div class="hero"><p class="eyebrow">FIELD WORK</p><h1>My day</h1><p>{{ day.visits.length }} visit(s) · {{ day.overdueTasks.length + day.dueTodayTasks.length }} open task(s)</p></div>
 
         <h2>Today's visits</h2>
@@ -65,8 +66,15 @@ export class TodayPage {
   readonly navigateOutline = navigateOutline;
   readonly callOutline = callOutline;
   readonly folderOpenOutline = folderOpenOutline;
+  readonly day$: Observable<TodayWork>;
 
-  constructor(public work: FieldWorkService, private router: Router) {}
+  constructor(public work: FieldWorkService, private router: Router) {
+    // Keep one field-work Observable per page instance. Recreating it from the
+    // template makes AsyncPipe churn Firestore listeners every change-detection
+    // cycle and can freeze the newly-opened tab.
+    this.day$ = work.today$();
+  }
+
   address(v: FieldVisit): string { return v.patient?.address || v.homeAddress || ''; }
   phone(v: FieldVisit): string { return v.patient?.phone || v.patientTelephone || ''; }
   directions(v: FieldVisit): void { this.openMap(this.address(v)); }
