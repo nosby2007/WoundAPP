@@ -2,15 +2,15 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { IonBadge, IonButton, IonCard, IonCardContent, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonLabel, IonNote, IonSelect, IonSelectOption, IonSpinner, IonTitle, IonToolbar, ToastController } from '@ionic/angular/standalone';
+import { IonBadge, IonButton, IonCard, IonCardContent, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonNote, IonSelect, IonSelectOption, IonSpinner, IonTitle, IonToolbar, ToastController } from '@ionic/angular/standalone';
 import { addCircleOutline, businessOutline, calendarOutline, chevronForwardOutline, pulseOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
-import { MobileFacility, MobileWoundRound, WoundRoundMobileService } from '../../services/wound-round.service';
+import { MobileFacility, MobileRoundPatient, MobileWoundRound, WoundRoundMobileService } from '../../services/wound-round.service';
 
 @Component({
   selector: 'app-wound-rounds',
   standalone: true,
-  imports: [CommonModule, FormsModule, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonBadge, IonCard, IonCardContent, IonItem, IonLabel, IonSelect, IonSelectOption, IonInput, IonSpinner, IonNote],
+  imports: [CommonModule, FormsModule, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonBadge, IonCard, IonCardContent, IonItem, IonSelect, IonSelectOption, IonInput, IonSpinner, IonNote],
   template: `
     <ion-header class="ion-no-border"><ion-toolbar><ion-title>Wound Rounds</ion-title></ion-toolbar></ion-header>
     <ion-content>
@@ -66,16 +66,26 @@ export class WoundRoundsPage implements OnInit, OnDestroy {
   constructor(private roundsService:WoundRoundMobileService,private router:Router,private toast:ToastController){}
   async ngOnInit():Promise<void>{this.canAuthor=await this.roundsService.canAuthor().catch(()=>false);this.subs.add(this.roundsService.facilities$().subscribe({next:v=>this.facilities=v,error:()=>{}}));this.subs.add(this.roundsService.rounds$().subscribe({next:v=>{this.rounds=v;this.loading=false},error:async()=>{this.loading=false;await this.message('Wound rounds are temporarily unavailable','danger')}}));}
   ngOnDestroy():void{this.subs.unsubscribe()}
-  get inProgress(){return this.rounds.filter(r=>r.status==='in_progress')}
-  get scheduled(){return this.rounds.filter(r=>r.status==='scheduled').sort((a,b)=>a.roundDate.localeCompare(b.roundDate))}
-  get recent(){return this.rounds.filter(r=>r.status==='completed').slice(0,12)}
-  get activeCount(){return this.inProgress.length} get scheduledCount(){return this.scheduled.length}
-  get duePatients(){return this.inProgress.flatMap(r=>r.patients||[]).filter(p=>p.status==='pending'||p.status==='in_progress').length}
-  get completionRate(){const p=this.inProgress.flatMap(r=>r.patients||[]);if(!p.length)return 0;return Math.round(p.filter(x=>['evaluated','seen','skipped'].includes(x.status)).length/p.length*100)}
-  progress(r:MobileWoundRound){const total=(r.patients||[]).length;const done=(r.patients||[]).filter(p=>['evaluated','seen','skipped'].includes(p.status)).length;return{total,done,percent:total?Math.round(done/total*100):0}}
-  async startRound(){const facility=this.facilities.find(f=>f.id===this.facilityId);if(!facility)return;this.busy=true;try{const id=await this.roundsService.startRound(facility,this.roundDate);void this.router.navigate(['/tabs/wound-rounds',id])}catch(e:any){await this.message(e?.message||'Could not start round','danger')}finally{this.busy=false}}
+  get inProgress(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='in_progress')}
+  get scheduled(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='scheduled').sort((a:MobileWoundRound,b:MobileWoundRound)=>a.roundDate.localeCompare(b.roundDate))}
+  get recent(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='completed').slice(0,12)}
+  get activeCount(): number{return this.inProgress.length}
+  get scheduledCount(): number{return this.scheduled.length}
+  get duePatients(): number{
+    return this.roundPatients(this.inProgress)
+      .filter((patient:MobileRoundPatient)=>patient.status==='pending'||patient.status==='in_progress').length;
+  }
+  get completionRate(): number{
+    const patients=this.roundPatients(this.inProgress);
+    if(!patients.length)return 0;
+    const resolved=patients.filter((patient:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(patient.status)).length;
+    return Math.round(resolved/patients.length*100);
+  }
+  progress(round:MobileWoundRound){const total=(round.patients||[]).length;const done=(round.patients||[]).filter((patient:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(patient.status)).length;return{total,done,percent:total?Math.round(done/total*100):0}}
+  async startRound(){const facility=this.facilities.find((f:MobileFacility)=>f.id===this.facilityId);if(!facility)return;this.busy=true;try{const id=await this.roundsService.startRound(facility,this.roundDate);void this.router.navigate(['/tabs/wound-rounds',id])}catch(e:any){await this.message(e?.message||'Could not start round','danger')}finally{this.busy=false}}
   async startScheduled(round:MobileWoundRound){this.busy=true;try{await this.roundsService.startScheduled(round.id);void this.router.navigate(['/tabs/wound-rounds',round.id])}catch(e:any){await this.message(e?.message||'Could not start round','danger')}finally{this.busy=false}}
   open(round:MobileWoundRound){void this.router.navigate(['/tabs/wound-rounds',round.id])}
+  private roundPatients(rounds:MobileWoundRound[]): MobileRoundPatient[]{return rounds.reduce((all:MobileRoundPatient[],round:MobileWoundRound)=>all.concat(round.patients||[]),[])}
   private today(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
   private async message(message:string,color?:string){const t=await this.toast.create({message,duration:2200,color});await t.present()}
 }
