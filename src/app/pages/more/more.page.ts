@@ -1,34 +1,97 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { IonButton, IonContent, IonHeader, IonItem, IonLabel, IonList, IonNote, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { IonBadge, IonButton, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline } from 'ionicons/icons';
+import { AuthService } from '../../services/auth.service';
+import { TenantService } from '../../services/tenant.service';
 
 @Component({
   selector: 'app-more',
   standalone: true,
-  imports: [CommonModule, IonHeader, IonToolbar, IonTitle, IonContent, IonList, IonItem, IonLabel, IonButton, IonNote],
+  imports: [CommonModule, IonHeader, IonToolbar, IonTitle, IonContent, IonList, IonItem, IonLabel, IonButton, IonNote, IonIcon, IonBadge, IonSpinner],
   template: `
-    <ion-header><ion-toolbar><ion-title>More</ion-title></ion-toolbar></ion-header>
-    <ion-content class="ion-padding">
-      <div class="hero">
-        <p class="eyebrow">FIELD TOOLS</p>
-        <h1>More</h1>
-        <p>Additional mobile workflows and account actions.</p>
-      </div>
+    <ion-header class="ion-no-border"><ion-toolbar><ion-title>More</ion-title></ion-toolbar></ion-header>
+    <ion-content>
+      <div class="page">
+        <section class="profile-card">
+          <div class="identity"><div class="avatar">{{ initials }}</div><div><p class="eyebrow">FIELD ACCOUNT</p><h1>{{ displayName }}</h1><p>{{ email }}</p></div></div>
+          <div class="chips"><ion-badge color="light">{{ roleLabel }}</ion-badge><ion-badge [color]="online ? 'success' : 'warning'">{{ online ? 'Online' : 'Offline' }}</ion-badge></div>
+          <div class="org"><span>Organization</span><strong>{{ orgId || 'Not assigned' }}</strong></div>
+        </section>
 
-      <ion-list lines="full">
-        <ion-item button detail="true" (click)="newPatient()">
-          <ion-label><strong>New patient</strong><p>Create a patient record.</p></ion-label>
-        </ion-item>
-      </ion-list>
-      <ion-note>More field tools can be added here without overloading the main tab bar.</ion-note>
+        <section class="section">
+          <p class="eyebrow dark">FIELD TOOLS</p>
+          <ion-list lines="none" class="menu">
+            <ion-item button detail="false" (click)="today()"><div class="menu-icon"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>My schedule</strong><p>Visits, field tasks and point-of-care workflow.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+          </ion-list>
+        </section>
+
+        <section class="section">
+          <p class="eyebrow dark">SECURITY & DEVICE</p>
+          <ion-list lines="none" class="menu">
+            <ion-item detail="false"><div class="menu-icon"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon></div><ion-label><strong>Protected session</strong><p>Firebase authentication + mobile PIN access.</p></ion-label><ion-badge color="success">Active</ion-badge></ion-item>
+            <ion-item detail="false"><div class="menu-icon"><ion-icon [icon]="online ? cloudDoneOutline : cloudOfflineOutline"></ion-icon></div><ion-label><strong>Network</strong><p>{{ online ? 'Connected. Live updates available.' : 'Offline. Avoid closing the app until connectivity returns.' }}</p></ion-label></ion-item>
+          </ion-list>
+        </section>
+
+        <div class="signout-card">
+          <div><strong>End secure session</strong><p>Use this before handing a shared field device to another clinician.</p></div>
+          <ion-button color="danger" fill="outline" [disabled]="signingOut" (click)="signOut()"><ion-spinner *ngIf="signingOut" name="crescent"></ion-spinner><ion-icon *ngIf="!signingOut" slot="start" [icon]="logOutOutline"></ion-icon><span *ngIf="!signingOut">Sign out</span></ion-button>
+        </div>
+        <ion-note class="footnote">WoundApp Field · Secure mobile clinical workspace</ion-note>
+      </div>
     </ion-content>
   `,
   styles: [`
-    .hero{background:linear-gradient(135deg,#0f6b46,#173b5b);color:white;border-radius:24px;padding:20px;margin-bottom:18px}.hero h1{margin:2px 0 6px;font-size:30px}.hero p{margin:0;opacity:.9}.eyebrow{font-size:11px;letter-spacing:.12em;font-weight:700}ion-list{border-radius:18px;overflow:hidden;margin-bottom:14px}
-  `]
+    :host{--ink:#10233f;--muted:#667b8e;--green:#0b7551}ion-toolbar{--background:#fff;--color:var(--ink)}.page{background:#f4f7fa;min-height:100%;padding:16px 16px 36px}.profile-card{background:linear-gradient(145deg,#173d5c,#0b7251);color:#fff;border-radius:28px;padding:22px;box-shadow:0 18px 42px rgba(18,58,78,.19)}.identity{display:flex;gap:14px;align-items:center}.avatar{width:58px;height:58px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:20px;font-weight:800;letter-spacing:.03em}.profile-card h1{font-size:23px;margin:2px 0 4px}.profile-card p{margin:0;opacity:.78;font-size:12px}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 5px}.eyebrow.dark{color:#587188;margin:0 4px 9px}.chips{display:flex;gap:8px;margin-top:18px}.org{margin-top:14px;background:rgba(255,255,255,.09);border-radius:15px;padding:11px}.org span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.1em;opacity:.65}.org strong{font-size:13px}.section{margin-top:25px}.menu{border-radius:22px;overflow:hidden;background:#fff;box-shadow:0 7px 24px rgba(30,55,75,.06)}.menu ion-item{--background:#fff;--padding-start:14px;--inner-padding-end:14px;min-height:76px}.menu-icon{width:42px;height:42px;border-radius:15px;background:#edf6f2;color:var(--green);display:grid;place-items:center;margin-right:12px}.menu-icon ion-icon{font-size:22px}.menu strong{color:var(--ink)}.menu p{margin:3px 0 0;color:var(--muted);font-size:11px;white-space:normal}.menu ion-icon[slot=end]{color:#9aabb9}.signout-card{background:#fff;border:1px solid #f0dede;border-radius:22px;margin-top:25px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:14px}.signout-card strong{color:var(--ink)}.signout-card p{margin:3px 0 0;color:var(--muted);font-size:11px;max-width:210px}.footnote{display:block;text-align:center;margin-top:18px;font-size:10px}
+  `],
 })
-export class MorePage {
-  constructor(private router: Router) {}
+export class MorePage implements OnInit {
+  readonly calendarOutline = calendarOutline;
+  readonly chevronForwardOutline = chevronForwardOutline;
+  readonly cloudDoneOutline = cloudDoneOutline;
+  readonly cloudOfflineOutline = cloudOfflineOutline;
+  readonly logOutOutline = logOutOutline;
+  readonly personAddOutline = personAddOutline;
+  readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
+
+  displayName = 'Clinician';
+  email = '';
+  roleLabel = 'Staff';
+  orgId: string | null = null;
+  online = navigator.onLine;
+  signingOut = false;
+
+  constructor(private router: Router, private auth: AuthService, private tenant: TenantService) {}
+
+  get initials(): string { return this.displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]?.toUpperCase()).join('') || 'CL'; }
+
+  async ngOnInit(): Promise<void> {
+    const user = this.auth.currentUser;
+    this.displayName = user?.displayName || user?.email?.split('@')[0] || 'Clinician';
+    this.email = user?.email || '';
+    this.orgId = await this.tenant.currentOrgId();
+    try {
+      const token = await user?.getIdTokenResult();
+      const role = String(token?.claims?.['role'] || (Array.isArray(token?.claims?.['roles']) ? (token?.claims?.['roles'] as unknown[])[0] : '') || 'staff');
+      this.roleLabel = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    } catch { this.roleLabel = 'Staff'; }
+  }
+
+  @HostListener('window:online') onOnline(): void { this.online = true; }
+  @HostListener('window:offline') onOffline(): void { this.online = false; }
+
+  today(): void { void this.router.navigate(['/tabs/today']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
+
+  async signOut(): Promise<void> {
+    if (this.signingOut) return;
+    this.signingOut = true;
+    try {
+      await this.auth.logout();
+      await this.router.navigateByUrl('/login', { replaceUrl: true });
+    } finally { this.signingOut = false; }
+  }
 }
