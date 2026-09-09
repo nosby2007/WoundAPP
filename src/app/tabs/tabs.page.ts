@@ -1,6 +1,18 @@
 import { Component } from '@angular/core';
 import { addIcons } from 'ionicons';
-import { createOutline, peopleOutline, personAddOutline } from 'ionicons/icons';
+import {
+  calendarOutline,
+  callOutline,
+  chatbubblesOutline,
+  chevronBackOutline,
+  createOutline,
+  ellipsisHorizontalCircleOutline,
+  folderOpenOutline,
+  navigateOutline,
+  peopleOutline,
+  personAddOutline,
+  sendOutline,
+} from 'ionicons/icons';
 
 @Component({
   selector: 'app-tabs',
@@ -10,8 +22,23 @@ import { createOutline, peopleOutline, personAddOutline } from 'ionicons/icons';
 })
 export class TabsPage {
   constructor() {
-    // Ionic standalone has no global icon registry; the shell registers the
-    // two glyphs its tab bar names.
-    addIcons({ createOutline, peopleOutline, personAddOutline });
+    // Ionic standalone does not provide a global icon registry automatically.
+    // Keep every icon referenced by the persistent tab shell and the Today /
+    // Chat workspaces registered before those routes render. Otherwise IonIcon
+    // tries to resolve an unregistered icon URL at runtime and can throw
+    // "Failed to construct 'URL': Invalid base URL" in the hosted PWA.
+    addIcons({
+      calendarOutline,
+      callOutline,
+      chatbubblesOutline,
+      chevronBackOutline,
+      createOutline,
+      ellipsisHorizontalCircleOutline,
+      folderOpenOutline,
+      navigateOutline,
+      peopleOutline,
+      personAddOutline,
+      sendOutline,
+    });
   }
 }
