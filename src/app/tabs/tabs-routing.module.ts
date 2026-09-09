@@ -18,6 +18,9 @@ import { ChatPage } from '../pages/chat/chat.page';
 import { MorePage } from '../pages/more/more.page';
 import { FieldVisitPage } from '../pages/field-visit/field-visit.page';
 import { FieldTaskPage } from '../pages/field-task/field-task.page';
+import { MySchedulePage } from '../pages/my-schedule/my-schedule.page';
+import { WoundRoundsPage } from '../pages/wound-rounds/wound-rounds.page';
+import { WoundRoundDetailPage } from '../pages/wound-round-detail/wound-round-detail.page';
 
 const routes: Routes = [
   {
@@ -28,6 +31,9 @@ const routes: Routes = [
       { path: 'today', component: TodayPage },
       { path: 'today/visit/:appointmentId', component: FieldVisitPage },
       { path: 'today/task/:taskId', component: FieldTaskPage },
+      { path: 'my-schedule', component: MySchedulePage },
+      { path: 'wound-rounds', component: WoundRoundsPage },
+      { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },
       { path: 'add-patient', component: AddPatientPage },
@@ -47,8 +53,5 @@ const routes: Routes = [
   },
 ];
 
-@NgModule({
-  imports: [RouterModule.forChild(routes)],
-  exports: [RouterModule],
-})
+@NgModule({ imports: [RouterModule.forChild(routes)], exports: [RouterModule] })
 export class TabsPageRoutingModule {}
