@@ -90,8 +90,8 @@ export class SecureChatService {
             const members = Array.isArray(data.members) ? data.members : [];
             const otherUid = members.find((member: string) => member !== uid) || '';
             return {
-              id: s.payload.doc.id,
               ...data,
+              id: s.payload.doc.id,
               otherUid,
               otherName: data.memberNames?.[otherUid] || 'Staff',
               myUnread: Number(data.unread?.[uid] || 0),
@@ -112,7 +112,7 @@ export class SecureChatService {
     return this.afs.collection<any>(`conversations/${conversationId}/messages`, ref =>
       ref.orderBy('createdAt', 'desc').limit(75)
     ).snapshotChanges().pipe(
-      map(snaps => snaps.map(s => ({ id: s.payload.doc.id, ...(s.payload.doc.data() as any) } as MobileChatMessage)).reverse()),
+      map(snaps => snaps.map(s => ({ ...(s.payload.doc.data() as any), id: s.payload.doc.id } as MobileChatMessage)).reverse()),
       catchError(error => {
         console.warn('[Chat] message stream unavailable.', error);
         return of([] as MobileChatMessage[]);
