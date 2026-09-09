@@ -17,14 +17,14 @@ import { ChatMessage, Conversation, SecureChatService, StaffEntry } from '../../
         <section class="sidebar" [class.hidden-mobile]="active">
           <div class="section-title">Start conversation</div>
           <ion-list lines="none">
-            <ion-item button detail="false" *ngFor="let staff of chat.staff$() | async" (click)="start(staff)">
+            <ion-item button detail="false" *ngFor="let staff of staff$ | async" (click)="start(staff)">
               <ion-avatar slot="start"><div class="avatar">{{ initials(staff.displayName) }}</div></ion-avatar>
               <ion-label><strong>{{ staff.displayName }}</strong><p>{{ staff.role || 'staff' }}</p></ion-label>
             </ion-item>
           </ion-list>
           <div class="section-title">Messages</div>
           <ion-list lines="full">
-            <ion-item button *ngFor="let c of chat.conversations$() | async" (click)="open(c)">
+            <ion-item button *ngFor="let c of conversations$ | async" (click)="open(c)">
               <ion-label><strong>{{ c.otherName }}</strong><p>{{ c.lastText || 'Secure conversation' }}</p></ion-label>
               <ion-badge color="danger" *ngIf="c.myUnread">{{ c.myUnread }}</ion-badge>
             </ion-item>
@@ -49,10 +49,20 @@ import { ChatMessage, Conversation, SecureChatService, StaffEntry } from '../../
 export class ChatPage {
   readonly chevronBackOutline = chevronBackOutline;
   readonly sendOutline = sendOutline;
+  readonly staff$: Observable<StaffEntry[]>;
+  readonly conversations$: Observable<Conversation[]>;
   active: Conversation | null = null;
   messages$: Observable<ChatMessage[]> = of([]);
   draft = '';
-  constructor(public chat: SecureChatService) {}
+
+  constructor(public chat: SecureChatService) {
+    // Keep these Observable instances stable. Creating them from methods in the
+    // template caused AsyncPipe to unsubscribe/resubscribe on every change
+    // detection pass, which could thrash Firestore listeners and freeze the tab.
+    this.staff$ = chat.staff$();
+    this.conversations$ = chat.conversations$();
+  }
+
   initials(name:string):string { return name.split(/\s+/).filter(Boolean).slice(0,2).map(x => x[0]?.toUpperCase()).join('') || 'ST'; }
   async start(staff: StaffEntry): Promise<void> { const id = await this.chat.start(staff); this.active = { id, members: [], otherUid: staff.uid, otherName: staff.displayName, myUnread: 0 }; this.messages$ = this.chat.messages$(id); }
   async open(c: Conversation): Promise<void> { this.active = c; this.messages$ = this.chat.messages$(c.id); await this.chat.markRead(c.id); }
