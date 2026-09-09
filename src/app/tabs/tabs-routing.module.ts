@@ -15,6 +15,7 @@ import { EducationPage } from '../pages/education/education.page';
 import { WoundNotePage } from '../pages/wound-note/wound-note.page';
 import { TodayPage } from '../pages/today/today.page';
 import { ChatPage } from '../pages/chat/chat.page';
+import { MorePage } from '../pages/more/more.page';
 
 const routes: Routes = [
   {
@@ -24,6 +25,7 @@ const routes: Routes = [
       { path: 'patients', component: PatientsPage },
       { path: 'today', component: TodayPage },
       { path: 'chat', component: ChatPage },
+      { path: 'more', component: MorePage },
       { path: 'add-patient', component: AddPatientPage },
       { path: 'progress-note', component: ProgressNotePage },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage },
