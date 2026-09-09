@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { callOutline, folderOpenOutline, navigateOutline } from 'ionicons/icons';
 import { FieldTask, FieldVisit, FieldWorkService } from '../../services/field-work.service';
 
 @Component({
@@ -24,9 +25,9 @@ import { FieldTask, FieldVisit, FieldWorkService } from '../../services/field-wo
             <p>{{ visit.appointmentDetails || 'Assigned field visit' }}</p>
             <p *ngIf="address(visit)"><strong>Location:</strong> {{ address(visit) }}</p>
             <div class="actions">
-              <ion-button size="small" fill="outline" *ngIf="address(visit)" (click)="directions(visit)"><ion-icon slot="start" name="navigate-outline"></ion-icon>Directions</ion-button>
-              <ion-button size="small" fill="outline" *ngIf="phone(visit)" [href]="'tel:' + phone(visit)"><ion-icon slot="start" name="call-outline"></ion-icon>Call</ion-button>
-              <ion-button size="small" fill="outline" *ngIf="visit.patientId" (click)="chart(visit.patientId)"><ion-icon slot="start" name="folder-open-outline"></ion-icon>Chart</ion-button>
+              <ion-button size="small" fill="outline" *ngIf="address(visit)" (click)="directions(visit)"><ion-icon slot="start" [icon]="navigateOutline"></ion-icon>Directions</ion-button>
+              <ion-button size="small" fill="outline" *ngIf="phone(visit)" [href]="'tel:' + phone(visit)"><ion-icon slot="start" [icon]="callOutline"></ion-icon>Call</ion-button>
+              <ion-button size="small" fill="outline" *ngIf="visit.patientId" (click)="chart(visit.patientId)"><ion-icon slot="start" [icon]="folderOpenOutline"></ion-icon>Chart</ion-button>
               <ion-button size="small" color="success" *ngIf="visit.status !== 'completed'" (click)="completeVisit(visit)">Complete</ion-button>
               <ion-badge color="success" *ngIf="visit.status === 'completed'">Completed</ion-badge>
             </div>
@@ -61,6 +62,10 @@ import { FieldTask, FieldVisit, FieldWorkService } from '../../services/field-wo
   `]
 })
 export class TodayPage {
+  readonly navigateOutline = navigateOutline;
+  readonly callOutline = callOutline;
+  readonly folderOpenOutline = folderOpenOutline;
+
   constructor(public work: FieldWorkService, private router: Router) {}
   address(v: FieldVisit): string { return v.patient?.address || v.homeAddress || ''; }
   phone(v: FieldVisit): string { return v.patient?.phone || v.patientTelephone || ''; }
