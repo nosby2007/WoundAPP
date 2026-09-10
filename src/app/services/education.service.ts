@@ -13,6 +13,7 @@ import {
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { EducationDraft, EducationTopicOption } from '../shared/education';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 /**
  * Patient and caregiver education, recorded where it happens.
@@ -56,6 +57,7 @@ export interface EducationRow {
 @Injectable({ providedIn: 'root' })
 export class EducationService {
   private tenant = inject(TenantService);
+  private audit = inject(ClinicalAuditService);
 
   /**
    * The org's topic catalog.
@@ -133,6 +135,7 @@ export class EducationService {
       createdBy: actor,
     });
 
+    await this.audit.record({ action: 'education_recorded', patientId, entityType: 'educationRecord', entityId: ref.id, metadata: { learnerCount: draft.learners?.length || 0 } });
     return ref.id;
   }
 

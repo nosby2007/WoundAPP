@@ -16,6 +16,7 @@ import { auth, db } from '../firebase';
 
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 /**
  * Check in and out of a visit from the field.
@@ -54,6 +55,7 @@ export interface FieldVisit {
 @Injectable({ providedIn: 'root' })
 export class VisitService {
   private readonly location = inject(VisitLocationService);
+  private readonly audit = inject(ClinicalAuditService);
 
   /**
    * The visit this clinician is currently on for this patient, if any.
@@ -145,6 +147,7 @@ export class VisitService {
       updatedBy: user.uid,
     });
 
+    await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
     return { visitId: created.id, location };
   }
 
@@ -202,6 +205,7 @@ export class VisitService {
     }
 
     await updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch);
+    await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     return { location };
   }
 

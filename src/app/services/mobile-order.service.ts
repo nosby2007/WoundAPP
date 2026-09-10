@@ -3,6 +3,7 @@ import { collection, doc, getDocs, query, serverTimestamp, setDoc, Timestamp, wh
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 export interface MobileCareAlgorithmStep {
   id?: string;
@@ -25,6 +26,7 @@ export interface MobileCareAlgorithm {
   steps: MobileCareAlgorithmStep[];
   contingencies?: Array<{ trigger: string; action: string }>;
   active: boolean;
+  version?: number;
 }
 
 export interface MobilePrescriber {
@@ -46,6 +48,7 @@ export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
 export class MobileOrderService {
   private tenant = inject(TenantService);
   private identity = inject(ClinicalIdentityService);
+  private audit = inject(ClinicalAuditService);
 
   async listPublishedAlgorithms(): Promise<MobileCareAlgorithm[]> {
     const orgId = await this.tenant.currentOrgId();
@@ -172,6 +175,7 @@ export class MobileOrderService {
       createdBy: actor,
       updatedBy: actor,
     });
+    await this.audit.record({ action: 'order_created', patientId, entityType: 'order', entityId: ref.id, metadata: { receiptMethod, algorithmVersion: input.algorithm.version ?? 1 } });
     return ref.id;
   }
 

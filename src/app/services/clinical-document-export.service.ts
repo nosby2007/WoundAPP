@@ -1,6 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
+import { ClinicalAuditService } from './clinical-audit.service';
+import { ClinicalDocumentSnapshotService } from './clinical-document-snapshot.service';
 
 export type ClinicalDocumentKind =
   | 'visit'
@@ -21,8 +23,11 @@ export interface ClinicalPacketSection {
 
 @Injectable({ providedIn: 'root' })
 export class ClinicalDocumentExportService {
+  private audit = inject(ClinicalAuditService);
+  private snapshots = inject(ClinicalDocumentSnapshotService);
   async printSection(patientId: string, kind: ClinicalDocumentKind, recordId?: string): Promise<void> {
     const html = await this.buildDocument(patientId, [kind], recordId ? { [kind]: recordId } : {});
+    await this.audit.record({ action: 'document_printed', patientId, entityType: kind, entityId: recordId || null, metadata: { kind } });
     this.openPrintWindow(html);
   }
 
@@ -38,12 +43,20 @@ export class ClinicalDocumentExportService {
       'woundAssessment',
       'progressNote',
     ]);
+    await this.audit.record({ action: 'visit_packet_printed', patientId, entityType: 'visitPacket' });
     this.openPrintWindow(html);
   }
 
   async shareSection(patientId: string, kind: ClinicalDocumentKind, recordId?: string): Promise<'shared' | 'print'> {
     const html = await this.buildDocument(patientId, [kind], recordId ? { [kind]: recordId } : {});
     const title = this.kindTitle(kind);
+    const snapshot = await this.snapshots.finalize({
+      patientId,
+      kind,
+      title,
+      html,
+      sourceRefs: recordId ? [{ path: kind, id: recordId }] : [],
+    });
     const filename = `${this.safeFileName(title)}-${new Date().toISOString().slice(0, 10)}.html`;
     const blob = new Blob([html], { type: 'text/html' });
     const file = new File([blob], filename, { type: 'text/html' });
@@ -55,6 +68,7 @@ export class ClinicalDocumentExportService {
         text: 'Clinical document generated from the patient chart. Use an approved secure destination for protected health information.',
         files: [file],
       });
+      await this.audit.record({ action: 'document_shared', patientId, entityType: 'documentSnapshot', entityId: snapshot.id, metadata: { kind } });
       return 'shared';
     }
 
@@ -74,6 +88,13 @@ export class ClinicalDocumentExportService {
       'woundAssessment',
       'progressNote',
     ]);
+    const snapshot = await this.snapshots.finalize({
+      patientId,
+      kind: 'visitPacket',
+      title: 'Visit Packet',
+      html,
+      sourceRefs: [],
+    });
     const filename = `visit-packet-${new Date().toISOString().slice(0, 10)}.html`;
     const blob = new Blob([html], { type: 'text/html' });
     const file = new File([blob], filename, { type: 'text/html' });
@@ -85,6 +106,7 @@ export class ClinicalDocumentExportService {
         text: 'Clinical visit packet. Send only through an approved secure destination.',
         files: [file],
       });
+      await this.audit.record({ action: 'visit_packet_shared', patientId, entityType: 'documentSnapshot', entityId: snapshot.id });
       return 'shared';
     }
 

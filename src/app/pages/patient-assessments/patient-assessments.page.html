@@ -55,6 +55,27 @@
       <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
     </div>
 
+    <section class="readiness-panel" *ngIf="workflowCompletion() as readiness">
+      <div class="readiness-head">
+        <div>
+          <span>VISIT READINESS</span>
+          <strong>{{ readiness.completed }}/{{ readiness.totalRequired }} required steps complete</strong>
+        </div>
+        <ion-button size="small" fill="clear" [disabled]="readinessBusy()" (click)="refreshReadiness()">Refresh</ion-button>
+      </div>
+      <div class="missing" *ngIf="readiness.missingRequired.length">
+        <strong>Missing before close-out:</strong>
+        <span *ngFor="let item of readiness.missingRequired">{{ workflowLabel(item) }}</span>
+      </div>
+      <div class="ready-ok" *ngIf="!readiness.missingRequired.length">Required documentation is complete for this workflow.</div>
+      <div class="quality" *ngIf="qualityFindings().length">
+        <strong>{{ qualityFindings().length }} quality review item{{ qualityFindings().length === 1 ? '' : 's' }}</strong>
+        <div *ngFor="let finding of qualityFindings().slice(0, 4)" [class.high]="finding.severity === 'high'">
+          {{ finding.title }} — {{ finding.message }}
+        </div>
+      </div>
+    </section>
+
     <section class="clinical-command">
       <div class="clinical-command-head">
         <div><span>CLINICAL COMMAND</span><h2>Assess · Plan · Order · Teach · Document</h2></div>

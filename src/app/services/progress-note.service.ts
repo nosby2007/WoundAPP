@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 export interface ProgressNote {
   id: string;
@@ -44,7 +45,7 @@ export class NotAuthenticatedError extends Error {
  */
 @Injectable({ providedIn: 'root' })
 export class ProgressNoteService {
-  constructor(private clinicalIdentity: ClinicalIdentityService) {}
+  constructor(private clinicalIdentity: ClinicalIdentityService, private audit: ClinicalAuditService) {}
 
   async create(
     patientId: string,
@@ -81,6 +82,7 @@ export class ProgressNoteService {
     }
 
     const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
+    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound } });
     return ref.id;
   }
 

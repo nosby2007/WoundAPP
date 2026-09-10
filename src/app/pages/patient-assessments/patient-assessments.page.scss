@@ -368,3 +368,95 @@ ion-list {
 @media (max-width: 600px) {
   .document-flow { grid-template-columns: 1fr; }
 }
+
+
+/* Closed-loop documentation readiness */
+.readiness-panel {
+  margin: 12px 4px;
+  padding: 13px;
+  border: 1px solid rgba(23, 61, 93, .12);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(18, 46, 67, .05);
+}
+
+.readiness-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.readiness-head span {
+  display: block;
+  color: #60758a;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.readiness-head strong {
+  display: block;
+  margin-top: 3px;
+  color: #10233f;
+  font-size: .92rem;
+}
+
+.missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1f4;
+}
+
+.missing strong {
+  width: 100%;
+  font-size: .74rem;
+  color: #9b3f2b;
+}
+
+.missing span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fff2ee;
+  color: #8b3b28;
+  font-size: .67rem;
+  font-weight: 650;
+}
+
+.ready-ok {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #e9f7f0;
+  color: #146445;
+  font-size: .75rem;
+  font-weight: 650;
+}
+
+.quality {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1f4;
+  color: #73551d;
+  font-size: .72rem;
+}
+
+.quality > strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.quality > div {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: #fff9e9;
+}
+
+.quality > div.high {
+  background: #fff0f0;
+  color: #912f2f;
+}

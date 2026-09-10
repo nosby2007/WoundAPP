@@ -60,6 +60,8 @@ import {
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
 import { ClinicalDocumentExportService, ClinicalDocumentKind } from '../../services/clinical-document-export.service';
+import { VisitCompletenessService, WorkflowCompletionResult } from '../../services/visit-completeness.service';
+import { ClinicalQualityCheckService, ClinicalQualityFinding } from '../../services/clinical-quality-check.service';
 import {
   EVV_ATTESTATION_METHODS,
   EvvPatientAttestation,
@@ -152,7 +154,12 @@ export class PatientAssessmentsPage implements OnInit {
 
   private readonly visits = inject(VisitService);
   private readonly documentExport = inject(ClinicalDocumentExportService);
+  private readonly completenessService = inject(VisitCompletenessService);
+  private readonly qualityService = inject(ClinicalQualityCheckService);
   documentBusy = signal(false);
+  workflowCompletion = signal<WorkflowCompletionResult | null>(null);
+  qualityFindings = signal<ClinicalQualityFinding[]>([]);
+  readinessBusy = signal(false);
 
   private async refreshOpenVisit(): Promise<void> {
     try {
@@ -321,6 +328,7 @@ export class PatientAssessmentsPage implements OnInit {
         this.load(id);
         this.loadPatient(id);
         void this.refreshOpenVisit();
+        void this.refreshReadiness();
       }
     });
   }
@@ -339,6 +347,7 @@ export class PatientAssessmentsPage implements OnInit {
       next: list => {
         this.assessments.set(list);
         this.loading.set(false);
+        void this.refreshReadiness();
         ev?.detail.complete();
       },
       error: err => {
@@ -348,6 +357,38 @@ export class PatientAssessmentsPage implements OnInit {
         ev?.detail.complete();
       },
     });
+  }
+
+  async refreshReadiness(): Promise<void> {
+    if (!this.patientId || this.readinessBusy()) return;
+    this.readinessBusy.set(true);
+    try {
+      const [completion, findings] = await Promise.all([
+        this.completenessService.evaluate(this.patientId, 'routine'),
+        this.qualityService.evaluatePatient(this.patientId),
+      ]);
+      this.workflowCompletion.set(completion);
+      this.qualityFindings.set(findings);
+    } catch {
+      // Readiness is advisory and must never take down the chart.
+    } finally {
+      this.readinessBusy.set(false);
+    }
+  }
+
+  workflowLabel(circle: string): string {
+    const labels: Record<string, string> = {
+      visit: 'Visit / check-in',
+      assessment: 'Patient assessment',
+      braden: 'Braden',
+      systemic: 'Physical assessment',
+      carePlan: 'Care plan',
+      order: 'Order',
+      education: 'Education',
+      woundAssessment: 'Wound assessment',
+      progressNote: 'Progress note',
+    };
+    return labels[circle] || circle;
   }
 
   doRefresh(ev: CustomEvent) {
