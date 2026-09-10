@@ -28,6 +28,8 @@ import {
   IonNote,
   IonRadio,
   IonRadioGroup,
+  IonSelect,
+  IonSelectOption,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -111,6 +113,8 @@ function normalizePatientId(raw: string | null): string {
     IonInput,
     IonRadio,
     IonRadioGroup,
+    IonSelect,
+    IonSelectOption,
   ],
   templateUrl: './patient-assessments.page.html',
   styleUrls: ['./patient-assessments.page.scss'],
@@ -152,6 +156,16 @@ export class PatientAssessmentsPage implements OnInit {
   openVisit = signal<FieldVisit | null>(null);
   evvBusy = signal(false);
   evvMessage = signal<string>('');
+  selectedVisitType = signal<'admission' | 'follow_up' | 'np_evaluation' | 'wound_round' | 'prn'>(
+    this.roundId ? 'wound_round' : 'follow_up'
+  );
+  readonly visitTypes = [
+    { value: 'admission', label: 'Admission' },
+    { value: 'follow_up', label: 'Follow-up' },
+    { value: 'np_evaluation', label: 'NP evaluation' },
+    { value: 'wound_round', label: 'Wound round' },
+    { value: 'prn', label: 'PRN / unscheduled' },
+  ] as const;
 
   private readonly visits = inject(VisitService);
   private readonly documentExport = inject(ClinicalDocumentExportService);
@@ -179,8 +193,9 @@ export class PatientAssessmentsPage implements OnInit {
     this.evvBusy.set(true);
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkIn(this.patientId);
+      const { location } = await this.visits.checkIn(this.patientId, this.selectedVisitType());
       await this.refreshOpenVisit();
+      await this.refreshReadiness();
       // Said out loud when the position did not come: the arrival IS
       // recorded, and the clinician should know the location is not.
       this.evvMessage.set(
@@ -261,6 +276,7 @@ export class PatientAssessmentsPage implements OnInit {
     try {
       const { location } = await this.visits.checkOut(this.patientId, visit.id, attestation);
       await this.refreshOpenVisit();
+      await this.refreshReadiness();
       this.evvMessage.set(
         location.status === 'captured'
           ? 'Checked out.'
@@ -320,6 +336,7 @@ export class PatientAssessmentsPage implements OnInit {
   ngOnInit(): void {
     this.route.queryParamMap.subscribe(params => {
       this.roundId = params.get('roundId') || '';
+      if (this.roundId) this.selectedVisitType.set('wound_round');
     });
 
     this.route.paramMap.subscribe(params => {
