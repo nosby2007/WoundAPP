@@ -28,6 +28,8 @@ import {
   IonNote,
   IonRadio,
   IonRadioGroup,
+  IonSelect,
+  IonSelectOption,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -62,6 +64,7 @@ import { FieldVisit, VisitService } from '../../services/visit.service';
 import { ClinicalDocumentExportService, ClinicalDocumentKind } from '../../services/clinical-document-export.service';
 import { VisitCompletenessService, WorkflowCompletionResult } from '../../services/visit-completeness.service';
 import { ClinicalQualityCheckService, ClinicalQualityFinding } from '../../services/clinical-quality-check.service';
+import { PatientMrnService } from '../../services/patient-mrn.service';
 import {
   EVV_ATTESTATION_METHODS,
   EvvPatientAttestation,
@@ -110,6 +113,8 @@ function normalizePatientId(raw: string | null): string {
     IonInput,
     IonRadio,
     IonRadioGroup,
+    IonSelect,
+    IonSelectOption,
   ],
   templateUrl: './patient-assessments.page.html',
   styleUrls: ['./patient-assessments.page.scss'],
@@ -151,11 +156,22 @@ export class PatientAssessmentsPage implements OnInit {
   openVisit = signal<FieldVisit | null>(null);
   evvBusy = signal(false);
   evvMessage = signal<string>('');
+  selectedVisitType = signal<'admission' | 'follow_up' | 'np_evaluation' | 'wound_round' | 'prn'>(
+    this.roundId ? 'wound_round' : 'follow_up'
+  );
+  readonly visitTypes = [
+    { value: 'admission', label: 'Admission' },
+    { value: 'follow_up', label: 'Follow-up' },
+    { value: 'np_evaluation', label: 'NP evaluation' },
+    { value: 'wound_round', label: 'Wound round' },
+    { value: 'prn', label: 'PRN / unscheduled' },
+  ] as const;
 
   private readonly visits = inject(VisitService);
   private readonly documentExport = inject(ClinicalDocumentExportService);
   private readonly completenessService = inject(VisitCompletenessService);
   private readonly qualityService = inject(ClinicalQualityCheckService);
+  private readonly mrnService = inject(PatientMrnService);
   documentBusy = signal(false);
   workflowCompletion = signal<WorkflowCompletionResult | null>(null);
   qualityFindings = signal<ClinicalQualityFinding[]>([]);
@@ -177,8 +193,9 @@ export class PatientAssessmentsPage implements OnInit {
     this.evvBusy.set(true);
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkIn(this.patientId);
+      const { location } = await this.visits.checkIn(this.patientId, this.selectedVisitType());
       await this.refreshOpenVisit();
+      await this.refreshReadiness();
       // Said out loud when the position did not come: the arrival IS
       // recorded, and the clinician should know the location is not.
       this.evvMessage.set(
@@ -259,6 +276,7 @@ export class PatientAssessmentsPage implements OnInit {
     try {
       const { location } = await this.visits.checkOut(this.patientId, visit.id, attestation);
       await this.refreshOpenVisit();
+      await this.refreshReadiness();
       this.evvMessage.set(
         location.status === 'captured'
           ? 'Checked out.'
@@ -318,6 +336,7 @@ export class PatientAssessmentsPage implements OnInit {
   ngOnInit(): void {
     this.route.queryParamMap.subscribe(params => {
       this.roundId = params.get('roundId') || '';
+      if (this.roundId) this.selectedVisitType.set('wound_round');
     });
 
     this.route.paramMap.subscribe(params => {
@@ -335,7 +354,12 @@ export class PatientAssessmentsPage implements OnInit {
 
   private loadPatient(patientId: string) {
     this.assessmentsSvc.getPatient(patientId).subscribe(p => {
-      if (p) this.patientName.set(p.name);
+      if (p) {
+        this.patientName.set(p.name);
+        if (!(p as any).mrn) {
+          void this.mrnService.ensureForPatient(patientId).catch(() => undefined);
+        }
+      }
     });
   }
 
@@ -364,7 +388,7 @@ export class PatientAssessmentsPage implements OnInit {
     this.readinessBusy.set(true);
     try {
       const [completion, findings] = await Promise.all([
-        this.completenessService.evaluate(this.patientId, 'routine'),
+        this.completenessService.evaluate(this.patientId, String((this.openVisit() as any)?.visitType || (this.roundId ? 'wound_round' : 'follow_up'))),
         this.qualityService.evaluatePatient(this.patientId),
       ]);
       this.workflowCompletion.set(completion);
@@ -505,10 +529,11 @@ export class PatientAssessmentsPage implements OnInit {
     this.documentBusy.set(true);
     this.evvMessage.set('');
     try {
-      const result = await this.documentExport.shareSection(this.patientId, kind, recordId);
-      if (result === 'print') {
-        this.evvMessage.set('Direct file sharing is unavailable on this device. The printable document was opened instead.');
-      }
+      const prepared = await this.documentExport.prepareSection(this.patientId, kind, recordId);
+      await this.router.navigate(
+        ['/tabs','skin-wound',this.patientId,'delivery',prepared.snapshotId],
+        { queryParams: { title: prepared.title } },
+      );
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
         this.evvMessage.set(error?.message ?? 'The clinical document could not be shared.');
@@ -536,10 +561,11 @@ export class PatientAssessmentsPage implements OnInit {
     this.documentBusy.set(true);
     this.evvMessage.set('');
     try {
-      const result = await this.documentExport.shareVisitPacket(this.patientId);
-      if (result === 'print') {
-        this.evvMessage.set('Direct file sharing is unavailable on this device. The printable visit packet was opened instead.');
-      }
+      const prepared = await this.documentExport.prepareVisitPacket(this.patientId);
+      await this.router.navigate(
+        ['/tabs','skin-wound',this.patientId,'delivery',prepared.snapshotId],
+        { queryParams: { title: prepared.title } },
+      );
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
         this.evvMessage.set(error?.message ?? 'The visit packet could not be shared.');

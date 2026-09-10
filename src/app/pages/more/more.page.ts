@@ -2,10 +2,11 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
-import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
+import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline, pulseOutline, fingerPrintOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
 import { TenantService } from '../../services/tenant.service';
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
+import { BiometricUnlockService } from '../../services/biometric-unlock.service';
 
 @Component({
   selector: 'app-more',
@@ -36,6 +37,7 @@ import { ClinicalIdentityService } from '../../services/clinical-identity.servic
             <ion-item button detail="false" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" (click)="qualityDashboard()"><div class="menu-icon featured"><ion-icon [icon]="pulseOutline"></ion-icon></div><ion-label><strong>Quality & Smart Alerts</strong><p>Incomplete visits, chart consistency checks and actionable review items.</p></ion-label><ion-badge color="success">P2</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
 
@@ -44,6 +46,7 @@ import { ClinicalIdentityService } from '../../services/clinical-identity.servic
           <ion-list lines="none" class="menu">
             <ion-item detail="false"><div class="menu-icon"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon></div><ion-label><strong>Protected session</strong><p>Firebase authentication + mobile PIN access.</p></ion-label><ion-badge color="success">Active</ion-badge></ion-item>
             <ion-item detail="false"><div class="menu-icon"><ion-icon [icon]="online ? cloudDoneOutline : cloudOfflineOutline"></ion-icon></div><ion-label><strong>Network</strong><p>{{ online ? 'Connected. Live updates available.' : 'Offline. Avoid closing the app until connectivity returns.' }}</p></ion-label></ion-item>
+            <ion-item button detail="false" (click)="verifyBiometric()"><div class="menu-icon"><ion-icon [icon]="fingerPrintOutline"></ion-icon></div><ion-label><strong>Biometric re-unlock</strong><p>{{ biometricLabel }}</p></ion-label><ion-badge [color]="biometricAvailable ? 'success' : 'medium'">{{ biometricAvailable ? 'Available' : 'PIN fallback' }}</ion-badge></ion-item>
           </ion-list>
         </section>
 
@@ -69,6 +72,8 @@ export class MorePage implements OnInit {
   readonly personAddOutline = personAddOutline;
   readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
   readonly sparklesOutline = sparklesOutline;
+  readonly pulseOutline = pulseOutline;
+  readonly fingerPrintOutline = fingerPrintOutline;
 
   displayName = 'Clinical profile required';
   email = '';
@@ -79,12 +84,15 @@ export class MorePage implements OnInit {
   identityProblem = '';
   online = navigator.onLine;
   signingOut = false;
+  biometricAvailable = false;
+  biometricLabel = 'Checking device capability…';
 
   constructor(
     private router: Router,
     private auth: AuthService,
     private tenant: TenantService,
     private clinicalIdentity: ClinicalIdentityService,
+    private biometric: BiometricUnlockService,
   ) {}
 
   get initials(): string { return this.displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]?.toUpperCase()).join('') || 'CL'; }
@@ -97,6 +105,10 @@ export class MorePage implements OnInit {
     const readiness = await this.clinicalIdentity.currentReadiness();
     this.identityReady = readiness.ready;
     this.identityProblem = readiness.missing.length ? `Missing: ${readiness.missing.join(', ')}.` : '';
+    const biometric = await this.biometric.capability();
+    this.biometricAvailable = biometric.available;
+    this.biometricLabel = biometric.label;
+
     if (readiness.identity) {
       this.displayName = readiness.identity.displayName;
       this.credentialsLine = [readiness.identity.credentials, readiness.identity.npi ? `NPI ${readiness.identity.npi}` : null].filter(Boolean).join(' · ');
@@ -111,6 +123,13 @@ export class MorePage implements OnInit {
   mySchedule(): void { void this.router.navigate(['/tabs/my-schedule']); }
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
+  qualityDashboard(): void { void this.router.navigate(['/tabs/quality']); }
+
+  async verifyBiometric(): Promise<void> {
+    if (!this.biometricAvailable) return;
+    const verified = await this.biometric.verify();
+    this.biometricLabel = verified ? 'Identity confirmed on this device.' : 'Biometric check cancelled or failed. PIN remains available.';
+  }
 
   async signOut(): Promise<void> {
     if (this.signingOut) return;

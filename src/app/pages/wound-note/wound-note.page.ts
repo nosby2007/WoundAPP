@@ -31,6 +31,7 @@ import {
 } from '../../shared/wound-progress-note';
 import { WoundNoteSnapshot, WoundProgressNoteService } from '../../services/wound-progress-note.service';
 import { ProgressNoteService } from '../../services/progress-note.service';
+import { AiClinicalDraftService } from '../../services/ai-clinical-draft.service';
 
 /**
  * The wound progress note, on the way out of the visit.
@@ -67,6 +68,7 @@ export class WoundNotePage implements OnInit {
   private builder = inject(WoundProgressNoteService);
   private notes = inject(ProgressNoteService);
   private toastCtrl = inject(ToastController);
+  private aiDraft = inject(AiClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
 
@@ -77,6 +79,9 @@ export class WoundNotePage implements OnInit {
   loading = true;
   errorMsg = '';
   saving = false;
+  aiBusy = false;
+  aiSuggestion = '';
+  aiError = '';
 
   visitKind: WoundNoteVisitKind = 'admission';
   reasonForConsult = '';
@@ -142,6 +147,60 @@ export class WoundNotePage implements OnInit {
       reasonForConsult: this.reasonForConsult,
       recommendation: this.recommendation,
     });
+  }
+
+  async requestAiDraft(): Promise<void> {
+    if (!this.snapshot || this.aiBusy) return;
+    this.aiBusy = true;
+    this.aiError = '';
+    this.aiSuggestion = '';
+    try {
+      const structuredData = {
+        visitKind: this.visitKind,
+        reasonForConsult: this.reasonForConsult,
+        recommendation: this.recommendation,
+        bradenTotal: this.snapshot.bradenTotal,
+        bradenRiskText: this.snapshot.bradenRiskText,
+        wounds: this.snapshot.wounds.map((wound) => ({
+          type: wound.type,
+          location: wound.location,
+          stage: wound.stage,
+          measurements: wound.measurements,
+          woundBed: wound.woundBed,
+          exudate: wound.exudate,
+          periwound: wound.periwound,
+          pain: wound.pain,
+          progress: wound.progress,
+          treatment: wound.treatment,
+          goalOfCare: wound.goalOfCare,
+          orders: wound.orders,
+        })),
+        education: this.snapshot.education,
+      };
+      this.aiSuggestion = await this.aiDraft.suggest({
+        sectionKey: 'wound_progress_note',
+        sectionTitle: 'Wound progress note',
+        structuredData,
+        priorText: this.noteText || null,
+      });
+      if (!this.aiSuggestion) this.aiError = 'The copilot did not have enough chart data to draft a useful suggestion.';
+    } catch (error: any) {
+      this.aiError = error?.message || 'AI draft is unavailable right now.';
+    } finally {
+      this.aiBusy = false;
+    }
+  }
+
+  applyAiDraft(): void {
+    if (!this.aiSuggestion) return;
+    this.noteText = this.aiSuggestion;
+    this.aiSuggestion = '';
+    this.edited = true;
+  }
+
+  discardAiDraft(): void {
+    this.aiSuggestion = '';
+    this.aiError = '';
   }
 
   async save(): Promise<void> {
