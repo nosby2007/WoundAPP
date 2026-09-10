@@ -154,8 +154,40 @@ export class WoundRoundMobileService {
   }
 
   async linkAssessment(roundId:string, patientId:string, assessmentId:string, woundId?:string|null):Promise<void>{
-    if(!roundId||!patientId||!assessmentId)return; const ref=doc(db,'woundRounds',roundId);
-    await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('Round not found');const round=snap.data() as any;let found=false;const now=Timestamp.now();const patients=(round.patients||[]).map((entry:MobileRoundPatient)=>{if(entry.patientId!==patientId)return entry;found=true;return{...entry,status:'in_progress',assessmentIds:Array.from(new Set([...(entry.assessmentIds||[]),assessmentId])),woundIds:woundId?Array.from(new Set([...(entry.woundIds||[]),woundId])):(entry.woundIds||[]),evaluationStartedAt:entry.evaluationStartedAt||now,visitedAt:entry.visitedAt||now,qaStatus:'not_ready'};});if(!found)throw new Error('Patient is not in this round');tx.update(ref,{patients,status:'in_progress',qaStatus:'not_ready',updatedAt:serverTimestamp()});});
+    if(!roundId||!patientId||!assessmentId)return;
+    if(!(await this.canAuthor()))throw new Error('Your role cannot update wound rounds');
+    const orgId=await this.tenant.currentOrgId();
+    if(!orgId)throw new Error('Organization context is required');
+    const ref=doc(db,'woundRounds',roundId);
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);if(!snap.exists())throw new Error('Round not found');
+      const round=snap.data() as any;if(round.orgId!==orgId)throw new Error('Round is outside your organization');
+      let found=false;const now=Timestamp.now();
+      const patients=(round.patients||[]).map((entry:MobileRoundPatient)=>{
+        if(entry.patientId!==patientId)return entry;found=true;
+        return{...entry,status:'in_progress',assessmentIds:Array.from(new Set([...(entry.assessmentIds||[]),assessmentId])),woundIds:woundId?Array.from(new Set([...(entry.woundIds||[]),woundId])):(entry.woundIds||[]),evaluationStartedAt:entry.evaluationStartedAt||now,visitedAt:entry.visitedAt||now,qaStatus:'not_ready'};
+      });
+      if(!found)throw new Error('Patient is not in this round');
+      tx.update(ref,{patients,status:'in_progress',qaStatus:'not_ready',updatedAt:serverTimestamp()});
+    });
+  }
+
+  async syncLatestAssessment(roundId:string, patientId:string):Promise<boolean>{
+    if(!(await this.canAuthor()))throw new Error('Your role cannot update wound rounds');
+    const orgId=await this.tenant.currentOrgId();
+    if(!orgId)throw new Error('Organization context is required');
+    const ref=doc(db,'woundRounds',roundId);
+    const snap=await getDoc(ref);
+    if(!snap.exists())throw new Error('Round not found');
+    const round=snap.data() as any;
+    if(round.orgId!==orgId)throw new Error('Round is outside your organization');
+    const entry=(round.patients||[]).find((p:MobileRoundPatient)=>p.patientId===patientId) as MobileRoundPatient|undefined;
+    if(!entry)throw new Error('Patient is not in this round');
+    const latest=await this.latestRoundAssessment(patientId,entry.evaluationStartedAt);
+    if(!latest)return false;
+    if((entry.assessmentIds||[]).includes(latest.assessmentId))return true;
+    await this.linkAssessment(roundId,patientId,latest.assessmentId,latest.woundId);
+    return true;
   }
 
   async completeRound(roundId:string):Promise<void>{
@@ -172,8 +204,22 @@ export class WoundRoundMobileService {
   }
 
   private async latestRoundAssessment(patientId:string, startedAt:any):Promise<{assessmentId:string;woundId?:string|null}|null>{
-    const user=auth.currentUser;if(!user)return null;const snap=await getDocs(collection(db,'patients',patientId,'assessments'));const started=this.toMillis(startedAt);
-    const candidates=snap.docs.map(d=>({id:d.id,...d.data()} as any)).filter(a=>{const owner=a.createdByUid||a.createdBy;const at=this.toMillis(a.assessedAt||a.createdAt);return(!owner||owner===user.uid)&&(!started||!at||at>=started);}).sort((a,b)=>this.toMillis(b.assessedAt||b.createdAt)-this.toMillis(a.assessedAt||a.createdAt));
+    const user=auth.currentUser;if(!user)return null;
+    const started=this.toMillis(startedAt);
+    const currentSnap=await getDocs(collection(db,'patients',patientId,'woundAssessments'));
+    let legacyDocs:any[]=[];
+    try{
+      const legacySnap=await getDocs(collection(db,'patients',patientId,'assessments'));
+      legacyDocs=legacySnap.docs.map(d=>({id:d.id,...d.data()} as any));
+    }catch{
+      legacyDocs=[];
+    }
+    const docs=[...currentSnap.docs.map(d=>({id:d.id,...d.data()} as any)),...legacyDocs];
+    const candidates=docs.filter(a=>{
+      const owner=a.createdByUid||a.createdBy;
+      const at=this.toMillis(a.assessedAt||a.createdAt);
+      return(!owner||owner===user.uid)&&(!started||!at||at>=started);
+    }).sort((a,b)=>this.toMillis(b.assessedAt||b.createdAt)-this.toMillis(a.assessedAt||a.createdAt));
     const latest=candidates[0];return latest?{assessmentId:latest.id,woundId:latest.woundId??latest.id}:null;
   }
 
