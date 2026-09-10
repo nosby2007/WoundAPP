@@ -2,6 +2,7 @@
 import { Injectable } from '@angular/core';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../firebase';
+import { SessionSecurityService } from './session-security.service';
 
 export interface PinStatus {
   hasPin: boolean;
@@ -24,6 +25,7 @@ export interface PinStatus {
  */
 @Injectable({ providedIn: 'root' })
 export class PinService {
+  constructor(private readonly sessionSecurity: SessionSecurityService) {}
   private readonly setFn = httpsCallable<{ pin: string; currentPin?: string }, { ok: boolean }>(
     functions, 'mobilePinSetV1');
   private readonly verifyFn = httpsCallable<{ pin: string }, { ok: boolean }>(
@@ -45,6 +47,7 @@ export class PinService {
   async verify(pin: string): Promise<void> {
     await this.verifyFn({ pin });
     await this.refreshToken();
+    this.sessionSecurity.markActivity();
   }
 
   /** Whether this session has already cleared the PIN. */
@@ -53,7 +56,7 @@ export class PinService {
     if (!user) return false;
     const token = await user.getIdTokenResult(true);
     const passedAt = token.claims['mfaPassedAt'];
-    return typeof passedAt === 'number' && passedAt > 0;
+    return typeof passedAt === 'number' && passedAt > 0 && this.sessionSecurity.isFresh();
   }
 
   private async refreshToken(): Promise<void> {
