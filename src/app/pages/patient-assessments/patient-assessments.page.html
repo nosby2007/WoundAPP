@@ -18,7 +18,6 @@
 
   <div class="page">
 
-    <!-- EVV: when the clinician arrived and left, and where. -->
     <div class="evv-card" [class.evv-on]="openVisit()">
       <div class="evv-row">
         <ion-icon name="location-outline"></ion-icon>
@@ -28,179 +27,76 @@
           <ion-note *ngIf="openVisit()">{{ locationText() }}</ion-note>
           <ion-note *ngIf="!openVisit()">Record your arrival so the visit can be verified.</ion-note>
         </div>
-        <ion-button
-          *ngIf="!openVisit()"
-          size="small"
-          [disabled]="evvBusy()"
-          (click)="checkIn()">
-          <ion-icon slot="start" name="log-in-outline"></ion-icon>
-          Check in
+        <ion-button *ngIf="!openVisit()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
+          <ion-icon slot="start" name="log-in-outline"></ion-icon>Check in
         </ion-button>
-        <ion-button
-          *ngIf="openVisit()"
-          size="small"
-          color="medium"
-          [disabled]="evvBusy()"
-          (click)="beginCheckOut()">
-          <ion-icon slot="start" name="log-out-outline"></ion-icon>
-          Check out
+        <ion-button *ngIf="openVisit()" size="small" color="medium" [disabled]="evvBusy()" (click)="beginCheckOut()">
+          <ion-icon slot="start" name="log-out-outline"></ion-icon>Check out
         </ion-button>
       </div>
-      <!-- Asked once, on the way out, by the person who is actually there. -->
+
       <div class="evv-attest" *ngIf="attesting()">
         <div class="evv-attest-title">Did the patient or their responsible party confirm this visit?</div>
-
         <ion-radio-group [ngModel]="attestMethod()" (ngModelChange)="attestMethod.set($event)">
           <ion-item lines="none" *ngFor="let m of attestationMethods">
             <ion-radio [value]="m.value" labelPlacement="end" justify="start">{{ m.label }}</ion-radio>
           </ion-item>
         </ion-radio-group>
-
-        <ion-item lines="none" *ngIf="needsName()">
-          <ion-input
-            label="Who confirmed it"
-            labelPlacement="stacked"
-            placeholder="Name"
-            [ngModel]="attestName()"
-            (ngModelChange)="attestName.set($event)"></ion-input>
-        </ion-item>
-        <ion-item lines="none" *ngIf="needsName()">
-          <ion-input
-            label="Relationship"
-            labelPlacement="stacked"
-            placeholder="patient / responsible party"
-            [ngModel]="attestRelationship()"
-            (ngModelChange)="attestRelationship.set($event)"></ion-input>
-        </ion-item>
-        <ion-item lines="none" *ngIf="needsReason()">
-          <ion-input
-            label="Why not"
-            labelPlacement="stacked"
-            placeholder="e.g. patient asleep, no RP present"
-            [ngModel]="attestReason()"
-            (ngModelChange)="attestReason.set($event)"></ion-input>
-        </ion-item>
-
+        <ion-item lines="none" *ngIf="needsName()"><ion-input label="Who confirmed it" labelPlacement="stacked" placeholder="Name" [ngModel]="attestName()" (ngModelChange)="attestName.set($event)"></ion-input></ion-item>
+        <ion-item lines="none" *ngIf="needsName()"><ion-input label="Relationship" labelPlacement="stacked" placeholder="patient / responsible party" [ngModel]="attestRelationship()" (ngModelChange)="attestRelationship.set($event)"></ion-input></ion-item>
+        <ion-item lines="none" *ngIf="needsReason()"><ion-input label="Why not" labelPlacement="stacked" placeholder="e.g. patient asleep, no RP present" [ngModel]="attestReason()" (ngModelChange)="attestReason.set($event)"></ion-input></ion-item>
         <div class="evv-attest-actions">
-          <ion-button size="small" [disabled]="!attestMethod() || evvBusy()" (click)="confirmAttestation()">
-            Record &amp; check out
-          </ion-button>
-          <ion-button size="small" fill="clear" color="medium" [disabled]="evvBusy()" (click)="checkOutWithoutAttestation()">
-            Check out without
-          </ion-button>
+          <ion-button size="small" [disabled]="!attestMethod() || evvBusy()" (click)="confirmAttestation()">Record &amp; check out</ion-button>
+          <ion-button size="small" fill="clear" color="medium" [disabled]="evvBusy()" (click)="checkOutWithoutAttestation()">Check out without</ion-button>
           <ion-button size="small" fill="clear" color="medium" (click)="cancelAttestation()">Cancel</ion-button>
         </div>
-        <div class="evv-attest-note">
-          Leaving it blank records that nobody was asked — which is honest. Choosing
-          &ldquo;not required&rdquo; when it was not asked is not.
-        </div>
+        <div class="evv-attest-note">Leaving it blank records that nobody was asked — which is honest. Choosing “not required” when it was not asked is not.</div>
       </div>
-
       <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
     </div>
 
-    <!-- Braden is about the patient, not about one wound, so it sits here
-         beside the visit rather than under an assessment. -->
-    <div class="assessment-shortcuts">
-      <ion-button size="small" fill="outline" (click)="openBraden()">
-        <ion-icon slot="start" name="body-outline"></ion-icon>
-        Braden Scale
-      </ion-button>
-      <ion-button size="small" fill="outline" (click)="openEducation()">
-        <ion-icon slot="start" name="school-outline"></ion-icon>
-        Education
-      </ion-button>
-      <ion-button size="small" fill="solid" (click)="openWoundNote()">
-        <ion-icon slot="start" name="reader-outline"></ion-icon>
-        Progress note
-      </ion-button>
-    </div>
+    <section class="clinical-command">
+      <div class="clinical-command-head">
+        <div><span>CLINICAL COMMAND</span><h2>Assess · Plan · Order · Teach · Document</h2></div>
+        <small>One patient context. No re-entry.</small>
+      </div>
+      <div class="assessment-shortcuts">
+        <ion-button size="small" fill="outline" (click)="openBraden()"><ion-icon slot="start" name="body-outline"></ion-icon>Braden Scale</ion-button>
+        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'systemic-assessment']">Systemic Assessment</ion-button>
+        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'care-plan']">Care Plan</ion-button>
+        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'orders']">Orders</ion-button>
+        <ion-button size="small" fill="outline" (click)="openEducation()"><ion-icon slot="start" name="school-outline"></ion-icon>Education</ion-button>
+        <ion-button size="small" fill="solid" (click)="openWoundNote()"><ion-icon slot="start" name="reader-outline"></ion-icon>Progress note</ion-button>
+      </div>
+    </section>
 
-    <!-- Search -->
-    <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)">
-    </ion-searchbar>
+    <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)"></ion-searchbar>
 
+    <div *ngIf="loading()" class="center"><ion-spinner name="crescent"></ion-spinner></div>
+    <div *ngIf="!loading() && errorMsg()" class="error">{{ errorMsg() }}</div>
+    <div *ngIf="!loading() && !errorMsg() && !filteredAssessments().length" class="empty">No wounds recorded for this patient.</div>
 
-    <!-- Loader -->
-    <div *ngIf="loading()" class="center">
-      <ion-spinner name="crescent"></ion-spinner>
-    </div>
-
-    <!-- Error -->
-    <div *ngIf="!loading() && errorMsg()" class="error">
-      {{ errorMsg() }}
-    </div>
-
-    <!-- Empty -->
-    <div *ngIf="!loading() && !errorMsg() && !filteredAssessments().length" class="empty">
-      No wounds recorded for this patient.
-    </div>
-
-    <!-- List -->
     <ion-list *ngIf="!loading() && !errorMsg() && filteredAssessments().length">
-  <!-- filteredAssessments(), not assessments(). This used to render the raw
-       list while the guard above tested the filtered one, so the search box
-       could only ever hide the whole list -- it never filtered a row. -->
-  <ion-item
-    button
-    *ngFor="let a of filteredAssessments()"
-    (click)="openAssessment(a)"
-    class="assessment-item"
-  >
-  <ion-avatar slot="start" class="thumb">
+      <ion-item button *ngFor="let a of filteredAssessments()" (click)="openAssessment(a)" class="assessment-item">
+        <ion-avatar slot="start" class="thumb">
           <img *ngIf="a.photoURL" [src]="a.photoURL" alt="wound">
           <ion-icon *ngIf="!a.photoURL" name="image-outline"></ion-icon>
         </ion-avatar>
-
-    <ion-label class="assessment-main">
-      <div class="assessment-left">
-        <h2 class="assessment-title">
-          {{ a.type || 'Assessment' }}
-        </h2>
-
-        <p class="assessment-sub">
-          {{ a.location || 'Location N/A' }}
-          <span *ngIf="a.assessedAt">
-            · {{ a.assessedAt | date: 'MM/dd/yyyy' }}
-          </span>
-          <!-- Says the earlier assessments are still there. Without it, a
-               wound that has been re-evaluated looks like one that has not,
-               and the rows that stopped appearing look lost. -->
-          <span *ngIf="a.assessmentCount > 1" class="reeval-count">
-            · {{ a.assessmentCount }} assessments
-          </span>
-        </p>
-      </div>
-
-      <div class="assessment-right">
-        <div class="assessment-badges">
-          <span class="chip status-chip" [ngClass]="a.status">
-            {{ a.status || 'unknown' }}
-          </span>
-          <span *ngIf="a.stage" class="chip stage-chip">
-            Stage {{ a.stage }}
-          </span>
-        </div>
-      </div>
-    </ion-label>
-     <!-- 🔘 Boutons d’action à droite -->
+        <ion-label class="assessment-main">
+          <div class="assessment-left"><h2 class="assessment-title">{{ a.type || 'Assessment' }}</h2>
+            <p class="assessment-sub">{{ a.location || 'Location N/A' }}<span *ngIf="a.assessedAt"> · {{ a.assessedAt | date: 'MM/dd/yyyy' }}</span><span *ngIf="a.assessmentCount > 1" class="reeval-count"> · {{ a.assessmentCount }} assessments</span></p>
+          </div>
+          <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
+        </ion-label>
         <div class="actions" slot="end" (click)="$event.stopPropagation()">
-          <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)">
-            <ion-icon slot="icon-only" name="time-outline"></ion-icon>
-          </ion-button>
-
-          <ion-button size="small" fill="solid" class="btn-reeval" (click)="reEvaluate(a)">
-            <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
-          </ion-button>
+          <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="solid" class="btn-reeval" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
         </div>
-  </ion-item>
-</ion-list>
-
+      </ion-item>
+    </ion-list>
   </div>
 </ion-content>
 
 <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-  <ion-fab-button color="primary" (click)="newAssessment()">
-    <ion-icon name="add"></ion-icon>
-  </ion-fab-button>
+  <ion-fab-button color="primary" (click)="newAssessment()"><ion-icon name="add"></ion-icon></ion-fab-button>
 </ion-fab>
