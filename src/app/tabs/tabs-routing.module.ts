@@ -11,6 +11,9 @@ import { ProgressNotePage } from '../pages/progress-note/progress-note.page';
 import { ProgressNoteFormPage } from '../pages/progress-note-form/progress-note-form.page';
 import { BradenFormPage } from '../pages/braden-form/braden-form.page';
 import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
+import { PatientCarePlanPage } from '../pages/patient-care-plan/patient-care-plan.page';
+import { ClinicalOrderPage } from '../pages/clinical-order/clinical-order.page';
+import { SystemicAssessmentPage } from '../pages/systemic-assessment/systemic-assessment.page';
 import { EducationPage } from '../pages/education/education.page';
 import { WoundNotePage } from '../pages/wound-note/wound-note.page';
 import { TodayPage } from '../pages/today/today.page';
@@ -43,6 +46,9 @@ const routes: Routes = [
       { path: 'skin-wound/:patientId/wound-note', component: WoundNotePage },
       { path: 'skin-wound/:patientId/education', component: EducationPage },
       { path: 'skin-wound/:patientId/braden', component: BradenFormPage },
+      { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage },
+      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage },
+      { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/care-plan', component: WoundCarePlanPage },
