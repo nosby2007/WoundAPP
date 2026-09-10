@@ -39,10 +39,11 @@ import {
 } from 'ionicons/icons';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { Firestore, doc, getDoc, serverTimestamp, updateDoc } from '@angular/fire/firestore';
 import { getAuth } from 'firebase/auth';
 
 import { ApiService } from '../../services/api.service';
+import { PatientMrnService } from '../../services/patient-mrn.service';
 import {
   buildPatientIntakePayload,
   intakeGaps,
@@ -175,6 +176,7 @@ export class AddPatientPage {
   constructor(
     private fb: FormBuilder,
     private api: ApiService,
+    private mrn: PatientMrnService,
     private router: Router
   ) {
     addIcons({
@@ -278,6 +280,11 @@ export class AddPatientPage {
       const payload = buildPatientIntakePayload(this.currentValue(), { orgId, facilityId });
 
       const result = await firstValueFrom(this.api.createPatient(payload));
+      const generatedMrn = this.mrn.fromPatientId(orgId, result.id);
+      await updateDoc(doc(this.firestore, `patients/${result.id}`), {
+        mrn: generatedMrn,
+        updatedAt: serverTimestamp(),
+      });
       this.router.navigate(['/tabs', 'skin-wound', result.id, 'assessments'], { replaceUrl: true });
     } catch (err: any) {
       console.error('[AddPatientPage] create failed', err);
