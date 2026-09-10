@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export type QualitySeverity = 'info' | 'warning' | 'high';
 
@@ -13,6 +15,22 @@ export interface ClinicalQualityFinding {
 
 @Injectable({ providedIn: 'root' })
 export class ClinicalQualityCheckService {
+  async evaluatePatient(patientId: string): Promise<ClinicalQualityFinding[]> {
+    const [woundsSnap, assessmentsSnap, ordersSnap] = await Promise.all([
+      getDocs(collection(db, `patients/${patientId}/woundAssessments`)),
+      getDocs(collection(db, `patients/${patientId}/assessments`)),
+      getDocs(collection(db, `patients/${patientId}/orders`)),
+    ]);
+    const wounds = woundsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const assessments = assessmentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const orders = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return [
+      ...this.checkWoundAssessments(wounds),
+      ...this.checkBraden(assessments.filter((row: any) => row.kind === 'braden')),
+      ...this.checkOrderWoundLinks(orders, wounds),
+    ];
+  }
+
   checkWoundAssessments(rows: any[]): ClinicalQualityFinding[] {
     const findings: ClinicalQualityFinding[] = [];
 
