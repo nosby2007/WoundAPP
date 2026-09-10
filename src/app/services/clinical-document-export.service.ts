@@ -246,7 +246,7 @@ ${sections.map((section) => this.renderSection(section)).join('')}
   }
 
   private openPrintWindow(html: string): void {
-    const win = window.open('', '_blank', 'noopener,noreferrer');
+    const win = window.open('', '_blank');
     if (!win) throw new Error('Allow pop-ups to open the printable document.');
     win.document.open();
     win.document.write(html);
