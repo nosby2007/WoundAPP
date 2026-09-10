@@ -40,7 +40,7 @@ export class ApiService {
     const url = `${this.base}/patients`;
 
     return this.authHeaders$().pipe(
-      switchMap(headers => this.http.post<{ id: string }>(url, payload, { headers }))
+      switchMap(headers => this.http.post<{ id: string; mrn?: string }>(url, payload, { headers }))
     );
   }
 }
