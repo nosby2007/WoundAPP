@@ -3,9 +3,22 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { environment } from '../environments/environment';
 
 const app = initializeApp(environment.firebase);
+
+// App Check is enabled only when a production site key is configured. The
+// public key belongs in environment config; enforcement stays server-side in
+// Firebase. Leaving it blank keeps local/dev builds usable without pretending
+// protection is active.
+const appCheckKey = (environment as any).appCheck?.siteKey as string | undefined;
+if (appCheckKey) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(appCheckKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 export const auth = getAuth(app);
 export const db   = getFirestore(app);
