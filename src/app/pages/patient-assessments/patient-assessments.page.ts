@@ -56,11 +56,21 @@ import {
 } from '../../services/assessments.service';
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
+import { WoundRoundMobileService } from '../../services/wound-round.service';
 import {
   EVV_ATTESTATION_METHODS,
   EvvPatientAttestation,
   describeEvvLocation,
 } from '../../shared/evv';
+
+const ROUND_ASSESSMENT_CONTEXT_KEY = 'woundapp.roundAssessmentContext';
+const ROUND_ASSESSMENT_CONTEXT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+interface RoundAssessmentContext {
+  roundId: string;
+  patientId: string;
+  startedAt: number;
+}
 
 // Helper local pour nettoyer les ids qui ressemblent à "[Signal: xxx]"
 function normalizePatientId(raw: string | null): string {
@@ -111,10 +121,12 @@ function normalizePatientId(raw: string | null): string {
 export class PatientAssessmentsPage implements OnInit {
 
   patientId = normalizePatientId(this.route.snapshot.paramMap.get('patientId'));
+  private roundSyncBusy = false;
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private assessmentsSvc: AssessmentsService,
+    private rounds: WoundRoundMobileService,
   ) {
     // Ionic standalone has no global icon registry: every page registers
     // the icons it names, or they render blank.
@@ -326,6 +338,7 @@ export class PatientAssessmentsPage implements OnInit {
         this.assessments.set(list);
         this.loading.set(false);
         ev?.detail.complete();
+        void this.resumeRoundAssessment();
       },
       error: err => {
         console.error(err);
@@ -334,6 +347,48 @@ export class PatientAssessmentsPage implements OnInit {
         ev?.detail.complete();
       },
     });
+  }
+
+  private readRoundAssessmentContext(): RoundAssessmentContext | null {
+    const raw = sessionStorage.getItem(ROUND_ASSESSMENT_CONTEXT_KEY);
+    if (!raw) return null;
+    try {
+      const context = JSON.parse(raw) as RoundAssessmentContext;
+      if (!context?.roundId || !context?.patientId || !Number.isFinite(context.startedAt)) {
+        sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);
+        return null;
+      }
+      if (Date.now() - context.startedAt > ROUND_ASSESSMENT_CONTEXT_MAX_AGE_MS) {
+        sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);
+        return null;
+      }
+      return context;
+    } catch {
+      sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);
+      return null;
+    }
+  }
+
+  private async resumeRoundAssessment(): Promise<void> {
+    if (this.roundSyncBusy) return;
+    const context = this.readRoundAssessmentContext();
+    if (!context || context.patientId !== this.patientId) return;
+
+    this.roundSyncBusy = true;
+    try {
+      const linked = await this.rounds.syncLatestAssessment(context.roundId, this.patientId);
+      if (!linked) return;
+      sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);
+      await this.router.navigate(['/tabs', 'wound-rounds', context.roundId], { replaceUrl: true });
+    } catch (error: any) {
+      this.errorMsg.set(
+        error?.message
+          ? `Assessment saved, but round linking failed: ${error.message}`
+          : 'Assessment saved, but it could not be linked to the wound round.'
+      );
+    } finally {
+      this.roundSyncBusy = false;
+    }
   }
 
   doRefresh(ev: CustomEvent) {
@@ -397,13 +452,14 @@ export class PatientAssessmentsPage implements OnInit {
 
   newAssessment() {
   if (!this.patientId) return;
+  const roundContext = this.readRoundAssessmentContext();
   this.router.navigate([
     '/tabs',
     'skin-wound',
     this.patientId,
     'assessments',
     'new',
-  ]);
+  ], roundContext ? { queryParams: { roundId: roundContext.roundId } } : undefined);
 }
 
  // ✅ NOUVEAU : ouvrir l’historique de la plaie de cette évaluation
@@ -428,15 +484,21 @@ export class PatientAssessmentsPage implements OnInit {
     // re-evaluated without a second read. It is display only -- `woundId`
     // is what keeps the assessment on the same timeline.
     const woundLabel = [a.type, a.location].filter(Boolean).join(' — ');
+    const roundContext = this.readRoundAssessmentContext();
 
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: { woundId, woundLabel } },
+      { queryParams: { woundId, woundLabel, ...(roundContext ? { roundId: roundContext.roundId } : {}) } },
     );
   }
 
 
   back() {
+    const roundContext = this.readRoundAssessmentContext();
+    if (roundContext?.patientId === this.patientId) {
+      this.router.navigate(['/tabs', 'wound-rounds', roundContext.roundId]);
+      return;
+    }
     this.router.navigate(['/tabs', 'patients']);
   }
 }
