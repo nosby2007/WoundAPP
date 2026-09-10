@@ -8,7 +8,7 @@ import {
   IonToolbar, ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { bodyOutline, brainOutline, heartOutline, shieldCheckmarkOutline } from 'ionicons/icons';
+import { bodyOutline, bulbOutline, heartOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { SystemicAssessmentService } from '../../services/systemic-assessment.service';
 
 @Component({
@@ -33,7 +33,7 @@ import { SystemicAssessmentService } from '../../services/systemic-assessment.se
           <ion-item lines="none"><ion-textarea formControlName="integumentary" label="Skin / integumentary beyond wound findings" labelPlacement="stacked" autoGrow="true"></ion-textarea></ion-item>
         </ion-card-content></ion-card>
 
-        <ion-card><ion-card-content><div class="section-head"><ion-icon [icon]="brainOutline"></ion-icon><div><h2>Mental & Psychological</h2><p>Cognition, behavior, coping and psychosocial observations</p></div></div>
+        <ion-card><ion-card-content><div class="section-head"><ion-icon [icon]="bulbOutline"></ion-icon><div><h2>Mental & Psychological</h2><p>Cognition, behavior, coping and psychosocial observations</p></div></div>
           <ion-item lines="full"><ion-textarea formControlName="mentalStatus" label="Mental status / cognition" labelPlacement="stacked" autoGrow="true"></ion-textarea></ion-item>
           <ion-item lines="full"><ion-textarea formControlName="psychological" label="Psychological / psychosocial" labelPlacement="stacked" autoGrow="true"></ion-textarea></ion-item>
           <ion-item lines="full"><ion-textarea formControlName="pain" label="Pain assessment context" labelPlacement="stacked" autoGrow="true"></ion-textarea></ion-item>
@@ -58,8 +58,8 @@ import { SystemicAssessmentService } from '../../services/systemic-assessment.se
 export class SystemicAssessmentPage{
   private fb=inject(FormBuilder);private route=inject(ActivatedRoute);private router=inject(Router);private service=inject(SystemicAssessmentService);private toast=inject(ToastController);
   patientId=this.route.snapshot.paramMap.get('patientId')||'';saving=false;
-  readonly bodyOutline=bodyOutline;readonly brainOutline=brainOutline;readonly heartOutline=heartOutline;readonly shieldCheckmarkOutline=shieldCheckmarkOutline;
+  readonly bodyOutline=bodyOutline;readonly bulbOutline=bulbOutline;readonly heartOutline=heartOutline;readonly shieldCheckmarkOutline=shieldCheckmarkOutline;
   form=this.fb.group({general:[''],headToToe:[''],neurologic:[''],cardiovascular:[''],respiratory:[''],gastrointestinal:[''],genitourinary:[''],musculoskeletal:[''],integumentary:[''],mentalStatus:[''],psychological:[''],pain:[''],nutritionHydration:[''],functionalMobility:[''],safetyRisks:[''],other:[''],clinicalSummary:['']});
-  constructor(){addIcons({bodyOutline,brainOutline,heartOutline,shieldCheckmarkOutline});}
+  constructor(){addIcons({bodyOutline,bulbOutline,heartOutline,shieldCheckmarkOutline});}
   async save(){if(this.saving)return;this.saving=true;try{await this.service.create(this.patientId,this.form.getRawValue());const t=await this.toast.create({message:'Systemic assessment saved',duration:2200,color:'success'});await t.present();await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments']);}catch(e:any){const t=await this.toast.create({message:e?.message||'Assessment could not be saved',duration:3200,color:'danger'});await t.present();}finally{this.saving=false;}}
 }
