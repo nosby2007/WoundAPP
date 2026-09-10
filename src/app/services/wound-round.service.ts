@@ -142,11 +142,21 @@ export class WoundRoundMobileService {
           if (discovered.woundId) woundIds = Array.from(new Set([...woundIds, discovered.woundId]));
         }
         if ((status === 'evaluated' || status === 'seen') && !assessmentIds.length) throw new Error('Complete a wound assessment for this round before closing the patient');
+        if (status === 'skipped' && !String(note || '').trim()) throw new Error('A skip reason is required');
+        const qaReady = status === 'evaluated' || status === 'seen' || status === 'skipped';
+        const qaNote = status === 'skipped'
+          ? 'Skipped with documented reason; ready for QA review.'
+          : (status === 'evaluated' || status === 'seen')
+            ? 'Clinical evaluation completed; ready for QA review.'
+            : assessmentIds.length
+              ? 'Assessment linked; clinician completion is required before QA.'
+              : null;
         return { ...entry, status, assessmentIds, woundIds, note:note ?? entry.note ?? null,
           visitedAt:status === 'pending' ? null : (entry.visitedAt || now),
-          evaluationStartedAt:status === 'in_progress' ? (entry.evaluationStartedAt || now) : (entry.evaluationStartedAt || null),
-          evaluatedAt:status === 'evaluated' || status === 'seen' ? now : (entry.evaluatedAt || null),
-          qaStatus:status === 'evaluated' || status === 'seen' ? 'ready' : 'not_ready' };
+          evaluationStartedAt:status === 'pending' ? null : (status === 'in_progress' ? (entry.evaluationStartedAt || now) : (entry.evaluationStartedAt || null)),
+          evaluatedAt:status === 'evaluated' || status === 'seen' ? now : (status === 'pending' ? null : (entry.evaluatedAt || null)),
+          qaStatus:qaReady ? 'ready' : 'not_ready',
+          qaNote };
       });
       if (!found) throw new Error('Patient is not in this round');
       tx.update(ref, { patients, status:'in_progress', qaStatus:'not_ready', updatedAt:serverTimestamp() });
@@ -154,8 +164,31 @@ export class WoundRoundMobileService {
   }
 
   async linkAssessment(roundId:string, patientId:string, assessmentId:string, woundId?:string|null):Promise<void>{
-    if(!roundId||!patientId||!assessmentId)return; const ref=doc(db,'woundRounds',roundId);
-    await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('Round not found');const round=snap.data() as any;let found=false;const now=Timestamp.now();const patients=(round.patients||[]).map((entry:MobileRoundPatient)=>{if(entry.patientId!==patientId)return entry;found=true;return{...entry,status:'in_progress',assessmentIds:Array.from(new Set([...(entry.assessmentIds||[]),assessmentId])),woundIds:woundId?Array.from(new Set([...(entry.woundIds||[]),woundId])):(entry.woundIds||[]),evaluationStartedAt:entry.evaluationStartedAt||now,visitedAt:entry.visitedAt||now,qaStatus:'not_ready'};});if(!found)throw new Error('Patient is not in this round');tx.update(ref,{patients,status:'in_progress',qaStatus:'not_ready',updatedAt:serverTimestamp()});});
+    if(!roundId||!patientId||!assessmentId)return;
+    const ref=doc(db,'woundRounds',roundId);
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists())throw new Error('Round not found');
+      const round=snap.data() as any;
+      let found=false;
+      const now=Timestamp.now();
+      const patients=(round.patients||[]).map((entry:MobileRoundPatient)=>{
+        if(entry.patientId!==patientId)return entry;
+        found=true;
+        return{
+          ...entry,
+          status:'in_progress',
+          assessmentIds:Array.from(new Set([...(entry.assessmentIds||[]),assessmentId])),
+          woundIds:woundId?Array.from(new Set([...(entry.woundIds||[]),woundId])):(entry.woundIds||[]),
+          evaluationStartedAt:entry.evaluationStartedAt||now,
+          visitedAt:entry.visitedAt||now,
+          qaStatus:'not_ready',
+          qaNote:'Assessment linked; clinician completion is required before QA.'
+        };
+      });
+      if(!found)throw new Error('Patient is not in this round');
+      tx.update(ref,{patients,status:'in_progress',qaStatus:'not_ready',updatedAt:serverTimestamp()});
+    });
   }
 
   async completeRound(roundId:string):Promise<void>{
@@ -168,7 +201,7 @@ export class WoundRoundMobileService {
 
   private async buildRoster(orgId:string,facilityId:string):Promise<MobileRoundPatient[]>{
     const snap=await getDocs(query(collection(db,'patients'),where('orgId','==',orgId)));
-    return snap.docs.map(d=>({id:d.id,...d.data()} as any)).filter(p=>p.facilityId===facilityId&&(!p.patientStatus||p.patientStatus==='active')).map(p=>({patientId:p.id,patientName:p.preferredName||p.name||'Patient',roomNumber:p.roomNumber??p.room??null,unit:p.unit??null,status:'pending' as const,assessmentIds:[],woundIds:[],evaluationStartedAt:null,evaluatedAt:null,visitedAt:null,qaStatus:'not_ready' as const,note:null})).sort((a,b)=>(a.roomNumber||'').localeCompare(b.roomNumber||'')||a.patientName.localeCompare(b.patientName));
+    return snap.docs.map(d=>({id:d.id,...d.data()} as any)).filter(p=>p.facilityId===facilityId&&(!p.patientStatus||p.patientStatus==='active')).map(p=>({patientId:p.id,patientName:p.preferredName||p.name||'Patient',roomNumber:p.roomNumber??p.room??null,unit:p.unit??null,status:'pending' as const,assessmentIds:[],woundIds:[],evaluationStartedAt:null,evaluatedAt:null,visitedAt:null,qaStatus:'not_ready' as const,qaNote:null,note:null})).sort((a,b)=>(a.roomNumber||'').localeCompare(b.roomNumber||'')||a.patientName.localeCompare(b.patientName));
   }
 
   private async latestRoundAssessment(patientId:string, startedAt:any):Promise<{assessmentId:string;woundId?:string|null}|null>{
