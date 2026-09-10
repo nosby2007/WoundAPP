@@ -111,6 +111,7 @@ function normalizePatientId(raw: string | null): string {
 export class PatientAssessmentsPage implements OnInit {
 
   patientId = normalizePatientId(this.route.snapshot.paramMap.get('patientId'));
+  roundId = this.route.snapshot.queryParamMap.get('roundId') || '';
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -299,6 +300,10 @@ export class PatientAssessmentsPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params => {
+      this.roundId = params.get('roundId') || '';
+    });
+
     this.route.paramMap.subscribe(params => {
       const id = params.get('patientId');
       this.patientId = normalizePatientId(id);
@@ -396,17 +401,14 @@ export class PatientAssessmentsPage implements OnInit {
   }
 
   newAssessment() {
-  if (!this.patientId) return;
-  this.router.navigate([
-    '/tabs',
-    'skin-wound',
-    this.patientId,
-    'assessments',
-    'new',
-  ]);
-}
+    if (!this.patientId) return;
+    this.router.navigate(
+      ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
+      { queryParams: this.roundId ? { roundId: this.roundId } : undefined },
+    );
+  }
 
- // ✅ NOUVEAU : ouvrir l’historique de la plaie de cette évaluation
+  // ✅ NOUVEAU : ouvrir l’historique de la plaie de cette évaluation
   openWoundHistory(a: MobileAssessment) {
     const woundId = a.woundId || a.id; // fallback pour les anciens docs
     this.router.navigate([
@@ -419,7 +421,7 @@ export class PatientAssessmentsPage implements OnInit {
     ]);
   }
 
-   /** 🔁 Nouvelle évaluation pour cette même plaie */
+  /** 🔁 Nouvelle évaluation pour cette même plaie */
   reEvaluate(a: MobileAssessment) {
     const woundId = resolveWoundId(a as any);
     if (!woundId) return;
@@ -431,12 +433,17 @@ export class PatientAssessmentsPage implements OnInit {
 
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: { woundId, woundLabel } },
+      { queryParams: { woundId, woundLabel, ...(this.roundId ? { roundId: this.roundId } : {}) } },
     );
   }
 
-
   back() {
+    if (this.roundId) {
+      this.router.navigate(['/tabs', 'wound-rounds', this.roundId], {
+        queryParams: { patientId: this.patientId },
+      });
+      return;
+    }
     this.router.navigate(['/tabs', 'patients']);
   }
 }
