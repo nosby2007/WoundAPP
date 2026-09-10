@@ -17,6 +17,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Storage, ref, uploadString, getDownloadURL } from '@angular/fire/storage';
 import { ClinicalIdentityService } from './clinical-identity.service';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 export interface MobileAssessment {
   id: string;
@@ -35,6 +36,7 @@ export class AssessmentsService {
   private firestore = inject(Firestore);
   private storage = inject(Storage);
   private clinicalIdentity = inject(ClinicalIdentityService);
+  private audit = inject(ClinicalAuditService);
 
   listForPatient(patientId: string): Observable<MobileAssessment[]> {
     const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
@@ -117,6 +119,7 @@ export class AssessmentsService {
     const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
     const payload = await this.withCanonicalAuthor(data);
     const created = await addDoc(colRef, payload);
+    await this.audit.record({ action: 'wound_assessment_created', patientId, entityType: 'woundAssessment', entityId: created.id });
     return created.id;
   }
 
@@ -127,11 +130,13 @@ export class AssessmentsService {
   async createWithId(patientId: string, id: string, data: any): Promise<void> {
     const payload = await this.withCanonicalAuthor(data);
     await setDoc(doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`), payload);
+    await this.audit.record({ action: 'wound_assessment_created', patientId, entityType: 'woundAssessment', entityId: id });
   }
 
-  update(patientId: string, id: string, data: any): Promise<void> {
+  async update(patientId: string, id: string, data: any): Promise<void> {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
-    return updateDoc(refDoc, data);
+    await updateDoc(refDoc, data);
+    await this.audit.record({ action: 'wound_assessment_updated', patientId, entityType: 'woundAssessment', entityId: id });
   }
 
   listForWound(patientId: string, woundId: string): Observable<MobileAssessment[]> {
