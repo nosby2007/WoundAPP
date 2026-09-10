@@ -27,6 +27,18 @@
           <ion-note *ngIf="openVisit()">{{ locationText() }}</ion-note>
           <ion-note *ngIf="!openVisit()">Record your arrival so the visit can be verified.</ion-note>
         </div>
+        <div class="visit-type-picker" *ngIf="!openVisit()">
+          <ion-select
+            interface="popover"
+            aria-label="Visit type"
+            [value]="selectedVisitType()"
+            (ionChange)="selectedVisitType.set($event.detail.value)"
+            [disabled]="evvBusy()">
+            <ion-select-option *ngFor="let visitType of visitTypes" [value]="visitType.value">
+              {{ visitType.label }}
+            </ion-select-option>
+          </ion-select>
+        </div>
         <ion-button *ngIf="!openVisit()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
           <ion-icon slot="start" name="log-in-outline"></ion-icon>Check in
         </ion-button>
