@@ -8,6 +8,10 @@ export const environment = {
   appId: "1:43052843352:web:ee55589f67c31750eca52d",
   measurementId: "G-HJZG1QZ6FW"
   },
+  // Public reCAPTCHA Enterprise site key. Keep empty until Firebase App Check
+  // is configured for this deployment.
+  appCheck: { siteKey: '' },
+
   apiBase: 'https://us-central1-woundapp-261e6.cloudfunctions.net/apiV2',
   production: true
 };
