@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { ClinicalQualityCheckService } from './clinical-quality-check.service';
 import { VisitCompletenessService } from './visit-completeness.service';
@@ -21,12 +22,7 @@ export class SmartNotificationService {
   private completeness = inject(VisitCompletenessService);
 
   async build(maxPatients = 25): Promise<SmartClinicalNotification[]> {
-    const patients = await new Promise<any[]>((resolve, reject) => {
-      const sub = this.api.listPatients().subscribe({
-        next: (rows) => { resolve(rows || []); sub.unsubscribe(); },
-        error: reject,
-      });
-    });
+    const patients = (await firstValueFrom(this.api.listPatients())) || [];
 
     const alerts: SmartClinicalNotification[] = [];
     for (const patient of patients.slice(0, maxPatients)) {
