@@ -7,6 +7,8 @@ import { arrowBackOutline, checkmarkCircleOutline, chevronForwardOutline, clipbo
 import { Subscription } from 'rxjs';
 import { MobileRoundPatient, MobileWoundRound, WoundRoundMobileService } from '../../services/wound-round.service';
 
+const ROUND_ASSESSMENT_CONTEXT_KEY = 'woundapp.roundAssessmentContext';
+
 @Component({
   selector:'app-wound-round-detail',
   standalone:true,
@@ -35,8 +37,8 @@ import { MobileRoundPatient, MobileWoundRound, WoundRoundMobileService } from '.
             </section>
             <section class="action-grid" *ngIf="canAuthor && r.status==='in_progress'">
               <ion-button fill="outline" (click)="openChart(p)"><ion-icon slot="start" [icon]="documentTextOutline"></ion-icon>Open chart</ion-button>
-              <ion-button (click)="newAssessment(p)"><ion-icon slot="start" [icon]="clipboardOutline"></ion-icon>New wound assessment</ion-button>
-              <ion-button color="success" [disabled]="!(p.assessmentIds?.length) || busy || p.status==='evaluated'" (click)="evaluate(p)"><ion-icon slot="start" [icon]="checkmarkCircleOutline"></ion-icon>Complete evaluation</ion-button>
+              <ion-button [disabled]="busy" (click)="newAssessment(p)"><ion-icon slot="start" [icon]="clipboardOutline"></ion-icon>New wound assessment</ion-button>
+              <ion-button color="success" [disabled]="busy || p.status==='evaluated'" (click)="evaluate(p)"><ion-icon slot="start" [icon]="checkmarkCircleOutline"></ion-icon>Complete evaluation</ion-button>
             </section>
             <section class="skip" *ngIf="canAuthor && r.status==='in_progress' && p.status!=='evaluated' && p.status!=='seen' && p.status!=='skipped'">
               <ion-item lines="none"><ion-input label="If patient cannot be evaluated" labelPlacement="stacked" placeholder="Required reason to skip" [(ngModel)]="skipReason"></ion-input></ion-item>
@@ -73,12 +75,21 @@ export class WoundRoundDetailPage implements OnInit,OnDestroy{
   get resolved(){return this.evaluated.length}get percent(){const n=this.round?.patients.length||0;return n?Math.round(this.resolved/n*100):0}get pendingOnly(){return(this.round?.patients||[]).filter(p=>p.status==='pending').length}get inProgress(){return(this.round?.patients||[]).filter(p=>p.status==='in_progress').length}get evaluatedOnly(){return(this.round?.patients||[]).filter(p=>p.status==='evaluated'||p.status==='seen').length}get skipped(){return(this.round?.patients||[]).filter(p=>p.status==='skipped').length}
   select(p:MobileRoundPatient){this.selected=p;this.skipReason=''}
   statusColor(s:string){return s==='evaluated'||s==='seen'?'success':s==='skipped'?'medium':s==='in_progress'?'warning':'primary'}
-  async newAssessment(p:MobileRoundPatient){try{if(p.status==='pending')await this.rounds.markPatient(this.roundId,p.patientId,'in_progress');void this.router.navigate(['/tabs/skin-wound',p.patientId,'assessments/new'],{queryParams:{roundId:this.roundId}})}catch(e:any){await this.message(e?.message||'Could not start patient','danger')}}
-  openChart(p:MobileRoundPatient){void this.router.navigate(['/tabs/skin-wound',p.patientId,'assessments'],{queryParams:{roundId:this.roundId}})}
+  async newAssessment(p:MobileRoundPatient){
+    this.busy=true;
+    try{
+      if(p.status==='pending')await this.rounds.markPatient(this.roundId,p.patientId,'in_progress');
+      sessionStorage.setItem(ROUND_ASSESSMENT_CONTEXT_KEY,JSON.stringify({roundId:this.roundId,patientId:p.patientId,startedAt:Date.now()}));
+      const navigated=await this.router.navigate(['/tabs','skin-wound',p.patientId,'assessments','new'],{queryParams:{roundId:this.roundId}});
+      if(!navigated){sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);throw new Error('Could not open wound assessment');}
+    }catch(e:any){sessionStorage.removeItem(ROUND_ASSESSMENT_CONTEXT_KEY);await this.message(e?.message||'Could not start patient','danger')}
+    finally{this.busy=false}
+  }
+  openChart(p:MobileRoundPatient){void this.router.navigate(['/tabs','skin-wound',p.patientId,'assessments'],{queryParams:{roundId:this.roundId}})}
   async evaluate(p:MobileRoundPatient){this.busy=true;try{await this.rounds.markPatient(this.roundId,p.patientId,'evaluated');await this.message('Patient evaluation completed');this.selectNext()}catch(e:any){await this.message(e?.message||'Assessment required before completion','danger')}finally{this.busy=false}}
   async skip(p:MobileRoundPatient){if(!this.skipReason.trim())return;this.busy=true;try{await this.rounds.markPatient(this.roundId,p.patientId,'skipped',this.skipReason.trim());await this.message('Patient skipped with reason');this.selectNext()}catch(e:any){await this.message(e?.message||'Could not skip patient','danger')}finally{this.busy=false}}
   async completeRound(){this.busy=true;try{await this.rounds.completeRound(this.roundId);await this.message('Round completed and ready for QA')}catch(e:any){await this.message(e?.message||'Round is not ready','danger')}finally{this.busy=false}}
-  back(){void this.router.navigate(['/tabs/wound-rounds'])}
+  back(){void this.router.navigate(['/tabs','wound-rounds'])}
   private selectNext(){const n=this.pending[0];if(n)this.selected=n}
   private async message(message:string,color?:string){const t=await this.toast.create({message,duration:2200,color});await t.present()}
 }
