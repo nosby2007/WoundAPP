@@ -46,10 +46,25 @@
 
     <div class="note-head">
       <h2>Note</h2>
+      <ion-button size="small" fill="outline" [disabled]="aiBusy" (click)="requestAiDraft()">
+        <ion-spinner *ngIf="aiBusy" name="crescent" slot="start"></ion-spinner>
+        AI draft
+      </ion-button>
       <ion-button size="small" fill="clear" *ngIf="edited" (click)="rebuild()">
         Rebuild from the chart
       </ion-button>
     </div>
+
+    <div class="ai-review" *ngIf="aiSuggestion">
+      <strong>AI suggestion — not filed</strong>
+      <p>{{ aiSuggestion }}</p>
+      <div>
+        <ion-button size="small" (click)="applyAiDraft()">Apply to editor</ion-button>
+        <ion-button size="small" fill="clear" color="medium" (click)="discardAiDraft()">Discard</ion-button>
+      </div>
+      <ion-note>Review and edit before filing. The copilot cannot save, sign, place an order, or change the chart.</ion-note>
+    </div>
+    <div class="error" *ngIf="aiError">{{ aiError }}</div>
 
     <ion-note class="edited-warning" *ngIf="edited">
       Edited. Changing the choices above no longer rewrites the note — use
