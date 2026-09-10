@@ -34,6 +34,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { AssessmentsService } from '../../services/assessments.service';
+import { WoundRoundMobileService } from '../../services/wound-round.service';
 import { getAuth } from 'firebase/auth';
 import { take } from 'rxjs/operators';
 
@@ -123,10 +124,18 @@ export class AssessmentFormPage implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessments = inject(AssessmentsService);
+  private rounds = inject(WoundRoundMobileService);
   private toastCtrl = inject(ToastController);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId'); // undefined = NEW
+
+  /**
+   * Round context is explicit and survives the entire assessment workflow.
+   * The assessment remains a normal patient-chart record; roundId is only
+   * used to link that saved source record back to the active wound round.
+   */
+  roundId = this.route.snapshot.queryParamMap.get('roundId');
 
   /**
    * WHICH WOUND THIS ASSESSMENT IS OF.
@@ -478,6 +487,7 @@ export class AssessmentFormPage implements OnInit {
 
       const now = new Date();
       const v = this.form.getRawValue();
+      const isNewAssessment = !this.assessmentId;
 
       // The web app's WoundAssessment shape, filled from what was actually
       // asked. Nothing is invented for a question the form did not put.
@@ -606,27 +616,52 @@ export class AssessmentFormPage implements OnInit {
         });
       }
 
+      // A round assessment must become visible in the round immediately.
+      // The assessment remains the source record in patients/{id}/assessments;
+      // woundRounds only stores the immutable ids needed by the round queue.
+      let roundLinkFailed = false;
+      if (this.roundId && isNewAssessment) {
+        const linkedWoundId = basePayload.woundId || this.woundId || id!;
+        try {
+          await this.rounds.linkAssessment(this.roundId, this.patientId, id!, linkedWoundId);
+        } catch (linkError) {
+          roundLinkFailed = true;
+          console.error('[AssessmentForm] Assessment saved but wound-round linking failed', linkError);
+        }
+      }
+
       this.loading = false;
-      savingToast.dismiss();
+      await savingToast.dismiss();
 
       const doneToast = await this.toastCtrl.create({
-        message: 'Assessment saved',
-        duration: 2000,
+        message: this.roundId
+          ? (roundLinkFailed
+              ? 'Assessment saved. Round linkage will be reconciled when evaluation is completed.'
+              : 'Assessment saved and linked to wound round')
+          : 'Assessment saved',
+        duration: roundLinkFailed ? 3500 : 2000,
+        color: roundLinkFailed ? 'warning' : undefined,
       });
-      doneToast.present();
+      await doneToast.present();
 
-      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+      if (this.roundId) {
+        await this.router.navigate(['/tabs', 'wound-rounds', this.roundId], {
+          queryParams: { patientId: this.patientId },
+        });
+      } else {
+        await this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+      }
     } catch (err) {
       console.error(err);
       this.loading = false;
-      savingToast.dismiss();
+      await savingToast.dismiss();
 
       const toast = await this.toastCtrl.create({
         message: 'Error saving assessment',
         duration: 2500,
         color: 'danger',
       });
-      toast.present();
+      await toast.present();
     }
   }
 }
