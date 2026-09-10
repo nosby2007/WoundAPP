@@ -82,8 +82,18 @@
         </div>
 
         <div class="document-circle">
+          <button class="circle-main" type="button" (click)="printClinicalDocument('assessment')">
+            <span class="circle-index">2</span><strong>Patient Assessment</strong><small>General clinical assessment</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('assessment')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('assessment')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
           <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'braden']">
-            <span class="circle-index">2</span><strong>Braden</strong><small>Risk assessment</small>
+            <span class="circle-index">3</span><strong>Braden</strong><small>Risk assessment</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('braden')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -93,7 +103,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'systemic-assessment']">
-            <span class="circle-index">3</span><strong>Physical Assessment</strong><small>Systemic / head-to-toe</small>
+            <span class="circle-index">4</span><strong>Physical Assessment</strong><small>Systemic / head-to-toe</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('systemic')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -103,7 +113,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'care-plan']">
-            <span class="circle-index">4</span><strong>Care Plan</strong><small>Goals & plan of care</small>
+            <span class="circle-index">5</span><strong>Care Plan</strong><small>Goals & plan of care</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('carePlan')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -113,7 +123,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'orders']">
-            <span class="circle-index">5</span><strong>Orders</strong><small>Provider treatment orders</small>
+            <span class="circle-index">6</span><strong>Orders</strong><small>Provider treatment orders</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('order')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -123,7 +133,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" (click)="openEducation()">
-            <span class="circle-index">6</span><strong>Education</strong><small>Patient / caregiver teaching</small>
+            <span class="circle-index">7</span><strong>Education</strong><small>Patient / caregiver teaching</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('education')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -133,7 +143,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" (click)="newAssessment()">
-            <span class="circle-index">7</span><strong>Wound Assessment</strong><small>Measurements & wound findings</small>
+            <span class="circle-index">8</span><strong>Wound Assessment</strong><small>Measurements & wound findings</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -143,7 +153,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" (click)="openWoundNote()">
-            <span class="circle-index">8</span><strong>Progress Note</strong><small>Visit narrative / wound note</small>
+            <span class="circle-index">9</span><strong>Progress Note</strong><small>Visit narrative / wound note</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('progressNote')"><ion-icon name="print-outline"></ion-icon></ion-button>
