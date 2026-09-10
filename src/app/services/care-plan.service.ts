@@ -12,6 +12,7 @@ import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { CarePlanCatalogEntry, CarePlanProblemCategory } from '../shared/care-plan';
+import { ClinicalAuditService } from './clinical-audit.service';
 
 export class NotAuthenticatedError extends Error {
   constructor() {
@@ -53,6 +54,7 @@ export interface CarePlanDraft {
 export class CarePlanService {
   private tenant = inject(TenantService);
   private clinicalIdentity = inject(ClinicalIdentityService);
+  private audit = inject(ClinicalAuditService);
 
   async listCatalog(): Promise<CarePlanCatalogEntry[]> {
     const orgId = await this.tenant.currentOrgId();
@@ -124,6 +126,7 @@ export class CarePlanService {
       createdBy: actor,
     });
 
+    await this.audit.record({ action: 'care_plan_created', patientId, entityType: 'carePlan', entityId: planRef.id, metadata: { category: draft.category } });
     return planRef.id;
   }
 
