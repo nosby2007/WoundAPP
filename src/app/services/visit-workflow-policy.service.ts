@@ -51,21 +51,53 @@ export class VisitWorkflowPolicyService {
   }
 
   private defaultPolicy(visitType: string): MobileWorkflowPolicy {
-    const kind = (visitType || 'routine').toLowerCase();
+    const kind = (visitType || 'follow_up').toLowerCase().replace(/[-\s]+/g, '_');
+
     if (/admission|initial|new/.test(kind)) {
       return {
         id: 'default-admission',
-        visitType,
+        visitType: 'admission',
         required: ['visit','assessment','braden','systemic','carePlan','order','education','woundAssessment','progressNote'],
         optional: [],
         active: true,
       };
     }
+
+    if (/np|provider.*evaluation|evaluation.*provider/.test(kind)) {
+      return {
+        id: 'default-np-evaluation',
+        visitType: 'np_evaluation',
+        required: ['visit','assessment','systemic','carePlan','order','woundAssessment','progressNote'],
+        optional: ['braden','education'],
+        active: true,
+      };
+    }
+
+    if (/round/.test(kind)) {
+      return {
+        id: 'default-wound-round',
+        visitType: 'wound_round',
+        required: ['visit','woundAssessment','order','progressNote'],
+        optional: ['assessment','braden','systemic','carePlan','education'],
+        active: true,
+      };
+    }
+
+    if (/prn|urgent|unscheduled/.test(kind)) {
+      return {
+        id: 'default-prn',
+        visitType: 'prn',
+        required: ['visit','assessment','woundAssessment','progressNote'],
+        optional: ['braden','systemic','carePlan','order','education'],
+        active: true,
+      };
+    }
+
     return {
-      id: 'default-routine',
-      visitType,
+      id: 'default-follow-up',
+      visitType: 'follow_up',
       required: ['visit','woundAssessment','progressNote'],
-      optional: ['braden','systemic','carePlan','order','education','assessment'],
+      optional: ['assessment','braden','systemic','carePlan','order','education'],
       active: true,
     };
   }
