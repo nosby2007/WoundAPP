@@ -25,6 +25,8 @@ import { MySchedulePage } from '../pages/my-schedule/my-schedule.page';
 import { WoundRoundsPage } from '../pages/wound-rounds/wound-rounds.page';
 import { WoundRoundDetailPage } from '../pages/wound-round-detail/wound-round-detail.page';
 import { clinicalRoleGuard } from '../guards/clinical-role.guard';
+import { QualityDashboardPage } from '../pages/quality-dashboard/quality-dashboard.page';
+import { ClinicalDeliveryPage } from '../pages/clinical-delivery/clinical-delivery.page';
 
 const routes: Routes = [
   {
@@ -40,6 +42,7 @@ const routes: Routes = [
       { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },
+      { path: 'quality', component: QualityDashboardPage },
       { path: 'add-patient', component: AddPatientPage },
       { path: 'progress-note', component: ProgressNotePage },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage },
@@ -50,6 +53,7 @@ const routes: Routes = [
       { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage },
       { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [clinicalRoleGuard], data: { roles: ['provider','np','nurse','rn','wound_nurse','wound_nurse_internal','don'] } },
       { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage },
+      { path: 'skin-wound/:patientId/delivery/:snapshotId', component: ClinicalDeliveryPage },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/care-plan', component: WoundCarePlanPage },
