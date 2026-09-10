@@ -48,6 +48,9 @@ import {
   refreshOutline,
   schoolOutline,
   timeOutline,
+  printOutline,
+  shareOutline,
+  documentsOutline,
 } from 'ionicons/icons';
 
 import {
@@ -56,6 +59,7 @@ import {
 } from '../../services/assessments.service';
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
+import { ClinicalDocumentExportService, ClinicalDocumentKind } from '../../services/clinical-document-export.service';
 import {
   EVV_ATTESTATION_METHODS,
   EvvPatientAttestation,
@@ -133,6 +137,9 @@ export class PatientAssessmentsPage implements OnInit {
       refreshOutline,
       schoolOutline,
       timeOutline,
+      printOutline,
+      shareOutline,
+      documentsOutline,
     });
   }
 
@@ -144,6 +151,8 @@ export class PatientAssessmentsPage implements OnInit {
   evvMessage = signal<string>('');
 
   private readonly visits = inject(VisitService);
+  private readonly documentExport = inject(ClinicalDocumentExportService);
+  documentBusy = signal(false);
 
   private async refreshOpenVisit(): Promise<void> {
     try {
@@ -435,6 +444,68 @@ export class PatientAssessmentsPage implements OnInit {
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
       { queryParams: { woundId, woundLabel, ...(this.roundId ? { roundId: this.roundId } : {}) } },
     );
+  }
+
+  async printClinicalDocument(kind: ClinicalDocumentKind, recordId?: string): Promise<void> {
+    if (!this.patientId || this.documentBusy()) return;
+    this.documentBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      await this.documentExport.printSection(this.patientId, kind, recordId);
+    } catch (error: any) {
+      this.evvMessage.set(error?.message ?? 'The printable clinical document could not be generated.');
+    } finally {
+      this.documentBusy.set(false);
+    }
+  }
+
+  async shareClinicalDocument(kind: ClinicalDocumentKind, recordId?: string): Promise<void> {
+    if (!this.patientId || this.documentBusy()) return;
+    this.documentBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      const result = await this.documentExport.shareSection(this.patientId, kind, recordId);
+      if (result === 'print') {
+        this.evvMessage.set('Direct file sharing is unavailable on this device. The printable document was opened instead.');
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        this.evvMessage.set(error?.message ?? 'The clinical document could not be shared.');
+      }
+    } finally {
+      this.documentBusy.set(false);
+    }
+  }
+
+  async printVisitPacket(): Promise<void> {
+    if (!this.patientId || this.documentBusy()) return;
+    this.documentBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      await this.documentExport.printVisitPacket(this.patientId);
+    } catch (error: any) {
+      this.evvMessage.set(error?.message ?? 'The visit packet could not be generated.');
+    } finally {
+      this.documentBusy.set(false);
+    }
+  }
+
+  async shareVisitPacket(): Promise<void> {
+    if (!this.patientId || this.documentBusy()) return;
+    this.documentBusy.set(true);
+    this.evvMessage.set('');
+    try {
+      const result = await this.documentExport.shareVisitPacket(this.patientId);
+      if (result === 'print') {
+        this.evvMessage.set('Direct file sharing is unavailable on this device. The printable visit packet was opened instead.');
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        this.evvMessage.set(error?.message ?? 'The visit packet could not be shared.');
+      }
+    } finally {
+      this.documentBusy.set(false);
+    }
   }
 
   back() {
