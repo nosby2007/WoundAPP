@@ -14,6 +14,7 @@ import {
 import { Observable } from 'rxjs';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
+import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 
 export type MobileRoundStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type MobileRoundPatientStatus = 'pending' | 'in_progress' | 'evaluated' | 'seen' | 'skipped';
@@ -33,18 +34,14 @@ export interface MobileRoundPatient {
 export interface MobileWoundRound {
   id: string; orgId: string; facilityId: string; facilityName: string; roundDate: string; status: MobileRoundStatus; patients: MobileRoundPatient[];
   summary?: string | null; qaStatus?: 'not_ready' | 'ready' | 'approved' | 'returned'; startedAt?: any; scheduledAt?: any; completedAt?: any; createdAt?: any;
+  startedBy?: ClinicalIdentitySnapshot | null;
+  completedBy?: ClinicalIdentitySnapshot | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class WoundRoundMobileService {
-  constructor(private tenant: TenantService) {}
+  constructor(private tenant: TenantService, private clinicalIdentity: ClinicalIdentityService) {}
 
-  /**
-   * Facility catalog is owned by the organization document in JADE-SHOP:
-   * organizations/{orgId}/facilities/{facilityId}.
-   * Keep mobile on that same canonical path so Intake, Web Wound Rounds and
-   * Mobile Wound Rounds resolve the exact same facility IDs.
-   */
   facilities$(): Observable<MobileFacility[]> {
     return new Observable(subscriber => {
       let stop = () => {};
@@ -96,12 +93,12 @@ export class WoundRoundMobileService {
     const user = auth.currentUser; const orgId = await this.tenant.currentOrgId();
     if (!user || !orgId) throw new Error('Sign in required');
     if (!facility?.id || facility.orgId !== orgId) throw new Error('Choose a facility in your organization');
+    const identity = await this.clinicalIdentity.requireCurrentIdentity();
     const patients = await this.buildRoster(orgId, facility.id);
-    const token = await user.getIdTokenResult();
     const ref = doc(collection(db, 'woundRounds'));
     await runTransaction(db, async tx => tx.set(ref, {
       orgId, facilityId:facility.id, facilityName:facility.name, roundDate, status:'in_progress', patients, summary:null, qaStatus:'not_ready', reportVersion:1,
-      startedAt:serverTimestamp(), startedBy:{ uid:user.uid, displayName:user.displayName || user.email || 'Clinician', role:String(token.claims['role'] || 'clinician') },
+      startedAt:serverTimestamp(), startedBy:identity,
       createdAt:serverTimestamp(), updatedAt:serverTimestamp(),
     }));
     return ref.id;
@@ -111,16 +108,16 @@ export class WoundRoundMobileService {
     if (!(await this.canAuthor())) throw new Error('Your role cannot start a wound round');
     const user = auth.currentUser; const orgId = await this.tenant.currentOrgId();
     if (!user || !orgId) throw new Error('Sign in required');
+    const identity = await this.clinicalIdentity.requireCurrentIdentity();
     const ref = doc(db, 'woundRounds', roundId); const snap = await getDoc(ref);
     if (!snap.exists()) throw new Error('Round not found');
     const round = snap.data() as any;
     if (round.orgId !== orgId || round.status !== 'scheduled') throw new Error('This round cannot be started');
     const patients = await this.buildRoster(orgId, round.facilityId);
-    const token = await user.getIdTokenResult();
     await runTransaction(db, async tx => {
       const current = await tx.get(ref);
       if (!current.exists() || (current.data() as any).status !== 'scheduled') throw new Error('Round already started');
-      tx.update(ref, { status:'in_progress', patients, startedAt:serverTimestamp(), startedBy:{ uid:user.uid, displayName:user.displayName || user.email || 'Clinician', role:String(token.claims['role'] || 'clinician') }, updatedAt:serverTimestamp() });
+      tx.update(ref, { status:'in_progress', patients, startedAt:serverTimestamp(), startedBy:identity, updatedAt:serverTimestamp() });
     });
   }
 
@@ -162,8 +159,11 @@ export class WoundRoundMobileService {
   }
 
   async completeRound(roundId:string):Promise<void>{
-    if(!(await this.canAuthor()))throw new Error('Your role cannot complete wound rounds');const user=auth.currentUser;if(!user)throw new Error('Sign in required');const token=await user.getIdTokenResult();const ref=doc(db,'woundRounds',roundId);
-    await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('Round not found');const round=snap.data() as any;const ready=(round.patients||[]).every((p:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(p.status));if(!ready)throw new Error('Resolve every patient before completing the round');tx.update(ref,{status:'completed',qaStatus:'ready',completedAt:serverTimestamp(),completedBy:{uid:user.uid,displayName:user.displayName||user.email||'Clinician',role:String(token.claims['role']||'clinician')},updatedAt:serverTimestamp()});});
+    if(!(await this.canAuthor()))throw new Error('Your role cannot complete wound rounds');
+    const user=auth.currentUser;if(!user)throw new Error('Sign in required');
+    const identity=await this.clinicalIdentity.requireCurrentIdentity();
+    const ref=doc(db,'woundRounds',roundId);
+    await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('Round not found');const round=snap.data() as any;const ready=(round.patients||[]).every((p:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(p.status));if(!ready)throw new Error('Resolve every patient before completing the round');tx.update(ref,{status:'completed',qaStatus:'ready',completedAt:serverTimestamp(),completedBy:identity,updatedAt:serverTimestamp()});});
   }
 
   private async buildRoster(orgId:string,facilityId:string):Promise<MobileRoundPatient[]>{
