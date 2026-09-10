@@ -1,0 +1,167 @@
+.orders-workspace {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.orders-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 12px;
+  opacity: .65;
+}
+
+h1, h2 { margin: 0; }
+.subtitle, .meta, .protocol { opacity: .72; }
+
+.patient-select { width: min(100%, 460px); }
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 20px;
+}
+
+.filter-bar button {
+  border: 1px solid #d7dce2;
+  border-radius: 999px;
+  background: #fff;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.filter-bar button.active {
+  border-color: #166534;
+  background: #ecfdf3;
+  color: #166534;
+  font-weight: 600;
+}
+
+.order-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.order-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, .06);
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status.done {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.type {
+  max-width: 150px;
+  font-size: 11px;
+  opacity: .55;
+  text-align: right;
+  word-break: break-word;
+}
+
+.preview {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 18px;
+}
+
+.preview div {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.preview span, .step-number {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.execution-panel {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(520px, 100vw);
+  overflow: auto;
+  background: white;
+  padding: 24px;
+  box-sizing: border-box;
+  z-index: 1000;
+  box-shadow: -18px 0 50px rgba(15, 23, 42, .18);
+}
+
+.execution-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.execution-hint { opacity: .7; }
+
+.step-check {
+  display: grid;
+  grid-template-columns: 24px 28px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.note-field {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.execution-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.empty, .message {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .orders-workspace { padding: 14px; }
+  .execution-panel { padding: 18px; }
+}
