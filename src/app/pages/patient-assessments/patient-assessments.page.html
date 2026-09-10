@@ -58,15 +58,98 @@
     <section class="clinical-command">
       <div class="clinical-command-head">
         <div><span>CLINICAL COMMAND</span><h2>Assess · Plan · Order · Teach · Document</h2></div>
-        <small>One patient context. No re-entry.</small>
+        <small>Each completed circle can be printed or securely shared.</small>
       </div>
-      <div class="assessment-shortcuts">
-        <ion-button size="small" fill="outline" (click)="openBraden()"><ion-icon slot="start" name="body-outline"></ion-icon>Braden Scale</ion-button>
-        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'systemic-assessment']">Systemic Assessment</ion-button>
-        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'care-plan']">Care Plan</ion-button>
-        <ion-button size="small" fill="outline" [routerLink]="['/tabs','skin-wound',patientId,'orders']">Orders</ion-button>
-        <ion-button size="small" fill="outline" (click)="openEducation()"><ion-icon slot="start" name="school-outline"></ion-icon>Education</ion-button>
-        <ion-button size="small" fill="solid" (click)="openWoundNote()"><ion-icon slot="start" name="reader-outline"></ion-icon>Progress note</ion-button>
+
+      <div class="packet-actions">
+        <ion-button size="small" fill="solid" [disabled]="documentBusy()" (click)="printVisitPacket()">
+          <ion-icon slot="start" name="documents-outline"></ion-icon>Print visit packet
+        </ion-button>
+        <ion-button size="small" fill="outline" [disabled]="documentBusy()" (click)="shareVisitPacket()">
+          <ion-icon slot="start" name="share-outline"></ion-icon>Send packet
+        </ion-button>
+      </div>
+
+      <div class="document-flow">
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="printClinicalDocument('visit')">
+            <span class="circle-index">1</span><strong>Check-in / Visit</strong><small>EVV arrival & departure</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('visit')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('visit')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'braden']">
+            <span class="circle-index">2</span><strong>Braden</strong><small>Risk assessment</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('braden')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('braden')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'systemic-assessment']">
+            <span class="circle-index">3</span><strong>Physical Assessment</strong><small>Systemic / head-to-toe</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('systemic')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('systemic')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'care-plan']">
+            <span class="circle-index">4</span><strong>Care Plan</strong><small>Goals & plan of care</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('carePlan')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('carePlan')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'orders']">
+            <span class="circle-index">5</span><strong>Orders</strong><small>Provider treatment orders</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('order')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('order')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openEducation()">
+            <span class="circle-index">6</span><strong>Education</strong><small>Patient / caregiver teaching</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('education')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('education')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="newAssessment()">
+            <span class="circle-index">7</span><strong>Wound Assessment</strong><small>Measurements & wound findings</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openWoundNote()">
+            <span class="circle-index">8</span><strong>Progress Note</strong><small>Visit narrative / wound note</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('progressNote')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('progressNote')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -89,6 +172,8 @@
           <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
         </ion-label>
         <div class="actions" slot="end" (click)="$event.stopPropagation()">
+          <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment', a.id)" aria-label="Print this wound assessment"><ion-icon slot="icon-only" name="print-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment', a.id)" aria-label="Send this wound assessment"><ion-icon slot="icon-only" name="share-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="solid" class="btn-reeval" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
         </div>
