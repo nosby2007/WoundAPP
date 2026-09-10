@@ -42,6 +42,7 @@ export class PinService {
   async setPin(pin: string, currentPin?: string): Promise<void> {
     await this.setFn({ pin, currentPin });
     await this.refreshToken();
+    this.sessionSecurity.markActivity();
   }
 
   async verify(pin: string): Promise<void> {
