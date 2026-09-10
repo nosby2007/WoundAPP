@@ -1,1 +1,101 @@
-<p>orders works!</p>
+<section class="orders-workspace">
+  <header class="orders-hero">
+    <div>
+      <p class="eyebrow">Shared clinical workflow</p>
+      <h1>Wound Orders</h1>
+      <p class="subtitle">Provider orders from JADE-SHOP, available at the bedside in WoundAPP.</p>
+    </div>
+  </header>
+
+  <mat-form-field appearance="outline" class="patient-select">
+    <mat-label>Patient</mat-label>
+    <mat-select [value]="selectedPatientId" (selectionChange)="selectPatient($event.value)">
+      <mat-option value="">Select a patient</mat-option>
+      <mat-option *ngFor="let patient of (patients$ | async)" [value]="patient.id">
+        {{ patient.name }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <div class="filter-bar" *ngIf="selectedPatientId">
+    <button type="button" [class.active]="filter === 'active'" (click)="setFilter('active')">Active</button>
+    <button type="button" [class.active]="filter === 'due'" (click)="setFilter('due')">Due</button>
+    <button type="button" [class.active]="filter === 'prn'" (click)="setFilter('prn')">PRN</button>
+    <button type="button" [class.active]="filter === 'completed'" (click)="setFilter('completed')">Completed</button>
+    <button type="button" [class.active]="filter === 'all'" (click)="setFilter('all')">All</button>
+  </div>
+
+  <p class="message" *ngIf="message">{{ message }}</p>
+
+  <ng-container *ngIf="orders$ | async as orders">
+    <div class="empty" *ngIf="selectedPatientId && !visibleOrders(orders).length">
+      No orders in this view.
+    </div>
+
+    <div class="order-grid">
+      <article class="order-card" *ngFor="let order of visibleOrders(orders)">
+        <div class="card-top">
+          <div>
+            <span class="status" [class.done]="isTerminal(order)">
+              {{ isTerminal(order) ? 'Completed' : (isDue(order) ? 'Due' : 'Active') }}
+            </span>
+            <h2>{{ woundLabel(order) }}</h2>
+          </div>
+          <span class="type">{{ order.orderType }}</span>
+        </div>
+
+        <p class="protocol" *ngIf="protocolLabel(order) as protocol">Protocol: {{ protocol }}</p>
+        <p class="meta" *ngIf="orderedAt(order) as date">Ordered {{ date | date:'short' }}</p>
+        <p class="meta" *ngIf="order.orderedBy?.displayName">By {{ order.orderedBy?.displayName }}</p>
+
+        <div class="preview">
+          <div *ngFor="let step of executionSteps(order).slice(0, 4); let i = index">
+            <span>{{ i + 1 }}</span>{{ step }}
+          </div>
+        </div>
+
+        <button mat-flat-button color="primary" type="button"
+                [disabled]="isTerminal(order)"
+                (click)="openExecution(order)">
+          Document dressing
+        </button>
+      </article>
+    </div>
+  </ng-container>
+
+  <aside class="execution-panel" *ngIf="selectedOrder as order">
+    <div class="execution-head">
+      <div>
+        <p class="eyebrow">Bedside execution</p>
+        <h2>{{ woundLabel(order) }}</h2>
+        <p *ngIf="protocolLabel(order) as protocol">{{ protocol }}</p>
+      </div>
+      <button mat-icon-button type="button" (click)="closeExecution()" aria-label="Close">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <p class="execution-hint">Check only the steps actually completed during this encounter.</p>
+
+    <label class="step-check" *ngFor="let step of executionSteps(order); let i = index">
+      <input type="checkbox" [checked]="completedSteps.has(i)"
+             (change)="toggleStep(i, $any($event.target).checked)" />
+      <span class="step-number">{{ i + 1 }}</span>
+      <span>{{ step }}</span>
+    </label>
+
+    <mat-form-field appearance="outline" class="note-field">
+      <mat-label>Execution note / exception</mat-label>
+      <textarea matInput rows="3" [(ngModel)]="executionNote"
+                placeholder="Optional: variance, tolerance, provider notification, etc."></textarea>
+    </mat-form-field>
+
+    <div class="execution-actions">
+      <button mat-stroked-button type="button" (click)="closeExecution()">Cancel</button>
+      <button mat-flat-button color="primary" type="button"
+              [disabled]="savingExecution" (click)="saveExecution()">
+        {{ savingExecution ? 'Saving…' : 'Complete documentation' }}
+      </button>
+    </div>
+  </aside>
+</section>
