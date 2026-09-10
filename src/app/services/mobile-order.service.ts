@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { collection, doc, getDocs, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
@@ -60,7 +60,7 @@ export class MobileOrderService {
   async listPrescribers(): Promise<MobilePrescriber[]> {
     const orgId = await this.tenant.currentOrgId();
     if (!orgId) return [];
-    const snap = await getDocs(collection(db, 'staffPublic'));
+    const snap = await getDocs(query(collection(db, 'staffPublic'), where('orgId', '==', orgId)));
     return snap.docs
       .map(d => ({ uid: d.id, ...(d.data() as any) }))
       .filter((s: any) => s.orgId === orgId && s.active !== false && ['provider', 'np'].includes(String(s.role || '').toLowerCase()) && !!String(s.displayName || '').trim())
