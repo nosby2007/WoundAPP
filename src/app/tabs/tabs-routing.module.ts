@@ -48,7 +48,7 @@ const routes: Routes = [
       { path: 'skin-wound/:patientId/education', component: EducationPage },
       { path: 'skin-wound/:patientId/braden', component: BradenFormPage },
       { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage },
-      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [clinicalRoleGuard], data: { roles: ['provider','np','nurse','rn','wound_nurse_internal'] } },
+      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [clinicalRoleGuard], data: { roles: ['provider','np','nurse','rn','wound_nurse','wound_nurse_internal','don'] } },
       { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage },
