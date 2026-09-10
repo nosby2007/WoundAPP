@@ -24,6 +24,7 @@ import { FieldTaskPage } from '../pages/field-task/field-task.page';
 import { MySchedulePage } from '../pages/my-schedule/my-schedule.page';
 import { WoundRoundsPage } from '../pages/wound-rounds/wound-rounds.page';
 import { WoundRoundDetailPage } from '../pages/wound-round-detail/wound-round-detail.page';
+import { clinicalRoleGuard } from '../guards/clinical-role.guard';
 
 const routes: Routes = [
   {
@@ -47,7 +48,7 @@ const routes: Routes = [
       { path: 'skin-wound/:patientId/education', component: EducationPage },
       { path: 'skin-wound/:patientId/braden', component: BradenFormPage },
       { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage },
-      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage },
+      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [clinicalRoleGuard], data: { roles: ['provider','np','nurse','rn','wound_nurse_internal'] } },
       { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage },
