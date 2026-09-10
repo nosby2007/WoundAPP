@@ -1,4 +1,4 @@
-import { NgModule } from '@angular/core';
+import { ErrorHandler, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { RouteReuseStrategy } from '@angular/router';
 
@@ -40,6 +40,7 @@ import { HttpClientModule } from '@angular/common/http';
 import { provideFirestore } from '@angular/fire/firestore';
 import { getFirestore } from 'firebase/firestore';
 import { provideStorage, getStorage } from '@angular/fire/storage';
+import { ClinicalErrorHandler } from './services/clinical-error-handler.service';
 
 @NgModule({
   declarations: [AppComponent],
@@ -62,6 +63,7 @@ import { provideStorage, getStorage } from '@angular/fire/storage';
   ],
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
+    { provide: ErrorHandler, useClass: ClinicalErrorHandler },
 
     // Material Design on every platform. The app runs on Android hardware and
     // as a PWA; pinning the mode keeps one look instead of letting an iPhone
