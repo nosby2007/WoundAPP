@@ -1,3 +1,6 @@
 <ion-app>
+  <div class="offline-banner" *ngIf="!network.online()">
+    Offline — chart changes may not be synchronized. Do not close the app until connectivity returns.
+  </div>
   <ion-router-outlet></ion-router-outlet>
 </ion-app>
