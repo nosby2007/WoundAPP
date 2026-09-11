@@ -35,38 +35,59 @@ export class ClinicalDocumentExportService {
   private tenant = inject(TenantService);
 
   async printSection(patientId: string, kind: ClinicalDocumentKind, recordId?: string): Promise<void> {
-    const html = await this.buildDocument(patientId, [kind], recordId ? { [kind]: recordId } : {}, false);
-    await this.audit.record({ action: 'document_printed', patientId, entityType: kind, entityId: recordId || null, metadata: { kind } });
+    const recordIds = recordId ? { [kind]: recordId } : {};
+    const html = await this.buildDocument(patientId, [kind], recordIds, false);
+    const sourceRefs = await this.collectSourceRefs(patientId, [kind], recordIds, false);
+    const snapshot = await this.snapshots.finalize({
+      patientId,
+      kind,
+      title: this.kindTitle(kind),
+      html,
+      sourceRefs,
+    });
+    await this.audit.record({ action: 'document_printed', patientId, entityType: 'documentSnapshot', entityId: snapshot.id, metadata: { kind } });
     this.openPrintWindow(html);
   }
 
   async printVisitPacket(patientId: string): Promise<void> {
-    const html = await this.buildDocument(patientId, this.packetKinds(), {}, true);
-    await this.audit.record({ action: 'visit_packet_printed', patientId, entityType: 'visitPacket' });
+    const kinds = this.packetKinds();
+    const html = await this.buildDocument(patientId, kinds, {}, true);
+    const sourceRefs = await this.collectSourceRefs(patientId, kinds, {}, true);
+    const snapshot = await this.snapshots.finalize({
+      patientId,
+      kind: 'visitPacket',
+      title: 'Clinical Visit Packet',
+      html,
+      sourceRefs,
+    });
+    await this.audit.record({ action: 'visit_packet_printed', patientId, entityType: 'documentSnapshot', entityId: snapshot.id });
     this.openPrintWindow(html);
   }
 
   async prepareSection(patientId: string, kind: ClinicalDocumentKind, recordId?: string): Promise<PreparedClinicalDocument> {
     const html = await this.buildDocument(patientId, [kind], recordId ? { [kind]: recordId } : {}, false);
     const title = this.kindTitle(kind);
+    const sourceRefs = await this.collectSourceRefs(patientId, [kind], recordId ? { [kind]: recordId } : {}, false);
     const snapshot = await this.snapshots.finalize({
       patientId,
       kind,
       title,
       html,
-      sourceRefs: recordId ? [{ path: kind, id: recordId }] : [],
+      sourceRefs,
     });
     return { snapshotId: snapshot.id, title, sha256: snapshot.sha256 };
   }
 
   async prepareVisitPacket(patientId: string): Promise<PreparedClinicalDocument> {
     const html = await this.buildDocument(patientId, this.packetKinds(), {}, true);
+    const kinds = this.packetKinds();
+    const sourceRefs = await this.collectSourceRefs(patientId, kinds, {}, true);
     const snapshot = await this.snapshots.finalize({
       patientId,
       kind: 'visitPacket',
       title: 'Clinical Visit Packet',
       html,
-      sourceRefs: [],
+      sourceRefs,
     });
     return { snapshotId: snapshot.id, title: 'Clinical Visit Packet', sha256: snapshot.sha256 };
   }
@@ -171,6 +192,36 @@ export class ClinicalDocumentExportService {
   </footer>
 </body>
 </html>`;
+  }
+
+  private collectionPath(patientId: string, kind: ClinicalDocumentKind): string {
+    const paths: Record<ClinicalDocumentKind, string> = {
+      visit: `patients/${patientId}/woundVisits`,
+      assessment: `patients/${patientId}/assessments`,
+      braden: `patients/${patientId}/assessments`,
+      systemic: `patients/${patientId}/assessments`,
+      carePlan: `patients/${patientId}/carePlans`,
+      order: `patients/${patientId}/orders`,
+      education: `patients/${patientId}/educationRecords`,
+      woundAssessment: `patients/${patientId}/woundAssessments`,
+      progressNote: `patients/${patientId}/providerNotes`,
+    };
+    return paths[kind];
+  }
+
+  private async collectSourceRefs(
+    patientId: string,
+    kinds: ClinicalDocumentKind[],
+    recordIds: Partial<Record<ClinicalDocumentKind, string>>,
+    packetMode: boolean,
+  ): Promise<Array<{ path: string; id: string }>> {
+    const refs: Array<{ path: string; id: string }> = [];
+    for (const kind of kinds) {
+      const section = await this.loadSection(patientId, kind, recordIds[kind], packetMode);
+      const path = this.collectionPath(patientId, kind);
+      for (const record of section.records) refs.push({ path, id: record.id });
+    }
+    return refs;
   }
 
   private async readOrganization(orgId: string): Promise<any> {
