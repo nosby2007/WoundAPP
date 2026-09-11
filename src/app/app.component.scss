@@ -16,3 +16,29 @@
 .offline-banner + ion-router-outlet {
   margin-top: 34px;
 }
+
+.privacy-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  background: #0f2236;
+  color: #fff;
+}
+
+.privacy-shield-card {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  padding: 24px;
+}
+
+.privacy-shield-card strong {
+  font-size: 18px;
+}
+
+.privacy-shield-card span {
+  opacity: .72;
+  font-size: 13px;
+}

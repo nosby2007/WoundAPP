@@ -1,4 +1,10 @@
 <ion-app>
+  <div class="privacy-shield" *ngIf="session.locked() && isPhiRoute()" aria-live="assertive">
+    <div class="privacy-shield-card">
+      <strong>Clinical workspace locked</strong>
+      <span>Unlock to continue.</span>
+    </div>
+  </div>
   <div class="offline-banner" *ngIf="!network.online()">
     Offline — chart changes may not be synchronized. Do not close the app until connectivity returns.
   </div>
