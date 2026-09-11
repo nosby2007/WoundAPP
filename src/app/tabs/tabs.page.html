@@ -1,16 +1,16 @@
 <ion-tabs>
   <ion-tab-bar slot="bottom">
-    <ion-tab-button tab="patients" href="/tabs/patients">
+    <ion-tab-button *ngIf="canSeeClinical" tab="patients" href="/tabs/patients">
       <ion-icon aria-hidden="true" [icon]="peopleOutline"></ion-icon>
       <ion-label>Patients</ion-label>
     </ion-tab-button>
 
-    <ion-tab-button tab="today" href="/tabs/today">
+    <ion-tab-button *ngIf="canSeeField" tab="today" href="/tabs/today">
       <ion-icon aria-hidden="true" [icon]="calendarOutline"></ion-icon>
       <ion-label>Today</ion-label>
     </ion-tab-button>
 
-    <ion-tab-button tab="progress-note" href="/tabs/progress-note">
+    <ion-tab-button *ngIf="canSeeNote" tab="progress-note" href="/tabs/progress-note">
       <ion-icon aria-hidden="true" [icon]="createOutline"></ion-icon>
       <ion-label>Note</ion-label>
     </ion-tab-button>
