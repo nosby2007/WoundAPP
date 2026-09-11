@@ -118,6 +118,8 @@ export class PatientAssessmentsPage implements OnInit {
 
   patientId = normalizePatientId(this.route.snapshot.paramMap.get('patientId'));
   roundId = this.route.snapshot.queryParamMap.get('roundId') || '';
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -177,7 +179,14 @@ export class PatientAssessmentsPage implements OnInit {
     this.evvBusy.set(true);
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkIn(this.patientId);
+      const { location } = await this.visits.checkIn(
+        this.patientId,
+        'routine',
+        {
+          appointmentId: this.appointmentId || null,
+          woundVisitId: this.woundVisitId || null,
+        }
+      );
       await this.refreshOpenVisit();
       // Said out loud when the position did not come: the arrival IS
       // recorded, and the clinician should know the location is not.
@@ -318,6 +327,11 @@ export class PatientAssessmentsPage implements OnInit {
   ngOnInit(): void {
     this.route.queryParamMap.subscribe(params => {
       this.roundId = params.get('roundId') || '';
+      this.appointmentId = params.get('appointmentId') || '';
+      this.woundVisitId = params.get('woundVisitId') || '';
+      if (this.patientId && this.woundVisitId) {
+        void this.trackVisitStep('clinical_command', `/tabs/skin-wound/${this.patientId}/assessments`);
+      }
     });
 
     this.route.paramMap.subscribe(params => {
@@ -420,19 +434,31 @@ export class PatientAssessmentsPage implements OnInit {
 
   openAssessment(a: MobileAssessment) {
     if (!a?.id || !this.patientId) return;
+    void this.trackVisitStep('wound_assessment', `/tabs/skin-wound/${this.patientId}/assessments/${a.id}`);
     this.router.navigate([
       '/tabs',
       'skin-wound',
       this.patientId,
       'assessments',
       a.id,
-    ]);
+    ], { queryParams: this.visitQueryParams() });
   }
 
   /** Braden Scale for this patient -- a risk score, not a wound record. */
   openBraden() {
-    if (!this.patientId) return;
-    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'braden']);
+    this.navigateVisitStep('braden', ['/tabs', 'skin-wound', this.patientId, 'braden']);
+  }
+
+  openSystemicAssessment() {
+    this.navigateVisitStep('physical_assessment', ['/tabs', 'skin-wound', this.patientId, 'systemic-assessment']);
+  }
+
+  openCarePlan() {
+    this.navigateVisitStep('care_plan', ['/tabs', 'skin-wound', this.patientId, 'care-plan']);
+  }
+
+  openOrders() {
+    this.navigateVisitStep('orders', ['/tabs', 'skin-wound', this.patientId, 'orders']);
   }
 
   /**
@@ -440,21 +466,20 @@ export class PatientAssessmentsPage implements OnInit {
    * assessments, the Braden, the orders and the education, not retyped.
    */
   openWoundNote() {
-    if (!this.patientId) return;
-    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'wound-note']);
+    this.navigateVisitStep('progress_note', ['/tabs', 'skin-wound', this.patientId, 'wound-note']);
   }
 
   /** What the patient or caregiver was taught, on this visit. */
   openEducation() {
-    if (!this.patientId) return;
-    this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'education']);
+    this.navigateVisitStep('education', ['/tabs', 'skin-wound', this.patientId, 'education']);
   }
 
   newAssessment() {
     if (!this.patientId) return;
+    void this.trackVisitStep('wound_assessment', `/tabs/skin-wound/${this.patientId}/assessments/new`);
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: this.roundId ? { roundId: this.roundId } : undefined },
+      { queryParams: this.visitQueryParams() },
     );
   }
 
@@ -483,8 +508,39 @@ export class PatientAssessmentsPage implements OnInit {
 
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: { woundId, woundLabel, ...(this.roundId ? { roundId: this.roundId } : {}) } },
+      { queryParams: { ...this.visitQueryParams(), woundId, woundLabel } },
     );
+  }
+
+  private visitQueryParams(): Record<string, string> | undefined {
+    const params: Record<string, string> = {};
+    if (this.roundId) params['roundId'] = this.roundId;
+    if (this.appointmentId) params['appointmentId'] = this.appointmentId;
+    if (this.woundVisitId) params['woundVisitId'] = this.woundVisitId;
+    return Object.keys(params).length ? params : undefined;
+  }
+
+  private async trackVisitStep(step: string, route: string): Promise<void> {
+    if (!this.woundVisitId) return;
+    try {
+      await this.visits.recordJourneyStep(
+        this.patientId,
+        this.woundVisitId,
+        this.appointmentId || null,
+        step,
+        route
+      );
+    } catch (error) {
+      // Journey telemetry must never block clinical documentation.
+      console.warn('[VisitJourney] Unable to persist workflow step', step, error);
+    }
+  }
+
+  private navigateVisitStep(step: string, commands: any[]): void {
+    if (!this.patientId) return;
+    const route = commands.join('/').replace(/\/+/g, '/');
+    void this.trackVisitStep(step, route.startsWith('/') ? route : '/' + route);
+    void this.router.navigate(commands, { queryParams: this.visitQueryParams() });
   }
 
   async printClinicalDocument(kind: ClinicalDocumentKind, recordId?: string): Promise<void> {
