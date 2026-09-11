@@ -2,10 +2,11 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
-import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
+import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, documentTextOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
 import { TenantService } from '../../services/tenant.service';
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
+import { FieldRolePolicyService } from '../../services/field-role-policy.service';
 
 @Component({
   selector: 'app-more',
@@ -32,10 +33,11 @@ import { ClinicalIdentityService } from '../../services/clinical-identity.servic
         <section class="section">
           <p class="eyebrow dark">CLINICAL WORKSPACE</p>
           <ion-list lines="none" class="menu">
-            <ion-item button detail="false" (click)="mySchedule()"><div class="menu-icon"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>My Schedule</strong><p>Today, upcoming visits and self-planning for your own clinical workload.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeField" (click)="mySchedule()"><div class="menu-icon"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>My Schedule</strong><p>Today, upcoming visits and self-planning for your own clinical workload.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeField" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="visitHistory()"><div class="menu-icon featured"><ion-icon [icon]="documentTextOutline"></ion-icon></div><ion-label><strong>Visit History</strong><p>Review all saved patient visits, field outcomes, clinician, EVV checkpoints and documentation handoff.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
 
@@ -65,6 +67,7 @@ export class MorePage implements OnInit {
   readonly chevronForwardOutline = chevronForwardOutline;
   readonly cloudDoneOutline = cloudDoneOutline;
   readonly cloudOfflineOutline = cloudOfflineOutline;
+  readonly documentTextOutline = documentTextOutline;
   readonly logOutOutline = logOutOutline;
   readonly personAddOutline = personAddOutline;
   readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
@@ -79,12 +82,16 @@ export class MorePage implements OnInit {
   identityProblem = '';
   online = navigator.onLine;
   signingOut = false;
+  canSeeClinical = false;
+  canSeeField = false;
+  accessLevel = 'unknown';
 
   constructor(
     private router: Router,
     private auth: AuthService,
     private tenant: TenantService,
     private clinicalIdentity: ClinicalIdentityService,
+    private rolePolicy: FieldRolePolicyService,
   ) {}
 
   get initials(): string { return this.displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]?.toUpperCase()).join('') || 'CL'; }
@@ -98,6 +105,9 @@ export class MorePage implements OnInit {
     this.identityReady = readiness.ready;
     this.identityProblem = readiness.missing.length ? `Missing: ${readiness.missing.join(', ')}.` : '';
     if (readiness.identity) {
+      this.canSeeClinical = this.rolePolicy.canUseClinicalWorkspace(readiness.identity);
+      this.canSeeField = this.rolePolicy.canUseFieldToday(readiness.identity);
+      this.accessLevel = this.rolePolicy.accessLevel(readiness.identity);
       this.displayName = readiness.identity.displayName;
       this.credentialsLine = [readiness.identity.credentials, readiness.identity.npi ? `NPI ${readiness.identity.npi}` : null].filter(Boolean).join(' · ');
       this.roleLabel = (readiness.identity.role || 'staff').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -110,6 +120,7 @@ export class MorePage implements OnInit {
   today(): void { void this.router.navigate(['/tabs/today']); }
   mySchedule(): void { void this.router.navigate(['/tabs/my-schedule']); }
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
+  visitHistory(): void { void this.router.navigate(['/tabs/visit-history']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
 
   async signOut(): Promise<void> {
