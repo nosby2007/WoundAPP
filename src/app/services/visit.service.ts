@@ -48,8 +48,22 @@ export interface FieldVisit {
   patientId: string;
   visitType: string;
   status: string;
+  appointmentId?: string | null;
+  woundId?: string | null;
+  episodeId?: string | null;
+  clinicianUid?: string | null;
+  clinicianName?: string | null;
+  clinicianRole?: string | null;
   checkIn: EvvCheckpoint | null;
   checkOut: EvvCheckpoint | null;
+}
+
+export interface LinkedVisitContext {
+  appointmentId?: string | null;
+  woundVisitId?: string | null;
+  woundId?: string | null;
+  episodeId?: string | null;
+  clinicianRole?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -86,6 +100,12 @@ export class VisitService {
           patientId,
           visitType: (data['visitType'] as string) ?? 'routine',
           status: (data['status'] as string) ?? 'planned',
+          appointmentId: (data['appointmentId'] as string | null | undefined) ?? null,
+          woundId: (data['woundId'] as string | null | undefined) ?? null,
+          episodeId: (data['episodeId'] as string | null | undefined) ?? null,
+          clinicianUid: (data['clinicianUid'] as string | null | undefined) ?? null,
+          clinicianName: (data['clinicianName'] as string | null | undefined) ?? null,
+          clinicianRole: (data['clinicianRole'] as string | null | undefined) ?? null,
           checkIn,
           checkOut,
         };
@@ -105,17 +125,17 @@ export class VisitService {
    * an arrival happens once, and a second one would be a second visit
    * for the same presence.
    */
-  async checkIn(patientId: string, visitType = 'routine'): Promise<{ visitId: string; location: EvvLocation }> {
+  async checkIn(
+    patientId: string,
+    visitType = 'routine',
+    linked: LinkedVisitContext = {}
+  ): Promise<{ visitId: string; location: EvvLocation }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking in.');
 
     const already = await this.openVisit(patientId);
     if (already) throw new Error('You are already checked in to this patient.');
 
-    // The sub-document's orgId must equal the PARENT patient's, not the
-    // caller's: patientSubdocOrgMatchesParent() compares them, and a
-    // clinician covering a patient in another org would otherwise write a
-    // row the rules refuse.
     const patientSnap = await getDoc(doc(db, 'patients', patientId));
     if (!patientSnap.exists()) throw new Error('Patient not found.');
     const patient = patientSnap.data() as Record<string, unknown>;
@@ -125,22 +145,77 @@ export class VisitService {
     const location = await this.location.capture();
     const checkpoint = this.buildCheckpoint(location);
 
+    // Preferred path: JADE Episode Control / scheduler already created the
+    // woundVisit and appointment atomically. WoundAPP checks into THAT SAME
+    // clinical visit instead of creating a duplicate shadow encounter.
+    if (linked.woundVisitId) {
+      const visitRef = doc(db, `patients/${patientId}/woundVisits/${linked.woundVisitId}`);
+      const visitSnap = await getDoc(visitRef);
+      if (!visitSnap.exists()) {
+        throw new Error('The linked wound visit no longer exists. Refresh the appointment before checking in.');
+      }
+      const existing = visitSnap.data() as Record<string, unknown>;
+      if ((existing['patientId'] as string | undefined) !== patientId) {
+        throw new Error('The linked wound visit belongs to a different patient.');
+      }
+      if (existing['checkIn']) {
+        throw new Error('This linked visit already has an arrival recorded.');
+      }
+
+      await updateDoc(visitRef, {
+        appointmentId: linked.appointmentId ?? existing['appointmentId'] ?? null,
+        woundId: linked.woundId ?? existing['woundId'] ?? null,
+        episodeId: linked.episodeId ?? existing['episodeId'] ?? null,
+        visitType: (existing['visitType'] as string | undefined) ?? visitType,
+        clinicianUid: user.uid,
+        clinicianName: user.displayName ?? (existing['clinicianName'] as string | null | undefined) ?? null,
+        clinicianRole: linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null,
+        checkIn: checkpoint,
+        'mobileWorkflow.appointmentId': linked.appointmentId ?? existing['appointmentId'] ?? null,
+        'mobileWorkflow.currentStep': 'check_in',
+        'mobileWorkflow.lastRoute': linked.appointmentId ? '/tabs/today/visit/' + linked.appointmentId : '/tabs/skin-wound/' + patientId + '/assessments',
+        'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+        'mobileWorkflow.steps.check_in.enteredAt': serverTimestamp(),
+        'mobileWorkflow.steps.check_in.byUid': user.uid,
+        'mobileWorkflow.steps.check_in.byName': user.displayName ?? null,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      });
+
+      await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
+      return { visitId: linked.woundVisitId, location };
+    }
+
+    // Legacy/manual chart entry with no scheduler linkage. Kept only for
+    // backward compatibility; new Episode Control and field follow-ups carry
+    // woundVisitId so they use the branch above.
     const created = await addDoc(collection(db, `patients/${patientId}/woundVisits`), {
       orgId,
       facilityId: (patient['facilityId'] as string) ?? null,
       patientId,
+      woundId: linked.woundId ?? null,
+      episodeId: linked.episodeId ?? null,
+      appointmentId: linked.appointmentId ?? null,
       visitType,
       status: 'planned',
       scheduledFor: Timestamp.fromDate(new Date()),
       clinicianUid: user.uid,
       clinicianName: user.displayName ?? null,
+      clinicianRole: linked.clinicianRole ?? null,
       checkIn: checkpoint,
-      // checkOut is OMITTED, not written as null. A null puts the key in
-      // the document, and the rules' checkpoint guard then reads .byUid
-      // off it -- an error, not a false, so the whole write was refused.
-      // Absent is also the honest shape: the departure has not happened.
-      // JADE-SHOP made the rule null-tolerant as well; this side simply
-      // stops creating the null.
+      mobileWorkflow: {
+        appointmentId: linked.appointmentId ?? null,
+        currentStep: 'check_in',
+        lastRoute: '/tabs/skin-wound/' + patientId + '/assessments',
+        lastUpdatedAt: serverTimestamp(),
+        steps: {
+          check_in: {
+            enteredAt: serverTimestamp(),
+            byUid: user.uid,
+            byName: user.displayName ?? null,
+          },
+        },
+      },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       createdBy: user.uid,
@@ -184,6 +259,13 @@ export class VisitService {
     const location = await this.location.capture();
     const patch: Record<string, unknown> = {
       checkOut: this.buildCheckpoint(location),
+      status: 'completed',
+      completedAt: serverTimestamp(),
+      'mobileWorkflow.currentStep': 'check_out',
+      'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+      'mobileWorkflow.steps.check_out.enteredAt': serverTimestamp(),
+      'mobileWorkflow.steps.check_out.byUid': user.uid,
+      'mobileWorkflow.steps.check_out.byName': user.displayName ?? null,
       updatedAt: serverTimestamp(),
       updatedBy: user.uid,
     };
@@ -207,6 +289,35 @@ export class VisitService {
     await updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch);
     await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     return { location };
+  }
+
+  /**
+   * Saves the actual WoundAPP clinical path on the shared woundVisit.
+   * This is navigation provenance, not a claim that the clinical step was
+   * completed. Completion continues to come from the real clinical documents.
+   */
+  async recordJourneyStep(
+    patientId: string,
+    woundVisitId: string | null | undefined,
+    appointmentId: string | null | undefined,
+    step: string,
+    route: string
+  ): Promise<void> {
+    const user = auth.currentUser;
+    if (!user || !patientId || !woundVisitId || !step) return;
+
+    const safeStep = step.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
+    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`), {
+      'mobileWorkflow.appointmentId': appointmentId ?? null,
+      'mobileWorkflow.currentStep': safeStep,
+      'mobileWorkflow.lastRoute': route,
+      'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+      [`mobileWorkflow.steps.${safeStep}.enteredAt`]: serverTimestamp(),
+      [`mobileWorkflow.steps.${safeStep}.byUid`]: user.uid,
+      [`mobileWorkflow.steps.${safeStep}.byName`]: user.displayName ?? null,
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid,
+    });
   }
 
   private buildCheckpoint(location: EvvLocation): EvvCheckpoint {
