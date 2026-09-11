@@ -37,6 +37,9 @@ export interface FieldVisit {
   start: any;
   end?: any;
   status: string;
+  statusReason?: string | null;
+  statusReasonCode?: string | null;
+  notDoneAt?: any;
   completedAt?: any;
   nextAppointmentId?: string | null;
   patient?: FieldPatient | null;
@@ -171,6 +174,88 @@ export class FieldWorkService {
   }
 
   /**
+   * Mark a scheduled field visit as not done before check-in.
+   * This is the mobile equivalent of a skipped round, but preserves a
+   * required reason and keeps the encounter available for missed-visit
+   * documentation and rescheduling.
+   */
+  async markVisitNotDone(
+    appointmentId: string,
+    reasonCode: string,
+    reasonText: string
+  ): Promise<void> {
+    const user = auth.currentUser;
+    const orgId = await this.tenant.currentOrgId();
+    if (!user || !orgId) throw new Error('Sign in required');
+    if (!appointmentId) throw new Error('Visit is required');
+
+    const reason = (reasonText || '').trim();
+    const code = (reasonCode || '').trim();
+    if (!code) throw new Error('Choose why the visit could not be completed');
+    if (!reason) throw new Error('Add a brief reason before marking the visit not done');
+
+    const appointmentRef = doc(db, 'appointments', appointmentId);
+    await runTransaction(db, async transaction => {
+      const appointmentSnap = await transaction.get(appointmentRef);
+      if (!appointmentSnap.exists()) throw new Error('Visit no longer exists');
+      const appointment: any = appointmentSnap.data();
+
+      if (appointment.orgId !== orgId || appointment.assignedToUid !== user.uid) {
+        throw new Error('You can only mark your own assigned visit not done');
+      }
+      if (appointment.status === 'completed') {
+        throw new Error('A completed visit cannot be changed to not done');
+      }
+      if (appointment.status === 'not_done') return;
+
+      const patientId = appointment.patientId ?? null;
+      const woundVisitId = appointment.woundVisitId ?? null;
+      if (!patientId || !woundVisitId) {
+        throw new Error('This appointment is not linked to its wound visit');
+      }
+
+      const woundVisitRef = doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`);
+      const woundVisitSnap = await transaction.get(woundVisitRef);
+      if (!woundVisitSnap.exists()) throw new Error('Linked wound visit no longer exists');
+      const woundVisit: any = woundVisitSnap.data();
+
+      if (woundVisit.checkIn) {
+        throw new Error('This visit already has a check-in. Use the on-site checkout workflow instead.');
+      }
+
+      transaction.update(appointmentRef, {
+        status: 'not_done',
+        statusReasonCode: code,
+        statusReason: reason,
+        notDoneAt: serverTimestamp(),
+        notDoneByUid: user.uid,
+        updatedAt: serverTimestamp(),
+      });
+
+      transaction.update(woundVisitRef, {
+        status: 'missed',
+        appointmentStatus: 'not_done',
+        executionAuthority: 'woundapp',
+        fieldVisitState: 'not_done',
+        officeDocumentationState: 'pending_office_documentation',
+        notDoneReasonCode: code,
+        notDoneReason: reason,
+        notDoneAt: serverTimestamp(),
+        notDoneByUid: user.uid,
+        notDoneByName: user.displayName ?? null,
+        'mobileWorkflow.currentStep': 'not_done',
+        'mobileWorkflow.lastRoute': '/tabs/today/visit/' + appointmentId,
+        'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+        'mobileWorkflow.steps.not_done.enteredAt': serverTimestamp(),
+        'mobileWorkflow.steps.not_done.byUid': user.uid,
+        'mobileWorkflow.steps.not_done.byName': user.displayName ?? null,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      });
+    });
+  }
+
+  /**
    * Create the clinician's own next visit after the current appointment is completed.
    *
    * The transaction is intentionally idempotent at the current appointment boundary:
@@ -196,8 +281,8 @@ export class FieldWorkService {
       if (current.orgId !== orgId || current.assignedToUid !== user.uid) {
         throw new Error('You can only schedule a follow-up for your own assigned visit');
       }
-      if (current.status !== 'completed') {
-        throw new Error('Complete the current visit before scheduling the next visit');
+      if (current.status !== 'completed' && current.status !== 'not_done') {
+        throw new Error('Complete or mark the current visit not done before scheduling the next visit');
       }
       if (typeof current.nextAppointmentId === 'string' && current.nextAppointmentId) {
         return current.nextAppointmentId;
