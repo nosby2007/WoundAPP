@@ -42,13 +42,13 @@ export class PinService {
   async setPin(pin: string, currentPin?: string): Promise<void> {
     await this.setFn({ pin, currentPin });
     await this.refreshToken();
-    this.sessionSecurity.markActivity();
+    this.sessionSecurity.unlock();
   }
 
   async verify(pin: string): Promise<void> {
     await this.verifyFn({ pin });
     await this.refreshToken();
-    this.sessionSecurity.markActivity();
+    this.sessionSecurity.unlock();
   }
 
   /** Whether this session has already cleared the PIN. */
@@ -57,7 +57,8 @@ export class PinService {
     if (!user) return false;
     const token = await user.getIdTokenResult(true);
     const passedAt = token.claims['mfaPassedAt'];
-    return typeof passedAt === 'number' && passedAt > 0 && this.sessionSecurity.isFresh();
+    const serverClaimFresh = typeof passedAt === 'number' && passedAt > 0 && (Date.now() - passedAt) <= 15 * 60 * 1000;
+    return serverClaimFresh && this.sessionSecurity.isFresh();
   }
 
   private async refreshToken(): Promise<void> {
