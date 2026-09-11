@@ -187,7 +187,7 @@ export class FieldWorkService {
     appointmentId: string,
     reasonCode: string,
     reasonText: string
-  ): Promise<{ woundVisitId: string }> {
+  ): Promise<{ woundVisitId: string | null }> {
     const user = auth.currentUser;
     const orgId = await this.tenant.currentOrgId();
     if (!user || !orgId) throw new Error('Sign in required');
@@ -198,8 +198,11 @@ export class FieldWorkService {
     if (!code) throw new Error('Choose why the visit could not be completed');
     if (!reason) throw new Error('Add a brief reason before marking the visit not done');
 
+    const identity = await this.rolePolicy.currentIdentity();
+    const isClinicalVisitWorker = this.rolePolicy.canUseClinicalWorkspace(identity);
+
     const appointmentRef = doc(db, 'appointments', appointmentId);
-    await runTransaction(db, async transaction => {
+    return runTransaction(db, async transaction => {
       const appointmentSnap = await transaction.get(appointmentRef);
       if (!appointmentSnap.exists()) throw new Error('Visit no longer exists');
       const appointment: any = appointmentSnap.data();
@@ -210,7 +213,7 @@ export class FieldWorkService {
       if (appointment.status === 'completed') {
         throw new Error('A completed visit cannot be changed to not done');
       }
-      if (appointment.status === 'not_done') return;
+      if (appointment.status === 'not_done') return { woundVisitId: appointment.woundVisitId ?? null };
 
       const patientId = appointment.patientId ?? null;
       if (!patientId) {
@@ -220,12 +223,17 @@ export class FieldWorkService {
       const linkedId = typeof appointment.woundVisitId === 'string' && appointment.woundVisitId
         ? appointment.woundVisitId
         : null;
+
+      // Licensed clinical roles need a missed woundVisit record even for old
+      // appointments created before appointment↔woundVisit linkage existed.
+      // Support-level ADL/companion visits remain appointment-only and do not
+      // create wound-chart records.
       const woundVisitRef = linkedId
         ? doc(db, `patients/${patientId}/woundVisits/${linkedId}`)
-        : doc(collection(db, `patients/${patientId}/woundVisits`));
+        : (isClinicalVisitWorker ? doc(collection(db, `patients/${patientId}/woundVisits`)) : null);
 
       let existingWoundVisit: any = null;
-      if (linkedId) {
+      if (linkedId && woundVisitRef) {
         const woundVisitSnap = await transaction.get(woundVisitRef);
         if (woundVisitSnap.exists()) {
           existingWoundVisit = woundVisitSnap.data();
@@ -235,16 +243,21 @@ export class FieldWorkService {
         }
       }
 
-      const woundVisitId = woundVisitRef.id;
-      transaction.update(appointmentRef, {
+      const woundVisitId = woundVisitRef?.id ?? null;
+      const appointmentPatch: Record<string, unknown> = {
         status: 'not_done',
         statusReasonCode: code,
         statusReason: reason,
-        woundVisitId,
         notDoneAt: serverTimestamp(),
         notDoneByUid: user.uid,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (woundVisitId) appointmentPatch['woundVisitId'] = woundVisitId;
+      transaction.update(appointmentRef, appointmentPatch);
+
+      if (!woundVisitRef) {
+        return { woundVisitId: null };
+      }
 
       const commonMissedFields: Record<string, unknown> = {
         orgId,
