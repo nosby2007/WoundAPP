@@ -187,7 +187,7 @@ export class FieldWorkService {
     appointmentId: string,
     reasonCode: string,
     reasonText: string
-  ): Promise<void> {
+  ): Promise<{ woundVisitId: string | null }> {
     const user = auth.currentUser;
     const orgId = await this.tenant.currentOrgId();
     if (!user || !orgId) throw new Error('Sign in required');
@@ -198,8 +198,11 @@ export class FieldWorkService {
     if (!code) throw new Error('Choose why the visit could not be completed');
     if (!reason) throw new Error('Add a brief reason before marking the visit not done');
 
+    const identity = await this.rolePolicy.currentIdentity();
+    const isClinicalVisitWorker = this.rolePolicy.canUseClinicalWorkspace(identity);
+
     const appointmentRef = doc(db, 'appointments', appointmentId);
-    await runTransaction(db, async transaction => {
+    return runTransaction(db, async transaction => {
       const appointmentSnap = await transaction.get(appointmentRef);
       if (!appointmentSnap.exists()) throw new Error('Visit no longer exists');
       const appointment: any = appointmentSnap.data();
@@ -210,35 +213,66 @@ export class FieldWorkService {
       if (appointment.status === 'completed') {
         throw new Error('A completed visit cannot be changed to not done');
       }
-      if (appointment.status === 'not_done') return;
+      if (appointment.status === 'not_done') return { woundVisitId: appointment.woundVisitId ?? null };
 
       const patientId = appointment.patientId ?? null;
-      const woundVisitId = appointment.woundVisitId ?? null;
-      if (!patientId || !woundVisitId) {
-        throw new Error('This appointment is not linked to its wound visit');
+      if (!patientId) {
+        throw new Error('This appointment has no patient link');
       }
 
-      const woundVisitRef = doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`);
-      const woundVisitSnap = await transaction.get(woundVisitRef);
-      if (!woundVisitSnap.exists()) throw new Error('Linked wound visit no longer exists');
-      const woundVisit: any = woundVisitSnap.data();
+      const linkedId = typeof appointment.woundVisitId === 'string' && appointment.woundVisitId
+        ? appointment.woundVisitId
+        : null;
 
-      if (woundVisit.checkIn) {
-        throw new Error('This visit already has a check-in. Use the on-site checkout workflow instead.');
+      // Licensed clinical roles need a missed woundVisit record even for old
+      // appointments created before appointment↔woundVisit linkage existed.
+      // Support-level ADL/companion visits remain appointment-only and do not
+      // create wound-chart records.
+      const woundVisitRef = linkedId
+        ? doc(db, `patients/${patientId}/woundVisits/${linkedId}`)
+        : (isClinicalVisitWorker ? doc(collection(db, `patients/${patientId}/woundVisits`)) : null);
+
+      let existingWoundVisit: any = null;
+      if (linkedId && woundVisitRef) {
+        const woundVisitSnap = await transaction.get(woundVisitRef);
+        if (woundVisitSnap.exists()) {
+          existingWoundVisit = woundVisitSnap.data();
+          if (existingWoundVisit.checkIn) {
+            throw new Error('This visit already has a check-in. Use the on-site checkout workflow instead.');
+          }
+        }
       }
 
-      transaction.update(appointmentRef, {
+      const woundVisitId = woundVisitRef?.id ?? null;
+      const appointmentPatch: Record<string, unknown> = {
         status: 'not_done',
         statusReasonCode: code,
         statusReason: reason,
         notDoneAt: serverTimestamp(),
         notDoneByUid: user.uid,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (woundVisitId) appointmentPatch['woundVisitId'] = woundVisitId;
+      transaction.update(appointmentRef, appointmentPatch);
 
-      transaction.update(woundVisitRef, {
-        status: 'missed',
+      if (!woundVisitRef) {
+        return { woundVisitId: null };
+      }
+
+      const commonMissedFields: Record<string, unknown> = {
+        orgId,
+        facilityId: appointment.facilityId ?? appointment.patient?.facilityId ?? null,
+        patientId,
+        woundId: appointment.woundId ?? null,
+        episodeId: appointment.episodeId ?? null,
+        appointmentId,
         appointmentStatus: 'not_done',
+        visitType: appointment.visitType ?? 'routine',
+        status: 'missed',
+        scheduledFor: appointment.start ?? serverTimestamp(),
+        clinicianUid: appointment.assignedToUid ?? user.uid,
+        clinicianName: appointment.assignedToName ?? user.displayName ?? null,
+        clinicianRole: appointment.assignedToRole ?? null,
         executionAuthority: 'woundapp',
         fieldVisitState: 'not_done',
         officeDocumentationState: 'pending_office_documentation',
@@ -247,15 +281,37 @@ export class FieldWorkService {
         notDoneAt: serverTimestamp(),
         notDoneByUid: user.uid,
         notDoneByName: user.displayName ?? null,
-        'mobileWorkflow.currentStep': 'not_done',
-        'mobileWorkflow.lastRoute': '/tabs/today/visit/' + appointmentId,
-        'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
-        'mobileWorkflow.steps.not_done.enteredAt': serverTimestamp(),
-        'mobileWorkflow.steps.not_done.byUid': user.uid,
-        'mobileWorkflow.steps.not_done.byName': user.displayName ?? null,
+        mobileWorkflow: {
+          appointmentId,
+          currentStep: 'not_done',
+          lastRoute: '/tabs/today/visit/' + appointmentId,
+          lastUpdatedAt: serverTimestamp(),
+          steps: {
+            not_done: {
+              enteredAt: serverTimestamp(),
+              byUid: user.uid,
+              byName: user.displayName ?? null,
+            },
+          },
+        },
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
-      });
+      };
+
+      if (existingWoundVisit) {
+        transaction.update(woundVisitRef, commonMissedFields);
+      } else {
+        transaction.set(woundVisitRef, {
+          ...commonMissedFields,
+          summary: appointment.appointmentDetails ?? '',
+          nextStep: '',
+          placeOfService: appointment.facilityId ? 'facility' : 'home',
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+        });
+      }
+
+      return { woundVisitId };
     });
   }
 

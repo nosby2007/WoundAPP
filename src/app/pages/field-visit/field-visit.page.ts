@@ -378,9 +378,10 @@ export class FieldVisitPage implements OnInit {
     this.message = '';
     this.isError = false;
     try {
-      await this.work.markVisitNotDone(this.visit.id, this.notDoneReasonCode, this.notDoneReason);
+      const result = await this.work.markVisitNotDone(this.visit.id, this.notDoneReasonCode, this.notDoneReason);
       this.visit = {
         ...this.visit,
+        woundVisitId: result.woundVisitId,
         status: 'not_done',
         statusReasonCode: this.notDoneReasonCode,
         statusReason: this.notDoneReason.trim(),
