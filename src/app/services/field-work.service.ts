@@ -263,6 +263,9 @@ export class FieldWorkService {
         summary: current.appointmentDetails ?? '',
         nextStep: '',
         placeOfService: 'home',
+        executionAuthority: 'woundapp',
+        fieldVisitState: 'scheduled',
+        officeDocumentationState: 'not_started',
         mobileWorkflow: {
           appointmentId: nextRef.id,
           currentStep: 'scheduled',
