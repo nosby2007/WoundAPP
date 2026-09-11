@@ -14,6 +14,7 @@ import { TenantService } from './tenant.service';
 export interface Patient {
   id: string;
   name: string;
+  patientStatus?: 'active' | 'discharged' | 'transferred' | 'deceased' | null;
   dob?: string;
   mrn?: string;
   room?: string;
@@ -60,17 +61,23 @@ export class PatientService {
     );
     const snap = await getDocs(q);
 
-    return snap.docs.map(d => {
-      const data: any = d.data();
-      return {
-        id: d.id,
-        name: data.name || data.displayName || 'Patient',
-        dob: data.dob || '',
-        mrn: data.mrn || '',
-        room: data.room || data.roomNumber || '',
-        bed: data.bed || '',
-        photoURL: data.photoURL || ''
-      };
-    });
+    return snap.docs
+      .map(d => {
+        const data: any = d.data();
+        return {
+          id: d.id,
+          name: data.name || data.displayName || 'Patient',
+          patientStatus: data.patientStatus ?? null,
+          dob: data.dob || '',
+          mrn: data.mrn || '',
+          room: data.room || data.roomNumber || '',
+          bed: data.bed || '',
+          photoURL: data.photoURL || ''
+        } as Patient;
+      })
+      // The mobile patient roster is an ACTIVE care list. Historical charts
+      // remain retrievable through authorized history/reporting workflows,
+      // but discharged/transferred/deceased patients are not actionable here.
+      .filter(patient => !patient.patientStatus || patient.patientStatus === 'active');
   }
 }
