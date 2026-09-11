@@ -3,6 +3,7 @@ import { collection, doc, getDoc, onSnapshot, orderBy, query, runTransaction, se
 import { Observable } from 'rxjs';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
+import { FieldRolePolicyService } from './field-role-policy.service';
 
 export interface FieldPatient {
   id: string;
@@ -70,7 +71,7 @@ export interface TodayWork {
 
 @Injectable({ providedIn: 'root' })
 export class FieldWorkService {
-  constructor(private tenant: TenantService) {}
+  constructor(private tenant: TenantService, private rolePolicy: FieldRolePolicyService) {}
 
   today$(): Observable<TodayWork> {
     return new Observable<TodayWork>(subscriber => {
@@ -95,11 +96,12 @@ export class FieldWorkService {
           orderBy('start', 'asc')
         );
         stopVisits = onSnapshot(visitQ, async snap => {
-          visits = await Promise.all(snap.docs.map(async d => ({
+          const identity = await this.rolePolicy.currentIdentity();
+          visits = (await Promise.all(snap.docs.map(async d => ({
             id: d.id,
             ...d.data(),
             patient: await this.patient((d.data() as any).patientId),
-          } as FieldVisit)));
+          } as FieldVisit)))).filter(visit => this.rolePolicy.canAccessAssignedVisit(identity, visit as any));
           emit();
         }, err => { console.warn('[Today] visits unavailable', err); visits = []; emit(); });
 
@@ -136,6 +138,8 @@ export class FieldWorkService {
     if (!snap.exists()) return null;
     const data: any = snap.data();
     if (data.orgId !== orgId || data.assignedToUid !== user.uid) return null;
+    const identity = await this.rolePolicy.currentIdentity();
+    if (!this.rolePolicy.canAccessAssignedVisit(identity, data)) return null;
 
     return {
       id: snap.id,
