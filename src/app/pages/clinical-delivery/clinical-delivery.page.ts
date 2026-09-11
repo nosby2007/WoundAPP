@@ -118,8 +118,7 @@ export class ClinicalDeliveryPage implements OnInit {
         snapshotId: this.snapshotId,
         method: recipient.preferredMethod,
         recipientType: recipient.recipientType,
-        destinationLabel: recipient.name,
-        destinationToken: recipient.destinationToken,
+        recipientId: recipient.id,
       });
       this.successMsg = 'Secure delivery queued. Delivery confirmation will be recorded by the transport service.';
     } catch (error: any) {
