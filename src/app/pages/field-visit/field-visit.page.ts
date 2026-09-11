@@ -257,6 +257,13 @@ export class FieldVisitPage implements OnInit {
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
         this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        await this.visits.recordJourneyStep(
+          this.visit.patientId,
+          this.visit.woundVisitId,
+          this.visit.id,
+          this.activeEvv ? 'on_site' : 'visit_workspace',
+          '/tabs/today/visit/' + this.visit.id
+        );
       }
     } finally {
       this.loading = false;
@@ -264,7 +271,20 @@ export class FieldVisitPage implements OnInit {
   }
 
   back(): void { void this.router.navigate(['/tabs/today']); }
-  chart(): void { if (this.visit?.patientId) void this.router.navigate(['/tabs/skin-wound', this.visit.patientId, 'assessments']); }
+  chart(): void {
+    if (!this.visit?.patientId) return;
+    void this.visits.recordJourneyStep(
+      this.visit.patientId,
+      this.visit.woundVisitId,
+      this.visit.id,
+      'clinical_command',
+      `/tabs/skin-wound/${this.visit.patientId}/assessments`
+    );
+    void this.router.navigate(
+      ['/tabs/skin-wound', this.visit.patientId, 'assessments'],
+      { queryParams: { appointmentId: this.visit.id, woundVisitId: this.visit.woundVisitId ?? '' } }
+    );
+  }
   directions(): void { if (this.address) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(this.address), '_blank', 'noopener'); }
   locationText(location: any): string { return describeEvvLocation(location); }
   checkpointText(checkpoint: any): string { return checkpoint?.location ? describeEvvLocation(checkpoint.location) : 'Arrival captured'; }
@@ -273,7 +293,17 @@ export class FieldVisitPage implements OnInit {
     if (!this.visit?.patientId || this.busy) return;
     this.busy = true; this.message = ''; this.isError = false;
     try {
-      const result = await this.visits.checkIn(this.visit.patientId, this.visit.visitType || 'routine');
+      const result = await this.visits.checkIn(
+        this.visit.patientId,
+        this.visit.visitType || 'routine',
+        {
+          appointmentId: this.visit.id,
+          woundVisitId: this.visit.woundVisitId ?? null,
+          woundId: this.visit.woundId ?? null,
+          episodeId: this.visit.episodeId ?? null,
+          clinicianRole: this.visit.assignedToRole ?? null,
+        }
+      );
       this.activeEvv = await this.visits.openVisit(this.visit.patientId);
       this.message = result.location.status === 'captured'
         ? 'Checked in. Arrival time and device location were captured.'
