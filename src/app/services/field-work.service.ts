@@ -31,6 +31,8 @@ export interface FieldVisit {
   woundLocation?: string | null;
   episodeId?: string | null;
   episodeTitle?: string | null;
+  /** Shared pointer to patients/{patientId}/woundVisits/{woundVisitId}. */
+  woundVisitId?: string | null;
   facilityId?: string | null;
   start: any;
   end?: any;
@@ -201,26 +203,35 @@ export class FieldWorkService {
         return current.nextAppointmentId;
       }
 
+      const patientId = current.patientId ?? null;
+      if (!patientId) throw new Error('The current appointment has no patient link');
+
       const nextRef = doc(collection(db, 'appointments'));
+      const nextWoundVisitRef = doc(collection(db, `patients/${patientId}/woundVisits`));
       const end = new Date(start.getTime() + durationMinutes * 60_000);
+      const facilityId = current.facilityId ?? current.patient?.facilityId ?? null;
+      const clinicianName = current.assignedToName ?? user.displayName ?? '';
+      const clinicianRole = current.assignedToRole ?? '';
+
       const next: Record<string, unknown> = {
         orgId,
-        facilityId: current.facilityId ?? current.patient?.facilityId ?? null,
-        patientId: current.patientId ?? null,
+        facilityId,
+        patientId,
         patientName: current.patientName ?? 'Patient',
-        workflowKind: current.workflowKind ?? 'general',
+        workflowKind: 'wound',
         woundId: current.woundId ?? null,
         woundLabel: current.woundLabel ?? null,
         woundLocation: current.woundLocation ?? null,
         episodeId: current.episodeId ?? null,
         episodeTitle: current.episodeTitle ?? null,
-        visitType: current.visitType ?? null,
+        woundVisitId: nextWoundVisitRef.id,
+        visitType: current.visitType ?? 'routine',
         appointmentDetails: current.appointmentDetails ?? '',
         homeAddress: current.homeAddress ?? '',
         patientTelephone: current.patientTelephone ?? '',
         assignedToUid: user.uid,
-        assignedToName: current.assignedToName ?? user.displayName ?? '',
-        assignedToRole: current.assignedToRole ?? '',
+        assignedToName: clinicianName,
+        assignedToRole: clinicianRole,
         createdByUid: user.uid,
         start: Timestamp.fromDate(start),
         end: Timestamp.fromDate(end),
@@ -235,6 +246,38 @@ export class FieldWorkService {
         updatedAt: serverTimestamp(),
       };
 
+      const woundVisit: Record<string, unknown> = {
+        orgId,
+        facilityId,
+        patientId,
+        woundId: current.woundId ?? null,
+        episodeId: current.episodeId ?? null,
+        appointmentId: nextRef.id,
+        appointmentStatus: 'scheduled',
+        visitType: current.visitType ?? 'routine',
+        status: 'planned',
+        scheduledFor: Timestamp.fromDate(start),
+        clinicianUid: user.uid,
+        clinicianName,
+        clinicianRole,
+        summary: current.appointmentDetails ?? '',
+        nextStep: '',
+        placeOfService: 'home',
+        mobileWorkflow: {
+          appointmentId: nextRef.id,
+          currentStep: 'scheduled',
+          lastRoute: '/tabs/today/visit/' + nextRef.id,
+          lastUpdatedAt: serverTimestamp(),
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.uid,
+        updatedBy: user.uid,
+      };
+
+      // Scheduling a follow-up in WoundAPP creates BOTH sides of the same
+      // encounter in one transaction. JADE Episode Control sees it immediately.
+      transaction.set(nextWoundVisitRef, woundVisit);
       transaction.set(nextRef, next);
       transaction.update(currentRef, {
         nextAppointmentId: nextRef.id,
