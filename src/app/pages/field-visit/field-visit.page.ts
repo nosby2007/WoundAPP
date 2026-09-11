@@ -77,8 +77,8 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
               <h1>{{ visit.patient?.name || visit.patientName }}</h1>
               <p>{{ visit.visitType || 'Scheduled visit' }} · {{ work.toDate(visit.start) | date:'shortTime' }}</p>
             </div>
-            <ion-badge [color]="visit.status === 'completed' ? 'success' : activeEvv ? 'warning' : 'primary'">
-              {{ visit.status === 'completed' ? 'Completed' : activeEvv ? 'On site' : 'Scheduled' }}
+            <ion-badge [color]="visit.status === 'not_done' ? 'danger' : visit.status === 'completed' ? 'success' : activeEvv ? 'warning' : 'primary'">
+              {{ visit.status === 'not_done' ? 'Not done' : visit.status === 'completed' ? 'Completed' : activeEvv ? 'On site' : 'Scheduled' }}
             </ion-badge>
           </div>
           <div class="hero-grid">
@@ -104,10 +104,26 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
 
             <div class="status-banner" *ngIf="message" [class.error]="isError">{{ message }}</div>
 
-            <ion-button expand="block" class="primary-action" *ngIf="visit.status !== 'completed' && !activeEvv" [disabled]="busy" (click)="checkIn()">
+            <ion-button expand="block" class="primary-action" *ngIf="visit.status !== 'completed' && visit.status !== 'not_done' && !activeEvv" [disabled]="busy" (click)="checkIn()">
               <ion-spinner *ngIf="busy" name="crescent"></ion-spinner>
               <span *ngIf="!busy">Check in now</span>
             </ion-button>
+
+            <div class="attestation" *ngIf="visit.status !== 'completed' && visit.status !== 'not_done' && !activeEvv">
+              <p class="eyebrow dark">VISIT CANNOT BE COMPLETED</p>
+              <ion-item lines="none">
+                <ion-select label="Reason" labelPlacement="stacked" [(ngModel)]="notDoneReasonCode" placeholder="Choose reason">
+                  <ion-select-option *ngFor="let option of notDoneReasons" [value]="option.value">{{ option.label }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+              <ion-item lines="none">
+                <ion-textarea label="Brief note" labelPlacement="stacked" autoGrow="true" [(ngModel)]="notDoneReason" placeholder="What prevented the visit?"></ion-textarea>
+              </ion-item>
+              <ion-button expand="block" color="danger" fill="outline" [disabled]="markingNotDone || !notDoneReasonCode || !notDoneReason.trim()" (click)="markNotDone()">
+                <ion-spinner *ngIf="markingNotDone" name="crescent"></ion-spinner>
+                <span *ngIf="!markingNotDone">Mark visit not done</span>
+              </ion-button>
+            </div>
 
             <ng-container *ngIf="visit.status !== 'completed' && activeEvv">
               <div class="evv-proof">
@@ -144,10 +160,17 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
               <ion-icon [icon]="checkmarkCircleOutline"></ion-icon>
               <div><strong>Visit completed</strong><p>The scheduling record is closed. EVV evidence remains in the patient visit record.</p></div>
             </div>
+            <div class="complete-state not-done-state" *ngIf="visit.status === 'not_done'">
+              <div>
+                <strong>Visit not done</strong>
+                <p>{{ visit.statusReason || 'The clinician documented that the visit could not be completed.' }}</p>
+                <ion-button size="small" color="danger" fill="outline" (click)="documentMissedVisit()">Document missed visit</ion-button>
+              </div>
+            </div>
           </ion-card-content>
         </ion-card>
 
-        <ion-card class="followup-card" *ngIf="visit.status === 'completed'">
+        <ion-card class="followup-card" *ngIf="visit.status === 'completed' || visit.status === 'not_done'">
           <ion-card-content>
             <div class="section-head">
               <div><p class="eyebrow dark">CONTINUITY</p><h2>Schedule next visit</h2></div>
@@ -155,7 +178,7 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
             </div>
 
             <ng-container *ngIf="!nextAppointmentId; else nextScheduledTpl">
-              <p class="followup-copy">Create your own next visit before leaving the patient. Use the ordered visit frequency; this does not assign another clinician.</p>
+              <p class="followup-copy">{{ visit.status === 'not_done' ? 'Replan the missed visit when another attempt is appropriate.' : 'Create your own next visit before leaving the patient. Use the ordered visit frequency; this does not assign another clinician.' }}</p>
               <div class="preset-row">
                 <ion-button size="small" fill="outline" (click)="setNextVisitDays(1)">Tomorrow</ion-button>
                 <ion-button size="small" fill="outline" (click)="setNextVisitDays(2)">+2 days</ion-button>
@@ -208,7 +231,7 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
     </ion-content>
   `,
   styles: [`
-    :host{--ink:#10233f;--muted:#64748b;--line:#e6edf3;--green:#0b7551;--navy:#163959}ion-toolbar{--background:#fff;--color:var(--ink)}.page{padding:16px 16px 34px;background:#f5f8fb;min-height:100%}.hero{background:linear-gradient(145deg,#0a7250 0%,#113c56 78%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 20px 45px rgba(15,50,70,.18)}.hero-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.hero h1{font-size:28px;line-height:1.1;margin:3px 0 7px}.hero p{margin:0;opacity:.83}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 6px}.eyebrow.dark{color:#547086}.hero-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:20px}.hero-grid div{background:rgba(255,255,255,.09);padding:12px;border-radius:16px}.hero-grid span,.info-row span,.evv-proof span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72;margin-bottom:4px}.hero-grid strong{font-size:13px}.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0}.quick{border:0;background:#fff;color:var(--ink);border-radius:16px;min-height:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-decoration:none;box-shadow:0 5px 18px rgba(30,55,75,.06)}.quick ion-icon{font-size:22px;color:var(--green)}ion-card{margin:12px 0;border-radius:24px;box-shadow:0 8px 28px rgba(30,55,75,.07)}ion-card-content{padding:20px}.section-head{display:flex;justify-content:space-between;gap:12px}.section-head h2,.info-card h2{margin:0;color:var(--ink);font-size:20px}.section-head>ion-icon{font-size:30px;color:var(--green)}.timeline{margin:20px 0}.step{display:grid;grid-template-columns:36px 1fr;gap:10px;position:relative;padding-bottom:18px}.step:not(:last-child):before{content:'';position:absolute;left:17px;top:34px;bottom:1px;width:2px;background:#dfe8ee}.step>span{height:34px;width:34px;border-radius:50%;display:grid;place-items:center;background:#edf2f6;color:#718096;font-weight:800}.step.done>span{background:#d9f3e8;color:#08724d}.step strong{color:var(--ink)}.step p{margin:3px 0 0;color:var(--muted);font-size:12px}.status-banner{background:#e9f6ef;color:#0b6849;border-radius:14px;padding:11px 13px;margin:12px 0;font-size:13px}.status-banner.error{background:#fff0f0;color:#a33333}.primary-action{margin-top:16px;height:48px}.evv-proof{display:flex;gap:12px;align-items:center;background:#f1f7f5;border-radius:18px;padding:13px;margin:8px 0 16px}.proof-icon{width:40px;height:40px;border-radius:14px;background:#dbefe7;display:grid;place-items:center;color:var(--green);font-size:22px}.evv-proof strong{display:block;color:var(--ink);font-size:12px}.attestation{background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:14px}.attestation ion-item{--background:transparent;--padding-start:0;--inner-padding-end:0}.attestation ion-note{font-size:11px}.complete-state{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px}.complete-state ion-icon{font-size:30px;color:var(--green)}.complete-state strong{color:var(--ink)}.complete-state p{margin:3px 0;color:var(--muted);font-size:12px}.instructions{color:#42566b;line-height:1.55}.info-row{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.info-row ion-icon{font-size:22px;color:var(--green)}.info-row strong{color:var(--ink)}.followup-card{border:1px solid #dcebe5}.followup-copy{color:var(--muted);line-height:1.5}.preset-row{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.next-date{--background:#f8fafc;border:1px solid var(--line);border-radius:14px;margin:10px 0}.next-created{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px;margin-top:14px}.next-created ion-icon{font-size:30px;color:var(--green)}.next-created p{margin:3px 0;color:var(--muted);font-size:12px}.state{min-height:70vh;display:grid;place-items:center;align-content:center;text-align:center;padding:28px;color:var(--muted)}.state h2{color:var(--ink)}@media(max-width:430px){.hero-grid{grid-template-columns:1fr}.hero h1{font-size:25px}}
+    :host{--ink:#10233f;--muted:#64748b;--line:#e6edf3;--green:#0b7551;--navy:#163959}ion-toolbar{--background:#fff;--color:var(--ink)}.page{padding:16px 16px 34px;background:#f5f8fb;min-height:100%}.hero{background:linear-gradient(145deg,#0a7250 0%,#113c56 78%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 20px 45px rgba(15,50,70,.18)}.hero-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.hero h1{font-size:28px;line-height:1.1;margin:3px 0 7px}.hero p{margin:0;opacity:.83}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 6px}.eyebrow.dark{color:#547086}.hero-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:20px}.hero-grid div{background:rgba(255,255,255,.09);padding:12px;border-radius:16px}.hero-grid span,.info-row span,.evv-proof span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72;margin-bottom:4px}.hero-grid strong{font-size:13px}.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0}.quick{border:0;background:#fff;color:var(--ink);border-radius:16px;min-height:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-decoration:none;box-shadow:0 5px 18px rgba(30,55,75,.06)}.quick ion-icon{font-size:22px;color:var(--green)}ion-card{margin:12px 0;border-radius:24px;box-shadow:0 8px 28px rgba(30,55,75,.07)}ion-card-content{padding:20px}.section-head{display:flex;justify-content:space-between;gap:12px}.section-head h2,.info-card h2{margin:0;color:var(--ink);font-size:20px}.section-head>ion-icon{font-size:30px;color:var(--green)}.timeline{margin:20px 0}.step{display:grid;grid-template-columns:36px 1fr;gap:10px;position:relative;padding-bottom:18px}.step:not(:last-child):before{content:'';position:absolute;left:17px;top:34px;bottom:1px;width:2px;background:#dfe8ee}.step>span{height:34px;width:34px;border-radius:50%;display:grid;place-items:center;background:#edf2f6;color:#718096;font-weight:800}.step.done>span{background:#d9f3e8;color:#08724d}.step strong{color:var(--ink)}.step p{margin:3px 0 0;color:var(--muted);font-size:12px}.status-banner{background:#e9f6ef;color:#0b6849;border-radius:14px;padding:11px 13px;margin:12px 0;font-size:13px}.status-banner.error{background:#fff0f0;color:#a33333}.primary-action{margin-top:16px;height:48px}.evv-proof{display:flex;gap:12px;align-items:center;background:#f1f7f5;border-radius:18px;padding:13px;margin:8px 0 16px}.proof-icon{width:40px;height:40px;border-radius:14px;background:#dbefe7;display:grid;place-items:center;color:var(--green);font-size:22px}.evv-proof strong{display:block;color:var(--ink);font-size:12px}.attestation{background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:14px}.attestation ion-item{--background:transparent;--padding-start:0;--inner-padding-end:0}.attestation ion-note{font-size:11px}.complete-state{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px}.complete-state ion-icon{font-size:30px;color:var(--green)}.not-done-state{background:#fff0f0;border:1px solid #f2caca}.not-done-state strong{color:#a52222}.complete-state strong{color:var(--ink)}.complete-state p{margin:3px 0;color:var(--muted);font-size:12px}.instructions{color:#42566b;line-height:1.55}.info-row{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.info-row ion-icon{font-size:22px;color:var(--green)}.info-row strong{color:var(--ink)}.followup-card{border:1px solid #dcebe5}.followup-copy{color:var(--muted);line-height:1.5}.preset-row{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.next-date{--background:#f8fafc;border:1px solid var(--line);border-radius:14px;margin:10px 0}.next-created{display:flex;gap:12px;align-items:flex-start;background:#ebf8f1;border-radius:18px;padding:14px;margin-top:14px}.next-created ion-icon{font-size:30px;color:var(--green)}.next-created p{margin:3px 0;color:var(--muted);font-size:12px}.state{min-height:70vh;display:grid;place-items:center;align-content:center;text-align:center;padding:28px;color:var(--muted)}.state h2{color:var(--ink)}@media(max-width:430px){.hero-grid{grid-template-columns:1fr}.hero h1{font-size:25px}}
   `],
 })
 export class FieldVisitPage implements OnInit {
@@ -239,6 +262,18 @@ export class FieldVisitPage implements OnInit {
   scheduleMessage = '';
   scheduleError = false;
   nextAppointmentId: string | null = null;
+  notDoneReasonCode = '';
+  notDoneReason = '';
+  markingNotDone = false;
+  readonly notDoneReasons = [
+    { value: 'patient_unavailable', label: 'Patient unavailable / not home' },
+    { value: 'patient_refused', label: 'Patient refused visit' },
+    { value: 'hospitalized', label: 'Patient hospitalized / transferred' },
+    { value: 'appointment_conflict', label: 'Patient had another appointment' },
+    { value: 'unsafe_environment', label: 'Unsafe environment / unable to enter' },
+    { value: 'clinician_unavailable', label: 'Clinician unavailable' },
+    { value: 'other', label: 'Other' },
+  ];
 
   constructor(
     private route: ActivatedRoute,
@@ -335,6 +370,44 @@ export class FieldVisitPage implements OnInit {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
     } finally { this.busy = false; }
+  }
+
+  async markNotDone(): Promise<void> {
+    if (!this.visit || this.markingNotDone) return;
+    this.markingNotDone = true;
+    this.message = '';
+    this.isError = false;
+    try {
+      await this.work.markVisitNotDone(this.visit.id, this.notDoneReasonCode, this.notDoneReason);
+      this.visit = {
+        ...this.visit,
+        status: 'not_done',
+        statusReasonCode: this.notDoneReasonCode,
+        statusReason: this.notDoneReason.trim(),
+      };
+      this.message = 'Visit marked not done. Add a missed-visit progress note and reschedule if another attempt is appropriate.';
+    } catch (error: any) {
+      this.isError = true;
+      this.message = error?.message || 'Unable to mark this visit not done.';
+    } finally {
+      this.markingNotDone = false;
+    }
+  }
+
+  documentMissedVisit(): void {
+    if (!this.visit?.patientId) return;
+    void this.router.navigate(
+      ['/tabs', 'skin-wound', this.visit.patientId, 'wound-note'],
+      {
+        queryParams: {
+          appointmentId: this.visit.id,
+          woundVisitId: this.visit.woundVisitId ?? '',
+          visitOutcome: 'not_done',
+          reasonCode: this.visit.statusReasonCode ?? this.notDoneReasonCode,
+          reason: this.visit.statusReason ?? this.notDoneReason,
+        },
+      }
+    );
   }
 
   setNextVisitDays(days: number): void {
