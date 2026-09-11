@@ -113,7 +113,7 @@
         </div>
 
         <div class="document-circle">
-          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'braden']">
+          <button class="circle-main" type="button" (click)="openBraden()">
             <span class="circle-index">3</span><strong>Braden</strong><small>Risk assessment</small>
           </button>
           <div class="circle-actions">
@@ -123,7 +123,7 @@
         </div>
 
         <div class="document-circle">
-          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'systemic-assessment']">
+          <button class="circle-main" type="button" (click)="openSystemicAssessment()">
             <span class="circle-index">4</span><strong>Physical Assessment</strong><small>Systemic / head-to-toe</small>
           </button>
           <div class="circle-actions">
@@ -133,7 +133,7 @@
         </div>
 
         <div class="document-circle">
-          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'care-plan']">
+          <button class="circle-main" type="button" (click)="openCarePlan()">
             <span class="circle-index">5</span><strong>Care Plan</strong><small>Goals & plan of care</small>
           </button>
           <div class="circle-actions">
@@ -143,7 +143,7 @@
         </div>
 
         <div class="document-circle">
-          <button class="circle-main" type="button" [routerLink]="['/tabs','skin-wound',patientId,'orders']">
+          <button class="circle-main" type="button" (click)="openOrders()">
             <span class="circle-index">6</span><strong>Orders</strong><small>Provider treatment orders</small>
           </button>
           <div class="circle-actions">

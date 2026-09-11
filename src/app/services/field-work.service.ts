@@ -31,10 +31,15 @@ export interface FieldVisit {
   woundLocation?: string | null;
   episodeId?: string | null;
   episodeTitle?: string | null;
+  /** Shared pointer to patients/{patientId}/woundVisits/{woundVisitId}. */
+  woundVisitId?: string | null;
   facilityId?: string | null;
   start: any;
   end?: any;
   status: string;
+  statusReason?: string | null;
+  statusReasonCode?: string | null;
+  notDoneAt?: any;
   completedAt?: any;
   nextAppointmentId?: string | null;
   patient?: FieldPatient | null;
@@ -169,6 +174,88 @@ export class FieldWorkService {
   }
 
   /**
+   * Mark a scheduled field visit as not done before check-in.
+   * This is the mobile equivalent of a skipped round, but preserves a
+   * required reason and keeps the encounter available for missed-visit
+   * documentation and rescheduling.
+   */
+  async markVisitNotDone(
+    appointmentId: string,
+    reasonCode: string,
+    reasonText: string
+  ): Promise<void> {
+    const user = auth.currentUser;
+    const orgId = await this.tenant.currentOrgId();
+    if (!user || !orgId) throw new Error('Sign in required');
+    if (!appointmentId) throw new Error('Visit is required');
+
+    const reason = (reasonText || '').trim();
+    const code = (reasonCode || '').trim();
+    if (!code) throw new Error('Choose why the visit could not be completed');
+    if (!reason) throw new Error('Add a brief reason before marking the visit not done');
+
+    const appointmentRef = doc(db, 'appointments', appointmentId);
+    await runTransaction(db, async transaction => {
+      const appointmentSnap = await transaction.get(appointmentRef);
+      if (!appointmentSnap.exists()) throw new Error('Visit no longer exists');
+      const appointment: any = appointmentSnap.data();
+
+      if (appointment.orgId !== orgId || appointment.assignedToUid !== user.uid) {
+        throw new Error('You can only mark your own assigned visit not done');
+      }
+      if (appointment.status === 'completed') {
+        throw new Error('A completed visit cannot be changed to not done');
+      }
+      if (appointment.status === 'not_done') return;
+
+      const patientId = appointment.patientId ?? null;
+      const woundVisitId = appointment.woundVisitId ?? null;
+      if (!patientId || !woundVisitId) {
+        throw new Error('This appointment is not linked to its wound visit');
+      }
+
+      const woundVisitRef = doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`);
+      const woundVisitSnap = await transaction.get(woundVisitRef);
+      if (!woundVisitSnap.exists()) throw new Error('Linked wound visit no longer exists');
+      const woundVisit: any = woundVisitSnap.data();
+
+      if (woundVisit.checkIn) {
+        throw new Error('This visit already has a check-in. Use the on-site checkout workflow instead.');
+      }
+
+      transaction.update(appointmentRef, {
+        status: 'not_done',
+        statusReasonCode: code,
+        statusReason: reason,
+        notDoneAt: serverTimestamp(),
+        notDoneByUid: user.uid,
+        updatedAt: serverTimestamp(),
+      });
+
+      transaction.update(woundVisitRef, {
+        status: 'missed',
+        appointmentStatus: 'not_done',
+        executionAuthority: 'woundapp',
+        fieldVisitState: 'not_done',
+        officeDocumentationState: 'pending_office_documentation',
+        notDoneReasonCode: code,
+        notDoneReason: reason,
+        notDoneAt: serverTimestamp(),
+        notDoneByUid: user.uid,
+        notDoneByName: user.displayName ?? null,
+        'mobileWorkflow.currentStep': 'not_done',
+        'mobileWorkflow.lastRoute': '/tabs/today/visit/' + appointmentId,
+        'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+        'mobileWorkflow.steps.not_done.enteredAt': serverTimestamp(),
+        'mobileWorkflow.steps.not_done.byUid': user.uid,
+        'mobileWorkflow.steps.not_done.byName': user.displayName ?? null,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      });
+    });
+  }
+
+  /**
    * Create the clinician's own next visit after the current appointment is completed.
    *
    * The transaction is intentionally idempotent at the current appointment boundary:
@@ -194,33 +281,42 @@ export class FieldWorkService {
       if (current.orgId !== orgId || current.assignedToUid !== user.uid) {
         throw new Error('You can only schedule a follow-up for your own assigned visit');
       }
-      if (current.status !== 'completed') {
-        throw new Error('Complete the current visit before scheduling the next visit');
+      if (current.status !== 'completed' && current.status !== 'not_done') {
+        throw new Error('Complete or mark the current visit not done before scheduling the next visit');
       }
       if (typeof current.nextAppointmentId === 'string' && current.nextAppointmentId) {
         return current.nextAppointmentId;
       }
 
+      const patientId = current.patientId ?? null;
+      if (!patientId) throw new Error('The current appointment has no patient link');
+
       const nextRef = doc(collection(db, 'appointments'));
+      const nextWoundVisitRef = doc(collection(db, `patients/${patientId}/woundVisits`));
       const end = new Date(start.getTime() + durationMinutes * 60_000);
+      const facilityId = current.facilityId ?? current.patient?.facilityId ?? null;
+      const clinicianName = current.assignedToName ?? user.displayName ?? '';
+      const clinicianRole = current.assignedToRole ?? '';
+
       const next: Record<string, unknown> = {
         orgId,
-        facilityId: current.facilityId ?? current.patient?.facilityId ?? null,
-        patientId: current.patientId ?? null,
+        facilityId,
+        patientId,
         patientName: current.patientName ?? 'Patient',
-        workflowKind: current.workflowKind ?? 'general',
+        workflowKind: 'wound',
         woundId: current.woundId ?? null,
         woundLabel: current.woundLabel ?? null,
         woundLocation: current.woundLocation ?? null,
         episodeId: current.episodeId ?? null,
         episodeTitle: current.episodeTitle ?? null,
-        visitType: current.visitType ?? null,
+        woundVisitId: nextWoundVisitRef.id,
+        visitType: current.visitType ?? 'routine',
         appointmentDetails: current.appointmentDetails ?? '',
         homeAddress: current.homeAddress ?? '',
         patientTelephone: current.patientTelephone ?? '',
         assignedToUid: user.uid,
-        assignedToName: current.assignedToName ?? user.displayName ?? '',
-        assignedToRole: current.assignedToRole ?? '',
+        assignedToName: clinicianName,
+        assignedToRole: clinicianRole,
         createdByUid: user.uid,
         start: Timestamp.fromDate(start),
         end: Timestamp.fromDate(end),
@@ -235,6 +331,41 @@ export class FieldWorkService {
         updatedAt: serverTimestamp(),
       };
 
+      const woundVisit: Record<string, unknown> = {
+        orgId,
+        facilityId,
+        patientId,
+        woundId: current.woundId ?? null,
+        episodeId: current.episodeId ?? null,
+        appointmentId: nextRef.id,
+        appointmentStatus: 'scheduled',
+        visitType: current.visitType ?? 'routine',
+        status: 'planned',
+        scheduledFor: Timestamp.fromDate(start),
+        clinicianUid: user.uid,
+        clinicianName,
+        clinicianRole,
+        summary: current.appointmentDetails ?? '',
+        nextStep: '',
+        placeOfService: 'home',
+        executionAuthority: 'woundapp',
+        fieldVisitState: 'scheduled',
+        officeDocumentationState: 'not_started',
+        mobileWorkflow: {
+          appointmentId: nextRef.id,
+          currentStep: 'scheduled',
+          lastRoute: '/tabs/today/visit/' + nextRef.id,
+          lastUpdatedAt: serverTimestamp(),
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.uid,
+        updatedBy: user.uid,
+      };
+
+      // Scheduling a follow-up in WoundAPP creates BOTH sides of the same
+      // encounter in one transaction. JADE Episode Control sees it immediately.
+      transaction.set(nextWoundVisitRef, woundVisit);
       transaction.set(nextRef, next);
       transaction.update(currentRef, {
         nextAppointmentId: nextRef.id,
