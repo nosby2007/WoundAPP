@@ -131,7 +131,7 @@ import { PatientService } from '../../services/patient.service';
               </div>
             </div>
           </section>
-        </section>
+        </div>
       </div>
     </ion-content>
   `,
