@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
-import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, documentTextOutline, logOutOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
+import { businessOutline, calendarOutline, chevronForwardOutline, cloudDoneOutline, cloudOfflineOutline, documentAttachOutline, documentTextOutline, logOutOutline, peopleOutline, personAddOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
 import { TenantService } from '../../services/tenant.service';
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
@@ -44,7 +44,9 @@ import { FieldRolePolicyService } from '../../services/field-role-policy.service
         <section class="section" *ngIf="canUseScheduler">
           <p class="eyebrow dark">SCHEDULER WORKSPACE</p>
           <ion-list lines="none" class="menu">
-            <ion-item button detail="false" (click)="schedulerWorkspace()"><div class="menu-icon featured"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>Scheduling</strong><p>Review the team schedule for the next 14 days without opening clinical documentation.</p></ion-label><ion-badge color="success">Ops</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" (click)="schedulerWorkspace()"><div class="menu-icon featured"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>Scheduling</strong><p>Plan, reschedule and reassign team visits.</p></ion-label><ion-badge color="success">Ops</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" (click)="intakePatients()"><div class="menu-icon featured"><ion-icon [icon]="peopleOutline"></ion-icon></div><ion-label><strong>Patients</strong><p>Reception patient list, demographics, payer information and intake details.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" (click)="intakePatients()"><div class="menu-icon"><ion-icon [icon]="documentAttachOutline"></ion-icon></div><ion-label><strong>Documents</strong><p>Select a patient and quickly add referral, face sheet, insurance or other intake documents.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Register a patient from the operational intake workflow.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
@@ -75,7 +77,9 @@ export class MorePage implements OnInit {
   readonly chevronForwardOutline = chevronForwardOutline;
   readonly cloudDoneOutline = cloudDoneOutline;
   readonly cloudOfflineOutline = cloudOfflineOutline;
+  readonly documentAttachOutline = documentAttachOutline;
   readonly documentTextOutline = documentTextOutline;
+  readonly peopleOutline = peopleOutline;
   readonly logOutOutline = logOutOutline;
   readonly personAddOutline = personAddOutline;
   readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
@@ -134,6 +138,7 @@ export class MorePage implements OnInit {
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
   visitHistory(): void { void this.router.navigate(['/tabs/visit-history']); }
   schedulerWorkspace(): void { void this.router.navigate(['/tabs/scheduler']); }
+  intakePatients(): void { void this.router.navigate(['/tabs/intake-patients']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
 
   async signOut(): Promise<void> {
