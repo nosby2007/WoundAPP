@@ -29,6 +29,8 @@ import { fieldAccessGuard } from '../guards/field-access.guard';
 import { VisitHistoryPage } from '../pages/visit-history/visit-history.page';
 import { VisitHistoryDetailPage } from '../pages/visit-history-detail/visit-history-detail.page';
 import { SchedulerWorkspacePage } from '../pages/scheduler-workspace/scheduler-workspace.page';
+import { ReceptionPatientsPage } from '../pages/reception-patients/reception-patients.page';
+import { IntakePatientPage } from '../pages/intake-patient/intake-patient.page';
 
 const routes: Routes = [
   {
@@ -47,6 +49,8 @@ const routes: Routes = [
       { path: 'visit-history', component: VisitHistoryPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'visit-history/:patientId/:visitId', component: VisitHistoryDetailPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'scheduler', component: SchedulerWorkspacePage, canActivate: [fieldAccessGuard], data: { access: 'scheduling' } },
+      { path: 'intake-patients', component: ReceptionPatientsPage, canActivate: [fieldAccessGuard], data: { access: 'scheduling' } },
+      { path: 'intake-patient/:patientId', component: IntakePatientPage, canActivate: [fieldAccessGuard], data: { access: 'scheduling' } },
       { path: 'add-patient', component: AddPatientPage, canActivate: [fieldAccessGuard], data: { access: 'intake' } },
       { path: 'progress-note', component: ProgressNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
