@@ -146,6 +146,26 @@ export class MobileSchedulerService {
       statusReason: null,
       updatedAt: serverTimestamp(),
     });
+
+    // Keep the pre-created shared wound encounter aligned without granting
+    // the scheduler access to any clinical assessment content. Firestore
+    // allows only these scheduling fields while the field visit is still
+    // untouched (no check-in / scheduled state).
+    if (current.patientId && current.woundVisitId) {
+      await updateDoc(
+        doc(db, `patients/${current.patientId}/woundVisits/${current.woundVisitId}`),
+        {
+          scheduledFor: Timestamp.fromDate(input.start),
+          visitType: input.visitType || current.visitType || null,
+          clinicianUid: input.assignedToUid,
+          clinicianName: input.assignedToName,
+          clinicianRole: input.assignedToRole,
+          appointmentStatus: 'scheduled',
+          updatedAt: serverTimestamp(),
+          updatedBy: auth.currentUser?.uid || null,
+        }
+      );
+    }
   }
 
   private async currentPrimaryFacilityId(): Promise<string | null> {
