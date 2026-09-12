@@ -20,7 +20,7 @@ const SUPPORT_ROLES = new Set([
 
 const ADMIN_ROLES = new Set([
   'receptionist', 'reception', 'frontdesk', 'front_desk',
-  'scheduler', 'hr', 'billing', 'finance', 'employer',
+  'scheduler', 'hr', 'billing', 'finance', 'employer', 'employee',
 ]);
 
 const SUPPORT_VISIT_TYPES = new Set([
@@ -64,6 +64,19 @@ export class FieldRolePolicyService {
 
   canSeeVisitHistory(identity: ClinicalIdentitySnapshot | null): boolean {
     return this.canUseClinicalWorkspace(identity);
+  }
+
+  canUseSchedulingWorkspace(identity: ClinicalIdentitySnapshot | null): boolean {
+    const roles = this.normalizedRoles(identity);
+    return roles.some(role => [
+      'scheduler', 'employer', 'employee', 'frontdesk', 'front_desk',
+      'reception', 'receptionist', 'hr', 'clinical_admin', 'org_admin',
+      'admin', 'super_admin'
+    ].includes(role));
+  }
+
+  canCreatePatient(identity: ClinicalIdentitySnapshot | null): boolean {
+    return this.canUseClinicalWorkspace(identity) || this.canUseSchedulingWorkspace(identity);
   }
 
   isSupportVisit(visit: Record<string, any>): boolean {
