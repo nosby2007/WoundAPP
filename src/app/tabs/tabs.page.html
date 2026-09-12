@@ -1,6 +1,6 @@
 <ion-tabs>
   <ion-tab-bar slot="bottom">
-    <ion-tab-button *ngIf="canSeeClinical" tab="patients" href="/tabs/patients">
+    <ion-tab-button *ngIf="canSeeClinical || canSeeIntakePatients" tab="patients" [href]="patientsHref">
       <ion-icon aria-hidden="true" [icon]="peopleOutline"></ion-icon>
       <ion-label>Patients</ion-label>
     </ion-tab-button>
