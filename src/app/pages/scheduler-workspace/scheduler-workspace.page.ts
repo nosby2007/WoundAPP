@@ -322,7 +322,7 @@ export class SchedulerWorkspacePage implements OnInit {
           start,
           end,
           visitType: this.form.visitType,
-          workflowKind: this.isSupportVisitType(this.form.visitType) ? 'general' : 'general',
+          workflowKind: this.form.visitType === 'wound_follow_up' ? 'wound' : 'general',
           sourceAppointmentId: this.editorMode === 'replan' ? this.sourceAppointmentId : null,
         });
         this.message = this.editorMode === 'replan'
