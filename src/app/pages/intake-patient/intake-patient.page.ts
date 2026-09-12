@@ -136,7 +136,7 @@ export class IntakePatientPage {
         dob:this.dateInput(patient.dob),
         phone:patient.phone||'',
         email:patient.email||'',
-        address:patient.address||patient.address1||'',
+        address:patient.address||patient['address1']||'',
         city:patient.city||'',
         state:patient.state||'',
         zip:patient.zip||'',
