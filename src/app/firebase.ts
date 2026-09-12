@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { getStorage } from 'firebase/storage';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { environment } from '../environments/environment';
 
@@ -22,6 +23,7 @@ if (appCheckKey) {
 
 export const auth = getAuth(app);
 export const db   = getFirestore(app);
+export const storage = getStorage(app);
 
 // The PIN callables are deployed to us-central1, which is also
 // getFunctions' default region -- named here anyway so a future region
