@@ -28,6 +28,7 @@ import { clinicalRoleGuard } from '../guards/clinical-role.guard';
 import { fieldAccessGuard } from '../guards/field-access.guard';
 import { VisitHistoryPage } from '../pages/visit-history/visit-history.page';
 import { VisitHistoryDetailPage } from '../pages/visit-history-detail/visit-history-detail.page';
+import { SchedulerWorkspacePage } from '../pages/scheduler-workspace/scheduler-workspace.page';
 
 const routes: Routes = [
   {
@@ -45,7 +46,8 @@ const routes: Routes = [
       { path: 'more', component: MorePage },
       { path: 'visit-history', component: VisitHistoryPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'visit-history/:patientId/:visitId', component: VisitHistoryDetailPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
-      { path: 'add-patient', component: AddPatientPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'scheduler', component: SchedulerWorkspacePage, canActivate: [fieldAccessGuard], data: { access: 'scheduling' } },
+      { path: 'add-patient', component: AddPatientPage, canActivate: [fieldAccessGuard], data: { access: 'intake' } },
       { path: 'progress-note', component: ProgressNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },

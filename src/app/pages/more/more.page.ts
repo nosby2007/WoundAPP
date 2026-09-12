@@ -37,7 +37,15 @@ import { FieldRolePolicyService } from '../../services/field-role-policy.service
             <ion-item button detail="false" *ngIf="canSeeClinical" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeField" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeClinical" (click)="visitHistory()"><div class="menu-icon featured"><ion-icon [icon]="documentTextOutline"></ion-icon></div><ion-label><strong>Visit History</strong><p>Review all saved patient visits, field outcomes, clinician, EVV checkpoints and documentation handoff.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+          </ion-list>
+        </section>
+
+        <section class="section" *ngIf="canUseScheduler">
+          <p class="eyebrow dark">SCHEDULER WORKSPACE</p>
+          <ion-list lines="none" class="menu">
+            <ion-item button detail="false" (click)="schedulerWorkspace()"><div class="menu-icon featured"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>Scheduling</strong><p>Review the team schedule for the next 14 days without opening clinical documentation.</p></ion-label><ion-badge color="success">Ops</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Register a patient from the operational intake workflow.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
 
@@ -84,6 +92,8 @@ export class MorePage implements OnInit {
   signingOut = false;
   canSeeClinical = false;
   canSeeField = false;
+  canUseScheduler = false;
+  canCreatePatient = false;
   accessLevel = 'unknown';
 
   constructor(
@@ -107,6 +117,8 @@ export class MorePage implements OnInit {
     if (readiness.identity) {
       this.canSeeClinical = this.rolePolicy.canUseClinicalWorkspace(readiness.identity);
       this.canSeeField = this.rolePolicy.canUseFieldToday(readiness.identity);
+      this.canUseScheduler = this.rolePolicy.canUseSchedulingWorkspace(readiness.identity);
+      this.canCreatePatient = this.rolePolicy.canCreatePatient(readiness.identity);
       this.accessLevel = this.rolePolicy.accessLevel(readiness.identity);
       this.displayName = readiness.identity.displayName;
       this.credentialsLine = [readiness.identity.credentials, readiness.identity.npi ? `NPI ${readiness.identity.npi}` : null].filter(Boolean).join(' · ');
@@ -121,6 +133,7 @@ export class MorePage implements OnInit {
   mySchedule(): void { void this.router.navigate(['/tabs/my-schedule']); }
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
   visitHistory(): void { void this.router.navigate(['/tabs/visit-history']); }
+  schedulerWorkspace(): void { void this.router.navigate(['/tabs/scheduler']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
 
   async signOut(): Promise<void> {
