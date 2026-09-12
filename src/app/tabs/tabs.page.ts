@@ -24,6 +24,8 @@ export class TabsPage implements OnInit {
   canSeeClinical = false;
   canSeeField = false;
   canSeeNote = false;
+  canSeeIntakePatients = false;
+  patientsHref = '/tabs/patients';
 
   constructor(private rolePolicy: FieldRolePolicyService) {}
 
@@ -32,5 +34,7 @@ export class TabsPage implements OnInit {
     this.canSeeClinical = this.rolePolicy.canUseClinicalWorkspace(identity);
     this.canSeeField = this.rolePolicy.canUseFieldToday(identity);
     this.canSeeNote = this.canSeeClinical;
+    this.canSeeIntakePatients = !this.canSeeClinical && this.rolePolicy.canUseSchedulingWorkspace(identity);
+    this.patientsHref = this.canSeeIntakePatients ? '/tabs/intake-patients' : '/tabs/patients';
   }
 }
