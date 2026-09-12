@@ -233,6 +233,16 @@ export class IntakePatientPage {
       return;
     }
     if(mime==='application/pdf'||/\.pdf$/i.test(name)){
+      // Mobile Safari/WKWebView renders an embedded PDF as a single image,
+      // which means only page 1 is visible. On affected Apple mobile
+      // browsers, navigate the SAME WebView to the PDF instead of opening a
+      // new window. The native PDF viewer then provides the full multipage
+      // document; browser/app Back returns to this patient.
+      if(this.isAppleMobilePdfHost()){
+        sessionStorage.setItem('woundapp.document.returnUrl', window.location.href);
+        window.location.assign(doc.url);
+        return;
+      }
       this.previewKind='pdf';
       this.previewUrl=this.sanitizer.bypassSecurityTrustResourceUrl(doc.url);
       return;
@@ -245,6 +255,13 @@ export class IntakePatientPage {
     this.previewDocument=null;
     this.previewUrl=null;
     this.previewKind='unsupported';
+  }
+
+  private isAppleMobilePdfHost():boolean{
+    const ua=navigator.userAgent||'';
+    const ios=/iPad|iPhone|iPod/.test(ua);
+    const ipadDesktop=/Macintosh/.test(ua)&&navigator.maxTouchPoints>1;
+    return ios||ipadDesktop;
   }
 
   private dateInput(value:any):string{
