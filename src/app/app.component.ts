@@ -37,7 +37,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private onActivity(): void {
     if (!auth.currentUser || !this.router.url.startsWith('/tabs')) return;
     if (!this.session.isFresh()) {
-      void this.router.navigate(['/pin'], { queryParams: { reason: 'inactivity' } });
+      void this.router.navigate(['/pin'], {
+        queryParams: { reason: 'inactivity', returnUrl: this.router.url },
+      });
       return;
     }
     this.session.markActivity();
@@ -45,7 +47,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private enforceTimeout(): void {
     if (auth.currentUser && this.router.url.startsWith('/tabs') && !this.session.isFresh()) {
-      void this.router.navigate(['/pin'], { queryParams: { reason: 'inactivity' } });
+      void this.router.navigate(['/pin'], {
+        queryParams: { reason: 'inactivity', returnUrl: this.router.url },
+      });
     }
   }
 }
