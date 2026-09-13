@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -30,7 +30,8 @@ import {
   defaultRecommendation,
 } from '../../shared/wound-progress-note';
 import { WoundNoteSnapshot, WoundProgressNoteService } from '../../services/wound-progress-note.service';
-import { ProgressNoteService } from '../../services/progress-note.service';
+import { ProgressNoteService, ProgressNoteVoiceProvenance } from '../../services/progress-note.service';
+import { MobileVoiceNoteService } from '../../services/mobile-voice-note.service';
 
 /**
  * The wound progress note, on the way out of the visit.
@@ -61,12 +62,13 @@ import { ProgressNoteService } from '../../services/progress-note.service';
     IonTextarea, IonTitle, IonToolbar,
   ],
 })
-export class WoundNotePage implements OnInit {
+export class WoundNotePage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private builder = inject(WoundProgressNoteService);
   private notes = inject(ProgressNoteService);
   private toastCtrl = inject(ToastController);
+  readonly voice = inject(MobileVoiceNoteService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
 
@@ -92,6 +94,13 @@ export class WoundNotePage implements OnInit {
    */
   noteText = '';
   edited = false;
+  voiceRecording = false;
+  voiceBusy = false;
+  voiceDraft = '';
+  voiceTranscript = '';
+  voiceElapsedSeconds = 0;
+  acceptedVoiceProvenance: ProgressNoteVoiceProvenance | null = null;
+  private voiceTimer: ReturnType<typeof setInterval> | null = null;
 
   async ngOnInit(): Promise<void> {
     try {
@@ -106,6 +115,80 @@ export class WoundNotePage implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  ngOnDestroy(): void {
+    this.cancelVoice();
+  }
+
+  get voiceElapsedLabel(): string {
+    const minutes = Math.floor(this.voiceElapsedSeconds / 60);
+    const seconds = this.voiceElapsedSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  async startVoice(): Promise<void> {
+    if (this.voiceBusy || this.voiceRecording) return;
+    try {
+      await this.voice.start();
+      this.voiceDraft = '';
+      this.voiceTranscript = '';
+      this.voiceElapsedSeconds = 0;
+      this.voiceRecording = true;
+      this.voiceTimer = setInterval(() => {
+        this.voiceElapsedSeconds += 1;
+        if (this.voiceElapsedSeconds >= 120) void this.stopVoice();
+      }, 1000);
+    } catch (error: any) {
+      this.errorMsg = error?.message || 'Unable to start voice dictation.';
+    }
+  }
+
+  async stopVoice(): Promise<void> {
+    if (!this.voiceRecording || this.voiceBusy) return;
+    this.clearVoiceTimer();
+    this.voiceRecording = false;
+    this.voiceBusy = true;
+    this.errorMsg = '';
+    try {
+      const result = await this.voice.stopAndCreateDraft();
+      this.voiceTranscript = result.transcript;
+      this.voiceDraft = result.draft;
+      this.acceptedVoiceProvenance = result.provenance;
+    } catch (error: any) {
+      this.errorMsg = error?.message || 'Unable to create a note draft from voice.';
+    } finally {
+      this.voiceBusy = false;
+    }
+  }
+
+  acceptVoiceDraft(): void {
+    const draft = this.voiceDraft.trim();
+    if (!draft) return;
+    const separator = this.noteText.trim() ? '\n\nClinician narrative:\n' : '';
+    this.noteText = this.noteText.trimEnd() + separator + draft;
+    this.edited = true;
+    this.voiceDraft = '';
+    this.voiceTranscript = '';
+  }
+
+  discardVoiceDraft(): void {
+    this.voiceDraft = '';
+    this.voiceTranscript = '';
+    this.acceptedVoiceProvenance = null;
+  }
+
+  cancelVoice(): void {
+    this.clearVoiceTimer();
+    this.voice.cancel();
+    this.voiceRecording = false;
+    this.voiceBusy = false;
+    this.voiceElapsedSeconds = 0;
+  }
+
+  private clearVoiceTimer(): void {
+    if (this.voiceTimer) clearInterval(this.voiceTimer);
+    this.voiceTimer = null;
   }
 
   get woundCount(): number {
@@ -146,11 +229,20 @@ export class WoundNotePage implements OnInit {
 
   async save(): Promise<void> {
     if (this.saving || !this.noteText.trim()) return;
+    if (this.voiceDraft.trim()) {
+      this.errorMsg = 'Review the pending voice draft: add it to the note or discard it before filing.';
+      return;
+    }
     this.saving = true;
     this.errorMsg = '';
 
     try {
-      await this.notes.create(this.patientId, this.noteText);
+      await this.notes.create(
+        this.patientId,
+        this.noteText,
+        null,
+        this.acceptedVoiceProvenance
+      );
       const toast = await this.toastCtrl.create({
         message: 'Wound progress note filed.',
         duration: 2400,
