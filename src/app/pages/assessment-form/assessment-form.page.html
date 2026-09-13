@@ -14,10 +14,18 @@
       </ion-card-header>
 
       <ion-card-content>
+        <div class="photo-guidance">
+          <ion-icon name="flash"></ion-icon>
+          <div>
+            <strong>Flash-ready wound capture</strong>
+            <span>WoundAPP opens the phone's rear camera. Use the native Flash / Auto Flash control when lighting is poor.</span>
+          </div>
+        </div>
+
         <div class="photo-actions">
           <ion-button size="small" (click)="takePhoto()" type="button">
             <ion-icon name="camera" slot="start"></ion-icon>
-            Take photo
+            Open camera
           </ion-button>
 
           <ion-button size="small" fill="outline" (click)="pickFromGallery()" type="button">
