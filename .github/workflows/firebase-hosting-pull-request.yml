@@ -38,6 +38,8 @@ jobs:
         run: node scripts/verify-mobile-order-guidance.js
       - name: Verify clinical sync queue contract
         run: node scripts/verify-clinical-sync-queue.js
+      - name: Verify visit execution hardening
+        run: node scripts/verify-visit-execution-hardening.js
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
