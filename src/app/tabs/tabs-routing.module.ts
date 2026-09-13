@@ -31,6 +31,8 @@ import { VisitHistoryDetailPage } from '../pages/visit-history-detail/visit-hist
 import { SchedulerWorkspacePage } from '../pages/scheduler-workspace/scheduler-workspace.page';
 import { ReceptionPatientsPage } from '../pages/reception-patients/reception-patients.page';
 import { IntakePatientPage } from '../pages/intake-patient/intake-patient.page';
+import { VisitCompletePage } from '../pages/visit-complete/visit-complete.page';
+import { SyncReviewPage } from '../pages/sync-review/sync-review.page';
 
 const routes: Routes = [
   {
@@ -39,6 +41,8 @@ const routes: Routes = [
     children: [
       { path: 'patients', component: PatientsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'today', component: TodayPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
+      { path: 'sync-review', component: SyncReviewPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
+      { path: 'today/visit/:appointmentId/complete', component: VisitCompletePage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'today/visit/:appointmentId', component: FieldVisitPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'today/task/:taskId', component: FieldTaskPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'my-schedule', component: MySchedulePage, canActivate: [fieldAccessGuard], data: { access: 'field' } },

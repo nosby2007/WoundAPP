@@ -44,6 +44,43 @@
       </ion-item>
     </ion-list>
 
+    <section class="voice-note-card">
+      <div class="voice-copy">
+        <div>
+          <span>VOICE ASSIST</span>
+          <h2>{{ voiceRecording ? 'Listening… ' + voiceElapsedLabel : 'Dictate visit narrative' }}</h2>
+          <p>Speak naturally. WoundAPP creates a draft only; you decide whether it belongs in the note.</p>
+        </div>
+      </div>
+
+      <div class="voice-actions">
+        <ion-button *ngIf="!voiceRecording" size="small" (click)="startVoice()"
+                    [disabled]="voiceBusy || !voice.supported">
+          Start dictation
+        </ion-button>
+        <ion-button *ngIf="voiceRecording" size="small" color="danger" (click)="stopVoice()">
+          Stop & create draft
+        </ion-button>
+        <ion-button *ngIf="voiceRecording" size="small" fill="outline" (click)="cancelVoice()">
+          Cancel
+        </ion-button>
+        <ion-spinner *ngIf="voiceBusy" name="crescent"></ion-spinner>
+      </div>
+
+      <div class="voice-pending" *ngIf="voiceDraft">
+        <strong>Voice draft awaiting review</strong>
+        <p>{{ voiceDraft }}</p>
+        <details *ngIf="voiceTranscript">
+          <summary>View transcript</summary>
+          <p>{{ voiceTranscript }}</p>
+        </details>
+        <div class="voice-review-actions">
+          <ion-button size="small" color="success" (click)="acceptVoiceDraft()">Add to note</ion-button>
+          <ion-button size="small" fill="outline" color="medium" (click)="discardVoiceDraft()">Discard</ion-button>
+        </div>
+      </div>
+    </section>
+
     <div class="note-head">
       <h2>Note</h2>
       <ion-button size="small" fill="clear" *ngIf="edited" (click)="rebuild()">
@@ -62,7 +99,7 @@
                     aria-label="Wound progress note"></ion-textarea>
     </ion-item>
 
-    <ion-button expand="block" (click)="save()" [disabled]="saving || !noteText.trim()">
+    <ion-button expand="block" (click)="save()" [disabled]="saving || !noteText.trim() || !!voiceDraft.trim()">
       <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
       File the note
     </ion-button>

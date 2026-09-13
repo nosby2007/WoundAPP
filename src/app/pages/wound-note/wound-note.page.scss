@@ -74,3 +74,70 @@
   font-weight: 600;
   color: var(--ion-color-danger);
 }
+
+
+.voice-note-card {
+  max-width: 720px;
+  margin: var(--app-space-4) auto;
+  padding: var(--app-space-4);
+  border: 1px solid rgba(18, 140, 126, .20);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #f5fffb, #f3f9fd);
+  box-shadow: 0 7px 20px rgba(27, 72, 91, .06);
+}
+
+.voice-copy span {
+  display: block;
+  color: #128c7e;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .13em;
+}
+
+.voice-copy h2 {
+  margin: 3px 0;
+  color: var(--app-ink);
+  font-size: 1.05rem;
+}
+
+.voice-copy p {
+  margin: 0;
+  color: var(--app-ink-muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.voice-actions,
+.voice-review-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  flex-wrap: wrap;
+  margin-top: var(--app-space-3);
+}
+
+.voice-pending {
+  margin-top: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid rgba(18, 140, 126, .18);
+  border-radius: 14px;
+  background: white;
+}
+
+.voice-pending strong {
+  color: #0b7551;
+  font-size: .78rem;
+}
+
+.voice-pending p {
+  white-space: pre-wrap;
+  color: var(--app-ink);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.voice-pending details {
+  margin-top: var(--app-space-2);
+  color: var(--app-ink-muted);
+  font-size: .72rem;
+}

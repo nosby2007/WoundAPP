@@ -131,9 +131,9 @@ export function evvVisitDurationMinutes(
  * present; recording that honestly is worth more than an attestation
  * nobody gave. It requires a reason.
  *
- * 'electronic_attestation' exists in the union because the web defines
- * it, but this app captures no signature -- there is no signature pad --
- * so it is deliberately NOT offered in the UI.
+ * 'electronic_attestation' stores only signature asset metadata on the
+ * visit. The PNG itself is patient-scoped in Firebase Storage and hashed
+ * for integrity verification.
  */
 export interface EvvPatientAttestation {
   method: 'electronic_attestation' | 'verbal' | 'unable_to_attest' | 'not_required';
@@ -145,6 +145,12 @@ export interface EvvPatientAttestation {
   recordedByUid: string;
   recordedByName?: string | null;
   recordedAt: unknown;
+  electronicSignature?: {
+    storagePath: string;
+    downloadUrl: string;
+    sha256: string;
+    capturedAtIso: string;
+  } | null;
 }
 
 /** The options a clinician can actually choose in the field. */
@@ -153,7 +159,9 @@ export const EVV_ATTESTATION_METHODS: ReadonlyArray<{
   label: string;
   needsName: boolean;
   needsReason: boolean;
+  needsSignature?: boolean;
 }> = [
+  { value: 'electronic_attestation', label: 'Sign on device', needsName: true, needsReason: false, needsSignature: true },
   { value: 'verbal', label: 'Confirmed verbally', needsName: true, needsReason: false },
   { value: 'unable_to_attest', label: 'Unable to attest', needsName: false, needsReason: true },
   { value: 'not_required', label: 'Not required for this program', needsName: false, needsReason: false },
@@ -168,11 +176,15 @@ export const EVV_ATTESTATION_METHODS: ReadonlyArray<{
 export function describeAttestationProblem(
   method: EvvPatientAttestation['method'] | null | undefined,
   attestedByName: string | null | undefined,
-  reason: string | null | undefined
+  reason: string | null | undefined,
+  signatureSha256?: string | null
 ): string | null {
   if (!method) return 'Choose what the patient or responsible party said.';
-  if (method === 'verbal' && !(attestedByName ?? '').trim()) {
-    return 'Name the person who confirmed it.';
+  if ((method === 'verbal' || method === 'electronic_attestation') && !(attestedByName ?? '').trim()) {
+    return 'Name the person who confirmed the visit.';
+  }
+  if (method === 'electronic_attestation' && !(signatureSha256 ?? '').trim()) {
+    return 'Capture the patient or representative signature before checkout.';
   }
   if (method === 'unable_to_attest' && !(reason ?? '').trim()) {
     return 'Say why nobody could attest.';

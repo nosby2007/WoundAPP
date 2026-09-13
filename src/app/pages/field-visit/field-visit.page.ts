@@ -35,6 +35,9 @@ import {
 import { FieldVisit, FieldWorkService } from '../../services/field-work.service';
 import { FieldVisit as EvvVisit, VisitService } from '../../services/visit.service';
 import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } from '../../shared/evv';
+import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.component';
+import { VisitSignatureService } from '../../services/visit-signature.service';
+import { DurableClinicalMutationService } from '../../services/durable-clinical-mutation.service';
 
 @Component({
   selector: 'app-field-visit',
@@ -59,6 +62,7 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
     IonSelectOption,
     IonInput,
     IonTextarea,
+    VisitSignaturePadComponent,
   ],
   template: `
     <ion-header class="ion-no-border">
@@ -138,16 +142,23 @@ import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } f
                     <ion-select-option *ngFor="let option of attestationOptions" [value]="option.value">{{ option.label }}</ion-select-option>
                   </ion-select>
                 </ion-item>
-                <ion-item lines="none" *ngIf="attestationMethod === 'verbal'">
+                <ion-item lines="none" *ngIf="attestationMethod === 'verbal' || attestationMethod === 'electronic_attestation'">
                   <ion-input label="Person confirming" labelPlacement="stacked" [(ngModel)]="attestedByName" placeholder="Name"></ion-input>
                 </ion-item>
-                <ion-item lines="none" *ngIf="attestationMethod === 'verbal'">
+                <ion-item lines="none" *ngIf="attestationMethod === 'verbal' || attestationMethod === 'electronic_attestation'">
                   <ion-input label="Relationship (optional)" labelPlacement="stacked" [(ngModel)]="relationship" placeholder="Patient, spouse, caregiver…"></ion-input>
                 </ion-item>
+                <app-visit-signature-pad
+                  *ngIf="attestationMethod === 'electronic_attestation'"
+                  (signatureChange)="signatureDataUrl = $event">
+                </app-visit-signature-pad>
                 <ion-item lines="none" *ngIf="attestationMethod === 'unable_to_attest'">
                   <ion-textarea label="Why unable to attest" labelPlacement="stacked" autoGrow="true" [(ngModel)]="attestationReason"></ion-textarea>
                 </ion-item>
-                <ion-note>You can leave the selection blank when nobody was asked. The app will not invent a “not required” attestation.</ion-note>
+                <ion-note>
+                  Electronic signature is stored as a patient-scoped clinical asset with integrity hash.
+                  You can leave the selection blank when nobody was asked; the app will not invent a “not required” attestation.
+                </ion-note>
               </div>
 
               <ion-button expand="block" color="success" class="primary-action" [disabled]="busy" (click)="checkOut()">
@@ -256,6 +267,8 @@ export class FieldVisitPage implements OnInit {
   attestedByName = '';
   relationship = '';
   attestationReason = '';
+  signatureDataUrl: string | null = null;
+  pendingArrivalQueued = false;
   nextVisitLocal = '';
   nextVisitDurationMinutes = 60;
   schedulingNext = false;
@@ -280,6 +293,8 @@ export class FieldVisitPage implements OnInit {
     private router: Router,
     public work: FieldWorkService,
     private visits: VisitService,
+    private visitSignatures: VisitSignatureService,
+    public durable: DurableClinicalMutationService,
   ) {}
 
   get address(): string { return this.visit?.patient?.address || this.visit?.homeAddress || ''; }
@@ -291,7 +306,23 @@ export class FieldVisitPage implements OnInit {
       this.visit = await this.work.getVisit(id);
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
-        this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        await this.durable.whenReady();
+        try {
+          this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        } catch {
+          this.activeEvv = null;
+        }
+
+        if (
+          !this.activeEvv &&
+          this.visit.woundVisitId &&
+          this.durable.hasPending('visit_check_in', this.visit.woundVisitId)
+        ) {
+          this.pendingArrivalQueued = true;
+          this.activeEvv = this.localQueuedEvv(this.visit.woundVisitId, null);
+          this.message = 'Arrival is encrypted on this device and queued for sync. Continue the visit; checkout will remain ordered behind check-in.';
+        }
+
         await this.visits.recordJourneyStep(
           this.visit.patientId,
           this.visit.woundVisitId,
@@ -322,7 +353,10 @@ export class FieldVisitPage implements OnInit {
   }
   directions(): void { if (this.address) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(this.address), '_blank', 'noopener'); }
   locationText(location: any): string { return describeEvvLocation(location); }
-  checkpointText(checkpoint: any): string { return checkpoint?.location ? describeEvvLocation(checkpoint.location) : 'Arrival captured'; }
+  checkpointText(checkpoint: any): string {
+    if (this.pendingArrivalQueued) return 'Arrival queued securely — waiting for sync';
+    return checkpoint?.location ? describeEvvLocation(checkpoint.location) : 'Arrival captured';
+  }
 
   async checkIn(): Promise<void> {
     if (!this.visit?.patientId || this.busy) return;
@@ -339,10 +373,17 @@ export class FieldVisitPage implements OnInit {
           clinicianRole: this.visit.assignedToRole ?? null,
         }
       );
-      this.activeEvv = await this.visits.openVisit(this.visit.patientId);
-      this.message = result.location.status === 'captured'
-        ? 'Checked in. Arrival time and device location were captured.'
-        : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
+      if (result.syncStatus === 'queued') {
+        this.pendingArrivalQueued = true;
+        this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
+        this.message = 'Checked in. Arrival evidence is encrypted on this device and queued for sync.';
+      } else {
+        this.pendingArrivalQueued = false;
+        this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        this.message = result.location.status === 'captured'
+          ? 'Checked in. Arrival time and device location were captured.'
+          : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
+      }
     } catch (error: any) {
       this.isError = true;
       this.message = error?.message || 'Unable to check in.';
@@ -353,23 +394,68 @@ export class FieldVisitPage implements OnInit {
     if (!this.visit?.patientId || !this.activeEvv || this.busy) return;
     this.busy = true; this.message = ''; this.isError = false;
     try {
+      let electronicSignature: EvvPatientAttestation['electronicSignature'] = null;
+      if (this.attestationMethod === 'electronic_attestation') {
+        if (!this.signatureDataUrl) {
+          throw new Error('Capture the patient or representative signature before checkout.');
+        }
+        electronicSignature = await this.visitSignatures.upload(
+          this.visit.patientId,
+          this.activeEvv.id,
+          this.signatureDataUrl
+        );
+      }
+
       const attestation = this.attestationMethod ? {
         method: this.attestationMethod,
         attestedByName: this.attestedByName,
         relationship: this.relationship,
         reason: this.attestationReason,
+        electronicSignature,
       } : null;
+
       const result = await this.visits.checkOut(this.visit.patientId, this.activeEvv.id, attestation);
-      await this.work.completeVisit(this.visit.id);
+      const appointmentSyncStatus = await this.work.completeVisit(this.visit.id);
       this.visit = { ...this.visit, status: 'completed' };
       this.activeEvv = null;
-      this.message = result.location.status === 'captured'
-        ? 'Visit completed. Departure time and location were captured.'
-        : `Visit completed. Departure location was not captured: ${describeEvvLocation(result.location)}.`;
+      this.signatureDataUrl = null;
+      this.message = result.syncStatus === 'queued' || appointmentSyncStatus === 'queued'
+        ? 'Checkout captured securely on this device and queued for sync. Keep WoundAPP available until Sync Center confirms delivery.'
+        : result.location.status === 'captured'
+          ? 'Visit completed. Departure time, location and attestation were captured.'
+          : `Visit completed. Departure location was not captured: ${describeEvvLocation(result.location)}.`;
+
+      await this.router.navigate(
+        ['/tabs/today/visit', this.visit.id, 'complete'],
+        {
+          replaceUrl: true,
+          queryParams: {
+            patientId: this.visit.patientId,
+            visitType: this.visit.visitType || 'routine',
+          },
+        }
+      );
     } catch (error: any) {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
     } finally { this.busy = false; }
+  }
+
+  private localQueuedEvv(visitId: string, checkpoint: any): EvvVisit {
+    return {
+      id: visitId,
+      patientId: this.visit?.patientId || '',
+      visitType: this.visit?.visitType || 'routine',
+      status: 'planned',
+      appointmentId: this.visit?.id ?? null,
+      woundId: this.visit?.woundId ?? null,
+      episodeId: this.visit?.episodeId ?? null,
+      clinicianUid: null,
+      clinicianName: null,
+      clinicianRole: this.visit?.assignedToRole ?? null,
+      checkIn: checkpoint,
+      checkOut: null,
+    };
   }
 
   async markNotDone(): Promise<void> {
