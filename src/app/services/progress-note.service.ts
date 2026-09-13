@@ -30,6 +30,15 @@ export interface ProgressNoteWoundContext {
   label: string;
 }
 
+export interface ProgressNoteVoiceProvenance {
+  sessionId: string;
+  transcriptSha256: string;
+  durationSeconds: number;
+  mimeType: string;
+  recordedAtIso: string;
+  language?: string | null;
+}
+
 export class NotAuthenticatedError extends Error {
   constructor() {
     super('You are signed out. Sign in again to write a note.');
@@ -51,6 +60,7 @@ export class ProgressNoteService {
     patientId: string,
     details: string,
     wound?: ProgressNoteWoundContext | null,
+    voiceProvenance?: ProgressNoteVoiceProvenance | null,
   ): Promise<string> {
     if (!patientId) throw new Error('ProgressNoteService.create(): patientId is missing.');
     const text = (details || '').trim();
@@ -73,6 +83,9 @@ export class ProgressNoteService {
       createdBy: identity.uid,
       createdAt: now,
       updatedAt: now,
+      contentOrigin: voiceProvenance ? 'human_modified_voice' : 'human',
+      voiceProvenance: voiceProvenance ?? null,
+      humanReviewed: true,
     };
 
     if (wound) {
