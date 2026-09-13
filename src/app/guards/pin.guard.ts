@@ -1,7 +1,7 @@
 // src/app/guards/pin.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { auth } from '../firebase';
+import { auth, authStateReady } from '../firebase';
 import { PinService } from '../services/pin.service';
 
 /**
@@ -15,6 +15,10 @@ import { PinService } from '../services/pin.service';
 export const pinGuard: CanActivateFn = async () => {
   const router = inject(Router);
   const pin = inject(PinService);
+
+  // Firebase restores persisted auth asynchronously on a hard refresh.
+  // Wait before deciding the clinician is signed out.
+  await authStateReady;
 
   if (!auth.currentUser) {
     return router.createUrlTree(['/login']);
