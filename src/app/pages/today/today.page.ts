@@ -7,6 +7,7 @@ import { Observable } from 'rxjs';
 import { FieldTask, FieldVisit, FieldWorkService, TodayWork } from '../../services/field-work.service';
 import { NetworkStatusService } from '../../services/network-status.service';
 import { ClinicalSyncQueueService } from '../../services/clinical-sync-queue.service';
+import { DurableClinicalMutationService } from '../../services/durable-clinical-mutation.service';
 
 @Component({
   selector: 'app-today',
@@ -24,10 +25,12 @@ import { ClinicalSyncQueueService } from '../../services/clinical-sync-queue.ser
                 <span></span>{{ network.online() ? 'Online' : 'Offline' }}
               </div>
             </div>
-            <div class="sync-strip" *ngIf="sync.pendingCount() || sync.failedCount() || !network.online()">
+            <div class="sync-strip" *ngIf="sync.pendingCount() || sync.failedCount() || durable.pendingCount() || durable.conflictCount() || !network.online()">
               <strong *ngIf="!network.online()">Offline mode</strong>
               <span *ngIf="sync.pendingCount()">{{ sync.pendingCount() }} clinical write{{ sync.pendingCount() === 1 ? '' : 's' }} waiting to sync</span>
-              <span *ngIf="sync.failedCount()">{{ sync.failedCount() }} failed sync{{ sync.failedCount() === 1 ? '' : 's' }} need review</span>
+              <span *ngIf="sync.failedCount()">{{ sync.failedCount() }} failed in-session sync{{ sync.failedCount() === 1 ? '' : 's' }} need review</span>
+              <span *ngIf="durable.pendingCount()">{{ durable.pendingCount() }} encrypted mutation{{ durable.pendingCount() === 1 ? '' : 's' }} waiting for durable sync</span>
+              <strong *ngIf="durable.conflictCount()">{{ durable.conflictCount() }} clinical conflict{{ durable.conflictCount() === 1 ? '' : 's' }} need review</strong>
               <span *ngIf="!network.online()">Keep the app open; queued writes retry automatically when the network returns.</span>
             </div>
             <div class="metrics">
@@ -86,6 +89,7 @@ export class TodayPage {
     private router: Router,
     public network: NetworkStatusService,
     public sync: ClinicalSyncQueueService,
+    public durable: DurableClinicalMutationService,
   ) { this.day$ = work.today$(); }
   address(v: FieldVisit): string { return v.patient?.address || v.homeAddress || ''; }
   openVisit(v: FieldVisit): void { void this.router.navigate(['/tabs/today/visit', v.id]); }
