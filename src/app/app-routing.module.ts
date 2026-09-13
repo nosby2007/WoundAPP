@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 import { LoginPage } from './pages/login/login.page'; // ✅ standalone
 import { PinPage } from './pages/pin/pin.page';
+import { StaffOnboardingPage } from './pages/staff-onboarding/staff-onboarding.page';
 import { pinGuard } from './guards/pin.guard';
 
 const routes: Routes = [
@@ -19,6 +20,11 @@ const routes: Routes = [
     // the PIN screen would guard itself and nobody could ever reach it.
     path: 'pin',
     component: PinPage,
+  },
+  {
+    path: 'welcome',
+    component: StaffOnboardingPage,
+    canActivate: [pinGuard],
   },
   {
     path: 'tabs',
