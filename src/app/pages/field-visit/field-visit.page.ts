@@ -386,15 +386,26 @@ export class FieldVisitPage implements OnInit {
       } : null;
 
       const result = await this.visits.checkOut(this.visit.patientId, this.activeEvv.id, attestation);
-      await this.work.completeVisit(this.visit.id);
+      const appointmentSyncStatus = await this.work.completeVisit(this.visit.id);
       this.visit = { ...this.visit, status: 'completed' };
       this.activeEvv = null;
       this.signatureDataUrl = null;
-      this.message = result.syncStatus === 'queued'
+      this.message = result.syncStatus === 'queued' || appointmentSyncStatus === 'queued'
         ? 'Checkout captured securely on this device and queued for sync. Keep WoundAPP available until Sync Center confirms delivery.'
         : result.location.status === 'captured'
           ? 'Visit completed. Departure time, location and attestation were captured.'
           : `Visit completed. Departure location was not captured: ${describeEvvLocation(result.location)}.`;
+
+      await this.router.navigate(
+        ['/tabs/today/visit', this.visit.id, 'complete'],
+        {
+          replaceUrl: true,
+          queryParams: {
+            patientId: this.visit.patientId,
+            visitType: this.visit.visitType || 'routine',
+          },
+        }
+      );
     } catch (error: any) {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
