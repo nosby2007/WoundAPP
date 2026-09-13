@@ -317,6 +317,26 @@ export class VisitService {
       'mobileWorkflow.steps.check_out.byName': (user.displayName ?? null) as DurableJson,
       updatedAt: DurableClinicalMutationService.serverTimestamp(),
       updatedBy: user.uid,
+      fieldCompletionSnapshot: {
+        version: 1,
+        immutable: true,
+        source: 'woundapp',
+        patientId,
+        woundVisitId: visitId,
+        completedByUid: user.uid,
+        completedByName: user.displayName ?? null,
+        deviceCompletedAtIso: new Date().toISOString(),
+        checkOutLocationStatus: location.status,
+        checkOutLatitude: location.latitude ?? null,
+        checkOutLongitude: location.longitude ?? null,
+        checkOutAccuracyMeters: location.accuracyMeters ?? null,
+        attestationMethod: attestation?.method ?? null,
+        attestedByName: attestation?.attestedByName?.trim() || null,
+        relationship: attestation?.relationship?.trim() || null,
+        signatureSha256: attestation?.electronicSignature?.sha256 ?? null,
+        signatureStoragePath: attestation?.electronicSignature?.storagePath ?? null,
+        sealedAt: DurableClinicalMutationService.serverTimestamp(),
+      },
     };
 
     if (attestation) {
