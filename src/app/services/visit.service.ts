@@ -296,7 +296,6 @@ export class VisitService {
     }
 
     const location = await this.location.capture();
-    const location = await this.location.capture();
     const durablePatch: Record<string, DurableJson> = {
       checkOut: this.buildDurableCheckpoint(location),
       status: 'completed',
