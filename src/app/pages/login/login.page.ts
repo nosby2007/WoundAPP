@@ -70,8 +70,8 @@ export class LoginPage {
     this.errorMsg = '';
 
     try {
-     await this.auth.login(email!, password!);
-this.router.navigateByUrl('/tabs/patients', { replaceUrl: true });
+      await this.auth.login(email!, password!);
+      await this.router.navigateByUrl('/pin', { replaceUrl: true });
 
     } catch (err: any) {
       console.error(err);
