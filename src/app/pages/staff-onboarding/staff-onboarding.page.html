@@ -14,6 +14,7 @@
     </header>
 
     <section class="message-stage">
+      <ng-container *ngIf="showStep">
       <div class="message-thread" *ngIf="activeStep as step" [attr.data-step]="stepIndex">
         <div class="step-number">{{ stepIndex + 1 }}</div>
         <article class="workflow-message">
@@ -26,6 +27,7 @@
           <div class="message-check"><ion-icon name="checkmark-circle-outline"></ion-icon></div>
         </article>
       </div>
+      </ng-container>
     </section>
 
     <section class="progress-zone">
