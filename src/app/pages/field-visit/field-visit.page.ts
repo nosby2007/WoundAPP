@@ -37,6 +37,7 @@ import { FieldVisit as EvvVisit, VisitService } from '../../services/visit.servi
 import { EVV_ATTESTATION_METHODS, EvvPatientAttestation, describeEvvLocation } from '../../shared/evv';
 import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.component';
 import { VisitSignatureService } from '../../services/visit-signature.service';
+import { DurableClinicalMutationService } from '../../services/durable-clinical-mutation.service';
 
 @Component({
   selector: 'app-field-visit',
@@ -267,6 +268,7 @@ export class FieldVisitPage implements OnInit {
   relationship = '';
   attestationReason = '';
   signatureDataUrl: string | null = null;
+  pendingArrivalQueued = false;
   nextVisitLocal = '';
   nextVisitDurationMinutes = 60;
   schedulingNext = false;
@@ -292,6 +294,7 @@ export class FieldVisitPage implements OnInit {
     public work: FieldWorkService,
     private visits: VisitService,
     private visitSignatures: VisitSignatureService,
+    public durable: DurableClinicalMutationService,
   ) {}
 
   get address(): string { return this.visit?.patient?.address || this.visit?.homeAddress || ''; }
@@ -303,7 +306,23 @@ export class FieldVisitPage implements OnInit {
       this.visit = await this.work.getVisit(id);
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
-        this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        await this.durable.whenReady();
+        try {
+          this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        } catch {
+          this.activeEvv = null;
+        }
+
+        if (
+          !this.activeEvv &&
+          this.visit.woundVisitId &&
+          this.durable.hasPending('visit_check_in', this.visit.woundVisitId)
+        ) {
+          this.pendingArrivalQueued = true;
+          this.activeEvv = this.localQueuedEvv(this.visit.woundVisitId, null);
+          this.message = 'Arrival is encrypted on this device and queued for sync. Continue the visit; checkout will remain ordered behind check-in.';
+        }
+
         await this.visits.recordJourneyStep(
           this.visit.patientId,
           this.visit.woundVisitId,
@@ -334,7 +353,10 @@ export class FieldVisitPage implements OnInit {
   }
   directions(): void { if (this.address) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(this.address), '_blank', 'noopener'); }
   locationText(location: any): string { return describeEvvLocation(location); }
-  checkpointText(checkpoint: any): string { return checkpoint?.location ? describeEvvLocation(checkpoint.location) : 'Arrival captured'; }
+  checkpointText(checkpoint: any): string {
+    if (this.pendingArrivalQueued) return 'Arrival queued securely — waiting for sync';
+    return checkpoint?.location ? describeEvvLocation(checkpoint.location) : 'Arrival captured';
+  }
 
   async checkIn(): Promise<void> {
     if (!this.visit?.patientId || this.busy) return;
@@ -351,10 +373,17 @@ export class FieldVisitPage implements OnInit {
           clinicianRole: this.visit.assignedToRole ?? null,
         }
       );
-      this.activeEvv = await this.visits.openVisit(this.visit.patientId);
-      this.message = result.location.status === 'captured'
-        ? 'Checked in. Arrival time and device location were captured.'
-        : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
+      if (result.syncStatus === 'queued') {
+        this.pendingArrivalQueued = true;
+        this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
+        this.message = 'Checked in. Arrival evidence is encrypted on this device and queued for sync.';
+      } else {
+        this.pendingArrivalQueued = false;
+        this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        this.message = result.location.status === 'captured'
+          ? 'Checked in. Arrival time and device location were captured.'
+          : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
+      }
     } catch (error: any) {
       this.isError = true;
       this.message = error?.message || 'Unable to check in.';
@@ -410,6 +439,23 @@ export class FieldVisitPage implements OnInit {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
     } finally { this.busy = false; }
+  }
+
+  private localQueuedEvv(visitId: string, checkpoint: any): EvvVisit {
+    return {
+      id: visitId,
+      patientId: this.visit?.patientId || '',
+      visitType: this.visit?.visitType || 'routine',
+      status: 'planned',
+      appointmentId: this.visit?.id ?? null,
+      woundId: this.visit?.woundId ?? null,
+      episodeId: this.visit?.episodeId ?? null,
+      clinicianUid: null,
+      clinicianName: null,
+      clinicianRole: this.visit?.assignedToRole ?? null,
+      checkIn: checkpoint,
+      checkOut: null,
+    };
   }
 
   async markNotDone(): Promise<void> {
