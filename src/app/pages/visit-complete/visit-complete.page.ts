@@ -108,6 +108,10 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
         </ion-card>
 
         <div class="actions">
+          <ion-button expand="block" color="warning" *ngIf="pending || conflicts" (click)="openSyncReview()">
+            <ion-icon slot="start" name="cloud-offline-outline"></ion-icon>
+            Open Sync Review
+          </ion-button>
           <ion-button expand="block" fill="outline" (click)="backToVisit()">
             <ion-icon slot="start" name="calendar-outline"></ion-icon>
             Schedule follow-up / review visit
@@ -199,6 +203,10 @@ export class VisitCompletePage implements OnInit {
 
   missingLabels(result: WorkflowCompletionResult): string[] {
     return result.missingRequired.map((circle) => this.label(circle));
+  }
+
+  openSyncReview(): void {
+    void this.router.navigate(['/tabs/sync-review']);
   }
 
   backToVisit(): void {
