@@ -12,6 +12,7 @@ const field = read('src/app/pages/field-visit/field-visit.page.ts');
 const signature = read('src/app/services/visit-signature.service.ts');
 const signaturePad = read('src/app/shared/visit-signature-pad.component.ts');
 const completion = read('src/app/pages/visit-complete/visit-complete.page.ts');
+const syncReview = read('src/app/pages/sync-review/sync-review.page.ts');
 const routes = read('src/app/tabs/tabs-routing.module.ts');
 const voice = read('src/app/services/mobile-voice-note.service.ts');
 const note = read('src/app/pages/wound-note/wound-note.page.ts');
@@ -27,6 +28,9 @@ for (const required of [
   "baseUpdatedAtMs",
   "crypto.subtle.generateKey",
   "false,",
+  ".sort((a, b) => a.queuedAt - b.queuedAt)",
+  "earlierMutationBlocker",
+  "hasPending",
 ]) {
   if (!durable.includes(required)) violations.push('Durable queue missing: ' + required);
 }
@@ -90,6 +94,19 @@ for (const required of [
 
 if (!routes.includes("today/visit/:appointmentId/complete")) {
   violations.push('Visit completion route is missing.');
+}
+if (!routes.includes("path: 'sync-review'")) {
+  violations.push('Sync Review route is missing.');
+}
+
+for (const required of [
+  'Sync Review',
+  'needs_review',
+  'Server verified — remove local copy',
+  'durable.retry',
+  'durable.discard',
+]) {
+  if (!syncReview.includes(required)) violations.push('Sync Review workflow missing: ' + required);
 }
 
 for (const required of [
