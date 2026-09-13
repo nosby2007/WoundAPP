@@ -26,7 +26,7 @@ export interface ClinicalSyncItem extends ClinicalSyncDescriptor {
 interface PendingWork<T = unknown> {
   itemId: string;
   run: () => Promise<T>;
-  resolve: (value: T) => void;
+  resolve: (value: T | PromiseLike<T>) => void;
   reject: (reason?: unknown) => void;
 }
 
@@ -45,7 +45,10 @@ interface PendingWork<T = unknown> {
 export class ClinicalSyncQueueService {
   readonly items = signal<ClinicalSyncItem[]>([]);
 
-  private readonly pending = new Map<string, PendingWork>();
+  // Type erasure is intentionally internal: enqueue<T>() preserves the public
+  // Promise<T> contract, while the heterogeneous queue stores work items
+  // returning different T values side by side.
+  private readonly pending = new Map<string, PendingWork<any>>();
 
   constructor() {
     if (typeof window !== 'undefined') {
