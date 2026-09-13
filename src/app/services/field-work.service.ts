@@ -74,7 +74,11 @@ export interface TodayWork {
 
 @Injectable({ providedIn: 'root' })
 export class FieldWorkService {
-  constructor(private tenant: TenantService, private rolePolicy: FieldRolePolicyService) {}
+  constructor(
+    private tenant: TenantService,
+    private rolePolicy: FieldRolePolicyService,
+    private durableMutations: DurableClinicalMutationService
+  ) {}
 
   today$(): Observable<TodayWork> {
     return new Observable<TodayWork>(subscriber => {
@@ -171,15 +175,29 @@ export class FieldWorkService {
     } as FieldTask;
   }
 
-  async completeVisit(id: string): Promise<void> {
-    const uid = auth.currentUser?.uid; if (!uid) throw new Error('Sign in required');
-    await updateDoc(doc(db, 'appointments', id), {
-      status: 'completed',
-      completedAt: serverTimestamp(),
-      completedByUid: uid,
-      updatedAt: serverTimestamp(),
-      statusReason: null,
+  async completeVisit(id: string): Promise<'synced' | 'queued'> {
+    const uid = auth.currentUser?.uid;
+    if (!uid) throw new Error('Sign in required');
+
+    const result = await this.durableMutations.enqueueUpdate({
+      operation: 'appointment_complete',
+      entityType: 'appointment',
+      entityId: id,
+      firestorePath: `appointments/${id}`,
+      conflict: { expectedAbsentFields: ['completedAt'] },
+      payload: {
+        status: 'completed',
+        completedAt: DurableClinicalMutationService.serverTimestamp(),
+        completedByUid: uid,
+        updatedAt: DurableClinicalMutationService.serverTimestamp(),
+        statusReason: null,
+      },
     });
+
+    if (result.status === 'needs_review') {
+      throw new Error('The appointment changed before checkout could sync. Review the Sync Center before closing this visit.');
+    }
+    return result.status;
   }
 
   /**
