@@ -38,6 +38,7 @@ export class StaffOnboardingPage implements OnInit, OnDestroy {
   ];
 
   stepIndex = 0;
+  showStep = true;
   firstName = 'there';
   starting = false;
   private stepTimer: ReturnType<typeof setInterval> | null = null;
@@ -81,13 +82,13 @@ export class StaffOnboardingPage implements OnInit, OnDestroy {
 
   goToStep(index: number): void {
     if (index < 0 || index >= this.steps.length) return;
-    this.stepIndex = index;
+    this.transitionTo(index);
     this.restartTimer();
   }
 
   nextStep(): void {
     if (this.stepIndex < this.steps.length - 1) {
-      this.stepIndex += 1;
+      this.transitionTo(this.stepIndex + 1);
       this.restartTimer();
     }
   }
@@ -100,11 +101,20 @@ export class StaffOnboardingPage implements OnInit, OnDestroy {
   }
 
   private advanceAutomatically(): void {
-    if (this.stepIndex < this.steps.length - 1) this.stepIndex += 1;
-    else if (this.stepTimer) {
+    if (this.stepIndex < this.steps.length - 1) {
+      this.transitionTo(this.stepIndex + 1);
+    } else if (this.stepTimer) {
       clearInterval(this.stepTimer);
       this.stepTimer = null;
     }
+  }
+
+  private transitionTo(index: number): void {
+    this.showStep = false;
+    setTimeout(() => {
+      this.stepIndex = index;
+      this.showStep = true;
+    }, 90);
   }
 
   private restartTimer(): void {
