@@ -18,6 +18,10 @@ import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationP
 import { VisitLocationService } from './visit-location.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { ClinicalSyncQueueService } from './clinical-sync-queue.service';
+import {
+  DurableClinicalMutationService,
+  DurableJson,
+} from './durable-clinical-mutation.service';
 
 /**
  * Check in and out of a visit from the field.
@@ -72,6 +76,7 @@ export class VisitService {
   private readonly location = inject(VisitLocationService);
   private readonly audit = inject(ClinicalAuditService);
   private readonly syncQueue = inject(ClinicalSyncQueueService);
+  private readonly durableMutations = inject(DurableClinicalMutationService);
 
   /**
    * The visit this clinician is currently on for this patient, if any.
@@ -131,7 +136,7 @@ export class VisitService {
     patientId: string,
     visitType = 'routine',
     linked: LinkedVisitContext = {}
-  ): Promise<{ visitId: string; location: EvvLocation }> {
+  ): Promise<{ visitId: string; location: EvvLocation; syncStatus: 'synced' | 'queued' }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking in.');
 
@@ -164,39 +169,49 @@ export class VisitService {
         throw new Error('This linked visit already has an arrival recorded.');
       }
 
-      await this.syncQueue.enqueue({
+      const durableCheckpoint = this.buildDurableCheckpoint(location);
+      const mutation = await this.durableMutations.enqueueUpdate({
         operation: 'visit_check_in',
         patientId,
         entityType: 'woundVisit',
         entityId: linked.woundVisitId,
-      }, () => updateDoc(visitRef, {
-        appointmentId: linked.appointmentId ?? existing['appointmentId'] ?? null,
-        woundId: linked.woundId ?? existing['woundId'] ?? null,
-        episodeId: linked.episodeId ?? existing['episodeId'] ?? null,
-        visitType: (existing['visitType'] as string | undefined) ?? visitType,
-        clinicianUid: user.uid,
-        clinicianName: user.displayName ?? (existing['clinicianName'] as string | null | undefined) ?? null,
-        clinicianRole: linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null,
-        checkIn: checkpoint,
-        executionAuthority: 'woundapp',
-        fieldVisitState: 'on_site',
-        officeDocumentationState: 'field_in_progress',
-        performedByUid: user.uid,
-        performedByName: user.displayName ?? null,
-        performedByRole: linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null,
-        'mobileWorkflow.appointmentId': linked.appointmentId ?? existing['appointmentId'] ?? null,
-        'mobileWorkflow.currentStep': 'check_in',
-        'mobileWorkflow.lastRoute': linked.appointmentId ? '/tabs/today/visit/' + linked.appointmentId : '/tabs/skin-wound/' + patientId + '/assessments',
-        'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
-        'mobileWorkflow.steps.check_in.enteredAt': serverTimestamp(),
-        'mobileWorkflow.steps.check_in.byUid': user.uid,
-        'mobileWorkflow.steps.check_in.byName': user.displayName ?? null,
-        updatedAt: serverTimestamp(),
-        updatedBy: user.uid,
-      }));
+        firestorePath: `patients/${patientId}/woundVisits/${linked.woundVisitId}`,
+        conflict: { expectedAbsentFields: ['checkIn'] },
+        payload: {
+          appointmentId: (linked.appointmentId ?? existing['appointmentId'] ?? null) as DurableJson,
+          woundId: (linked.woundId ?? existing['woundId'] ?? null) as DurableJson,
+          episodeId: (linked.episodeId ?? existing['episodeId'] ?? null) as DurableJson,
+          visitType: ((existing['visitType'] as string | undefined) ?? visitType) as DurableJson,
+          clinicianUid: user.uid,
+          clinicianName: (user.displayName ?? (existing['clinicianName'] as string | null | undefined) ?? null) as DurableJson,
+          clinicianRole: (linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null) as DurableJson,
+          checkIn: durableCheckpoint,
+          executionAuthority: 'woundapp',
+          fieldVisitState: 'on_site',
+          officeDocumentationState: 'field_in_progress',
+          performedByUid: user.uid,
+          performedByName: (user.displayName ?? null) as DurableJson,
+          performedByRole: (linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null) as DurableJson,
+          'mobileWorkflow.appointmentId': (linked.appointmentId ?? existing['appointmentId'] ?? null) as DurableJson,
+          'mobileWorkflow.currentStep': 'check_in',
+          'mobileWorkflow.lastRoute': linked.appointmentId ? '/tabs/today/visit/' + linked.appointmentId : '/tabs/skin-wound/' + patientId + '/assessments',
+          'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
+          'mobileWorkflow.steps.check_in.enteredAt': DurableClinicalMutationService.serverTimestamp(),
+          'mobileWorkflow.steps.check_in.byUid': user.uid,
+          'mobileWorkflow.steps.check_in.byName': (user.displayName ?? null) as DurableJson,
+          updatedAt: DurableClinicalMutationService.serverTimestamp(),
+          updatedBy: user.uid,
+        },
+      });
 
-      await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
-      return { visitId: linked.woundVisitId, location };
+      if (mutation.status === 'needs_review') {
+        throw new Error('Arrival could not be applied because newer visit evidence exists. Open Sync Review before continuing.');
+      }
+
+      if (mutation.status === 'synced') {
+        await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
+      }
+      return { visitId: linked.woundVisitId, location, syncStatus: mutation.status };
     }
 
     // Legacy/manual chart entry with no scheduler linkage. Kept only for
@@ -247,7 +262,7 @@ export class VisitService {
     }));
 
     await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
-    return { visitId: created.id, location };
+    return { visitId: created.id, location, syncStatus: 'synced' };
   }
 
   /**
@@ -266,7 +281,7 @@ export class VisitService {
       relationship?: string | null;
       reason?: string | null;
     } | null
-  ): Promise<{ location: EvvLocation }> {
+  ): Promise<{ location: EvvLocation; syncStatus: 'synced' | 'queued' }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking out.');
 
@@ -281,30 +296,28 @@ export class VisitService {
     }
 
     const location = await this.location.capture();
-    const patch: Record<string, unknown> = {
-      checkOut: this.buildCheckpoint(location),
+    const location = await this.location.capture();
+    const durablePatch: Record<string, DurableJson> = {
+      checkOut: this.buildDurableCheckpoint(location),
       status: 'completed',
-      completedAt: serverTimestamp(),
+      completedAt: DurableClinicalMutationService.serverTimestamp(),
       executionAuthority: 'woundapp',
       fieldVisitState: 'completed',
-      fieldCompletedAt: serverTimestamp(),
+      fieldCompletedAt: DurableClinicalMutationService.serverTimestamp(),
       officeDocumentationState: 'pending_office_documentation',
       performedByUid: user.uid,
-      performedByName: user.displayName ?? null,
+      performedByName: (user.displayName ?? null) as DurableJson,
       'mobileWorkflow.currentStep': 'check_out',
-      'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
-      'mobileWorkflow.steps.check_out.enteredAt': serverTimestamp(),
+      'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
+      'mobileWorkflow.steps.check_out.enteredAt': DurableClinicalMutationService.serverTimestamp(),
       'mobileWorkflow.steps.check_out.byUid': user.uid,
-      'mobileWorkflow.steps.check_out.byName': user.displayName ?? null,
-      updatedAt: serverTimestamp(),
+      'mobileWorkflow.steps.check_out.byName': (user.displayName ?? null) as DurableJson,
+      updatedAt: DurableClinicalMutationService.serverTimestamp(),
       updatedBy: user.uid,
     };
 
-    // Written only when there is one. An ABSENT attestation means nobody
-    // was asked, which is a reportable state -- it must never be filled
-    // in with an implied 'not_required'.
     if (attestation) {
-      patch['patientAttestation'] = {
+      durablePatch['patientAttestation'] = {
         method: attestation.method,
         attestedByName: (attestation.attestedByName ?? '').trim() || null,
         relationship: (attestation.relationship ?? '').trim() || null,
@@ -312,18 +325,28 @@ export class VisitService {
         reason: (attestation.reason ?? '').trim() || null,
         recordedByUid: user.uid,
         recordedByName: user.displayName ?? null,
-        recordedAt: serverTimestamp(),
-      } satisfies EvvPatientAttestation;
+        recordedAt: DurableClinicalMutationService.serverTimestamp(),
+      };
     }
 
-    await this.syncQueue.enqueue({
+    const mutation = await this.durableMutations.enqueueUpdate({
       operation: 'visit_check_out',
       patientId,
       entityType: 'woundVisit',
       entityId: visitId,
-    }, () => updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch));
-    await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
-    return { location };
+      firestorePath: `patients/${patientId}/woundVisits/${visitId}`,
+      conflict: { expectedAbsentFields: ['checkOut'] },
+      payload: durablePatch,
+    });
+
+    if (mutation.status === 'needs_review') {
+      throw new Error('Departure could not be applied because newer checkout evidence exists. Open Sync Review before leaving the visit.');
+    }
+
+    if (mutation.status === 'synced') {
+      await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
+    }
+    return { location, syncStatus: mutation.status };
   }
 
   /**
@@ -342,22 +365,46 @@ export class VisitService {
     if (!user || !patientId || !woundVisitId || !step) return;
 
     const safeStep = step.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
-    await this.syncQueue.enqueue({
+    await this.durableMutations.enqueueUpdate({
       operation: 'visit_journey_step',
       patientId,
       entityType: 'woundVisit',
       entityId: woundVisitId,
-    }, () => updateDoc(doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`), {
-      'mobileWorkflow.appointmentId': appointmentId ?? null,
-      'mobileWorkflow.currentStep': safeStep,
-      'mobileWorkflow.lastRoute': route,
-      'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
-      [`mobileWorkflow.steps.${safeStep}.enteredAt`]: serverTimestamp(),
-      [`mobileWorkflow.steps.${safeStep}.byUid`]: user.uid,
-      [`mobileWorkflow.steps.${safeStep}.byName`]: user.displayName ?? null,
-      updatedAt: serverTimestamp(),
-      updatedBy: user.uid,
-    }));
+      firestorePath: `patients/${patientId}/woundVisits/${woundVisitId}`,
+      payload: {
+        'mobileWorkflow.appointmentId': (appointmentId ?? null) as DurableJson,
+        'mobileWorkflow.currentStep': safeStep,
+        'mobileWorkflow.lastRoute': route,
+        'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
+        [`mobileWorkflow.steps.${safeStep}.enteredAt`]: DurableClinicalMutationService.serverTimestamp(),
+        [`mobileWorkflow.steps.${safeStep}.byUid`]: user.uid,
+        [`mobileWorkflow.steps.${safeStep}.byName`]: (user.displayName ?? null) as DurableJson,
+        updatedAt: DurableClinicalMutationService.serverTimestamp(),
+        updatedBy: user.uid,
+      },
+    });
+  }
+
+  private buildDurableCheckpoint(location: EvvLocation): DurableJson {
+    const user = auth.currentUser!;
+    return {
+      at: DurableClinicalMutationService.serverTimestamp(),
+      deviceReportedAt: new Date().toISOString(),
+      clockSkewSeconds: null,
+      byUid: user.uid,
+      byName: user.displayName ?? null,
+      byRole: null,
+      location: {
+        status: location.status,
+        latitude: location.latitude ?? null,
+        longitude: location.longitude ?? null,
+        accuracyMeters: location.accuracyMeters ?? null,
+        source: location.source ?? null,
+        failureReason: location.failureReason ?? null,
+      },
+      method: 'app_capture',
+      manualReason: null,
+    };
   }
 
   private buildCheckpoint(location: EvvLocation): EvvCheckpoint {
