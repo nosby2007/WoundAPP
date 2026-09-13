@@ -14,6 +14,7 @@ import {
   MobilePrescriber, MobileWoundOption,
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
+import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
 
 @Component({
   selector: 'app-clinical-order',
@@ -49,7 +50,32 @@ import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../service
 
         <ion-card>
           <ion-card-content>
-            <p class="eyebrow dark">2 · PUBLISHED ALGORITHM</p>
+            <p class="eyebrow dark">2 · CLINICAL CATEGORY GUIDANCE</p>
+            <div class="notice" *ngIf="guidance">
+              JADE/WoundAPP uses the latest documented assessment only to suggest protocol categories. It does not choose treatment or place an order.
+            </div>
+            <div class="guidance" *ngIf="guidance">
+              <button type="button" *ngFor="let type of guidance.suggestedTypes"
+                class="guidance-chip"
+                [class.active]="selectedWoundType === type"
+                (click)="chooseWoundType(type)">
+                {{ type }}
+              </button>
+              <div class="guidance-reason" *ngFor="let reason of guidance.rationale">• {{ reason }}</div>
+              <div class="guidance-caution" *ngFor="let caution of guidance.cautions">{{ caution }}</div>
+            </div>
+            <ion-item lines="full">
+              <ion-select label="Protocol category" labelPlacement="stacked" [(ngModel)]="selectedWoundType" (ionChange)="chooseWoundType($event.detail.value)" placeholder="Provider selects category">
+                <ion-select-option value="">All published categories</ion-select-option>
+                <ion-select-option *ngFor="let algorithm of filteredAlgorithms" [value]="algorithm.woundType">{{ algorithm.woundType }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </ion-card-content>
+        </ion-card>
+
+        <ion-card>
+          <ion-card-content>
+            <p class="eyebrow dark">3 · PUBLISHED ALGORITHM</p>
             <ion-item lines="full">
               <ion-select label="Algorithm" labelPlacement="stacked" [(ngModel)]="algorithmId" (ionChange)="onAlgorithmChanged()" placeholder="Select published protocol">
                 <ion-select-option *ngFor="let algorithm of algorithms" [value]="algorithm.id">{{ algorithm.name }} · {{ algorithm.woundType }}</ion-select-option>
@@ -65,7 +91,7 @@ import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../service
 
         <ion-card>
           <ion-card-content>
-            <p class="eyebrow dark">3 · ORDER PROVENANCE</p>
+            <p class="eyebrow dark">4 · ORDER PROVENANCE</p>
             <div class="identity"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon><div><strong>{{ identity?.displayName }}</strong><small>{{ identity?.credentials || identity?.role }}</small></div></div>
             <div *ngIf="isPrescriber" class="notice">You are documenting this order directly as the prescriber.</div>
             <ng-container *ngIf="!isPrescriber">
@@ -93,7 +119,7 @@ import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../service
     </div>
   </ion-content>`,
   styles: [`
-    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.notice{background:#eef7f3;color:#245d49}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
+    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
   `],
 })
 export class ClinicalOrderPage implements OnInit {
@@ -104,12 +130,15 @@ export class ClinicalOrderPage implements OnInit {
   loading = true; saving = false; error = '';
   algorithms: MobileCareAlgorithm[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = [];
   identity: ClinicalIdentitySnapshot | null = null; algorithmId = ''; woundId = ''; selectedAlgorithm: MobileCareAlgorithm | null = null; woundLabel = '';
+  guidance: MobileAlgorithmGuidance | null = null; selectedWoundType = '';
   receiptMethod: MobileOrderReceiptMethod = 'telephone'; prescriberUid = ''; readBackConfirmed = false;
   readonly documentTextOutline = documentTextOutline; readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
 
   constructor(){ addIcons({ documentTextOutline, shieldCheckmarkOutline }); }
   get isPrescriber(){ return ['provider','np'].includes(String(this.identity?.role || '').toLowerCase()); }
   get preview(){ return this.selectedAlgorithm ? this.orderService.renderAlgorithm(this.selectedAlgorithm) : ''; }
+  get filteredAlgorithms(){ return this.selectedWoundType ? this.algorithms.filter(a => a.woundType === this.selectedWoundType) : this.algorithms; }
+  get selectedTypeMatchedGuidance(){ return !!this.selectedWoundType && (this.guidance?.suggestedTypes.includes(this.selectedWoundType) ?? false); }
 
   async ngOnInit(){
     try {
@@ -120,12 +149,33 @@ export class ClinicalOrderPage implements OnInit {
     } catch(e:any){ this.error = e?.message || 'Clinical ordering workspace could not be loaded.'; }
     finally { this.loading = false; }
   }
-  onAlgorithmChanged(){ this.selectedAlgorithm = this.algorithms.find(a => a.id === this.algorithmId) || null; }
-  onWoundChanged(){ this.woundLabel = this.wounds.find(w => w.woundId === this.woundId)?.label || ''; }
+  onAlgorithmChanged(){ this.selectedAlgorithm = this.filteredAlgorithms.find(a => a.id === this.algorithmId) || null; }
+  onWoundChanged(){
+    const wound = this.wounds.find(w => w.woundId === this.woundId) || null;
+    this.woundLabel = wound?.label || '';
+    this.guidance = deriveMobileAlgorithmGuidance(wound?.guidanceInput);
+    this.algorithmId = '';
+    this.selectedAlgorithm = null;
+    this.selectedWoundType = '';
+  }
+  chooseWoundType(type: string){
+    this.selectedWoundType = type;
+    this.algorithmId = '';
+    this.selectedAlgorithm = null;
+  }
   async save(){
     if(!this.selectedAlgorithm || this.saving) return; this.saving = true;
     try {
-      await this.orderService.createAlgorithmOrder(this.patientId, { algorithm: this.selectedAlgorithm, woundId: this.woundId || null, woundLabel: this.woundLabel || null, receiptMethod: this.isPrescriber ? 'direct' : this.receiptMethod, prescriberUid: this.prescriberUid || null, readBackConfirmed: this.readBackConfirmed });
+      await this.orderService.createAlgorithmOrder(this.patientId, {
+        algorithm: this.selectedAlgorithm,
+        woundId: this.woundId || null,
+        woundLabel: this.woundLabel || null,
+        receiptMethod: this.isPrescriber ? 'direct' : this.receiptMethod,
+        prescriberUid: this.prescriberUid || null,
+        readBackConfirmed: this.readBackConfirmed,
+        guidance: this.guidance,
+        selectedTypeMatchedGuidance: this.selectedTypeMatchedGuidance,
+      });
       const t = await this.toast.create({ message:'Order saved to patient chart', duration:2200, color:'success' }); await t.present();
       await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments']);
     } catch(e:any){ const t = await this.toast.create({message:e?.message || 'Order could not be saved', duration:3200, color:'danger'}); await t.present(); }
