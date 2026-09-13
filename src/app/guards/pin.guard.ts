@@ -12,7 +12,7 @@ import { PinService } from '../services/pin.service';
  * so someone who skipped this screen by editing the URL still reads
  * nothing they should not.
  */
-export const pinGuard: CanActivateFn = async () => {
+export const pinGuard: CanActivateFn = async (_route, state) => {
   const router = inject(Router);
   const pin = inject(PinService);
 
@@ -21,10 +21,14 @@ export const pinGuard: CanActivateFn = async () => {
   await authStateReady;
 
   if (!auth.currentUser) {
-    return router.createUrlTree(['/login']);
+    return router.createUrlTree(['/login'], {
+      queryParams: { returnUrl: state.url },
+    });
   }
 
   if (await pin.hasPassedThisSession()) return true;
 
-  return router.createUrlTree(['/pin']);
+  return router.createUrlTree(['/pin'], {
+    queryParams: { returnUrl: state.url },
+  });
 };
