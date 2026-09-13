@@ -17,6 +17,7 @@ import { auth, db } from '../firebase';
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { ClinicalSyncQueueService } from './clinical-sync-queue.service';
 
 /**
  * Check in and out of a visit from the field.
@@ -70,6 +71,7 @@ export interface LinkedVisitContext {
 export class VisitService {
   private readonly location = inject(VisitLocationService);
   private readonly audit = inject(ClinicalAuditService);
+  private readonly syncQueue = inject(ClinicalSyncQueueService);
 
   /**
    * The visit this clinician is currently on for this patient, if any.
@@ -162,7 +164,12 @@ export class VisitService {
         throw new Error('This linked visit already has an arrival recorded.');
       }
 
-      await updateDoc(visitRef, {
+      await this.syncQueue.enqueue({
+        operation: 'visit_check_in',
+        patientId,
+        entityType: 'woundVisit',
+        entityId: linked.woundVisitId,
+      }, () => updateDoc(visitRef, {
         appointmentId: linked.appointmentId ?? existing['appointmentId'] ?? null,
         woundId: linked.woundId ?? existing['woundId'] ?? null,
         episodeId: linked.episodeId ?? existing['episodeId'] ?? null,
@@ -186,7 +193,7 @@ export class VisitService {
         'mobileWorkflow.steps.check_in.byName': user.displayName ?? null,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
-      });
+      }));
 
       await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
       return { visitId: linked.woundVisitId, location };
@@ -195,7 +202,12 @@ export class VisitService {
     // Legacy/manual chart entry with no scheduler linkage. Kept only for
     // backward compatibility; new Episode Control and field follow-ups carry
     // woundVisitId so they use the branch above.
-    const created = await addDoc(collection(db, `patients/${patientId}/woundVisits`), {
+    const created = await this.syncQueue.enqueue({
+      operation: 'visit_check_in_legacy_create',
+      patientId,
+      entityType: 'woundVisit',
+      entityId: null,
+    }, () => addDoc(collection(db, `patients/${patientId}/woundVisits`), {
       orgId,
       facilityId: (patient['facilityId'] as string) ?? null,
       patientId,
@@ -232,7 +244,7 @@ export class VisitService {
       updatedAt: serverTimestamp(),
       createdBy: user.uid,
       updatedBy: user.uid,
-    });
+    }));
 
     await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
     return { visitId: created.id, location };
@@ -304,7 +316,12 @@ export class VisitService {
       } satisfies EvvPatientAttestation;
     }
 
-    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch);
+    await this.syncQueue.enqueue({
+      operation: 'visit_check_out',
+      patientId,
+      entityType: 'woundVisit',
+      entityId: visitId,
+    }, () => updateDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`), patch));
     await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     return { location };
   }
@@ -325,7 +342,12 @@ export class VisitService {
     if (!user || !patientId || !woundVisitId || !step) return;
 
     const safeStep = step.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
-    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`), {
+    await this.syncQueue.enqueue({
+      operation: 'visit_journey_step',
+      patientId,
+      entityType: 'woundVisit',
+      entityId: woundVisitId,
+    }, () => updateDoc(doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`), {
       'mobileWorkflow.appointmentId': appointmentId ?? null,
       'mobileWorkflow.currentStep': safeStep,
       'mobileWorkflow.lastRoute': route,
@@ -335,7 +357,7 @@ export class VisitService {
       [`mobileWorkflow.steps.${safeStep}.byName`]: user.displayName ?? null,
       updatedAt: serverTimestamp(),
       updatedBy: user.uid,
-    });
+    }));
   }
 
   private buildCheckpoint(location: EvvLocation): EvvCheckpoint {
