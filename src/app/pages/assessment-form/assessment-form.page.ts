@@ -28,11 +28,11 @@ import {
 } from '@ionic/angular/standalone';
 
 import { addIcons } from 'ionicons';
-import { camera, images } from 'ionicons/icons';
+import { camera, flash, images } from 'ionicons/icons';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera, CameraDirection, CameraResultType, CameraSource } from '@capacitor/camera';
 import { AssessmentsService } from '../../services/assessments.service';
 import { WoundRoundMobileService } from '../../services/wound-round.service';
 import { getAuth } from 'firebase/auth';
@@ -287,7 +287,7 @@ export class AssessmentFormPage implements OnInit {
   private photoDataUrl?: string;
 
   constructor() {
-    addIcons({ camera, images });
+    addIcons({ camera, flash, images });
   }
 
   /** Area and volume, computed the same way the web form computes them. */
@@ -419,11 +419,21 @@ export class AssessmentFormPage implements OnInit {
 
   async takePhoto() {
     try {
+      const flashHint = await this.toastCtrl.create({
+        message: 'Use the phone camera flash/auto-flash control when lighting is poor. Keep the lens perpendicular to the wound when possible.',
+        duration: 3200,
+        icon: 'flash',
+      });
+      await flashHint.present();
+
       const image = await Camera.getPhoto({
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
-        quality: 70,
+        direction: CameraDirection.Rear,
+        quality: 92,
         allowEditing: false,
+        correctOrientation: true,
+        saveToGallery: false,
       });
 
       if (image?.dataUrl) {
@@ -436,7 +446,7 @@ export class AssessmentFormPage implements OnInit {
         message: 'Camera canceled or not available',
         duration: 2000,
       });
-      toast.present();
+      await toast.present();
     }
   }
 
