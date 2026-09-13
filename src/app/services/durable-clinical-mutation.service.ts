@@ -143,7 +143,8 @@ export class DurableClinicalMutationService {
     if (!this.isOnline() || this.flushing) return;
     this.flushing = true;
     try {
-      const envelopes = await this.getAllEnvelopes();
+      const envelopes = (await this.getAllEnvelopes())
+        .sort((a, b) => a.queuedAt - b.queuedAt);
       for (const envelope of envelopes) {
         if (envelope.status === 'waiting_for_network' || envelope.status === 'failed') {
           await this.execute(envelope.id).catch(() => undefined);
@@ -157,6 +158,18 @@ export class DurableClinicalMutationService {
   async retry(id: string): Promise<DurableMutationResult> {
     if (!this.isOnline()) return { id, status: 'queued' };
     return this.execute(id);
+  }
+
+  async whenReady(): Promise<void> {
+    await this.ready();
+  }
+
+  hasPending(operation: string, entityId?: string | null): boolean {
+    return this.items().some((item) =>
+      item.operation === operation &&
+      (entityId == null || item.entityId === entityId) &&
+      (item.status === 'waiting_for_network' || item.status === 'syncing')
+    );
   }
 
   async discard(id: string): Promise<void> {
@@ -179,6 +192,20 @@ export class DurableClinicalMutationService {
     if (!envelope) throw new Error('Queued clinical mutation no longer exists.');
 
     const mutation = await this.decryptEnvelope(envelope);
+
+    const blocker = await this.earlierMutationBlocker(mutation);
+    if (blocker) {
+      const blockedByReview = blocker.status === 'failed' || blocker.status === 'needs_review';
+      await this.patchEnvelope(envelope, {
+        status: blockedByReview ? 'needs_review' : 'waiting_for_network',
+        error: blockedByReview
+          ? 'An earlier clinical write on this same record needs review before this write can replay.'
+          : null,
+      });
+      await this.reloadViews();
+      return { id, status: blockedByReview ? 'needs_review' : 'queued' };
+    }
+
     if (!this.isOnline()) {
       await this.patchEnvelope(envelope, { status: 'waiting_for_network' });
       await this.reloadViews();
@@ -214,11 +241,10 @@ export class DurableClinicalMutationService {
       }
 
       await updateDoc(ref, this.materializePayload(mutation.payload));
-      await this.patchEnvelope(await this.requireEnvelope(id), {
-        status: 'synced',
-        syncedAt: Date.now(),
-        error: null,
-      });
+      // Once the server accepted the mutation, remove the encrypted payload
+      // from the device. Server/audit evidence is the durable record; keeping
+      // synced PHI in the local queue would add exposure with no retry value.
+      await this.deleteEnvelope(id);
       await this.reloadViews();
       return { id, status: 'synced' };
     } catch (error: any) {
@@ -240,6 +266,32 @@ export class DurableClinicalMutationService {
       if (networkLost) return { id, status: 'queued' };
       throw error;
     }
+  }
+
+  private async earlierMutationBlocker(
+    mutation: DurableClinicalMutation
+  ): Promise<StoredMutationEnvelope | null> {
+    const envelopes = (await this.getAllEnvelopes())
+      .filter((candidate) =>
+        candidate.id !== mutation.id &&
+        candidate.queuedAt < mutation.queuedAt &&
+        candidate.status !== 'synced'
+      )
+      .sort((a, b) => a.queuedAt - b.queuedAt);
+
+    for (const envelope of envelopes) {
+      try {
+        const earlier = await this.decryptEnvelope(envelope);
+        if (earlier.firestorePath === mutation.firestorePath) {
+          return envelope;
+        }
+      } catch {
+        // A previous undecryptable write on this document is a review
+        // boundary, not permission to skip ahead.
+        return envelope;
+      }
+    }
+    return null;
   }
 
   private detectConflict(
