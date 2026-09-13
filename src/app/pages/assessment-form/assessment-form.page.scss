@@ -224,3 +224,39 @@ ion-range {
   font-weight: 500;
   color: var(--app-ink-muted);
 }
+
+
+.photo-guidance {
+  display: flex;
+  gap: var(--app-space-3);
+  align-items: flex-start;
+  margin-bottom: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid rgba(30, 96, 165, 0.22);
+  border-radius: var(--app-radius);
+  background: #f5f8fc;
+
+  ion-icon {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    font-size: 1.2rem;
+    color: #1e60a5;
+  }
+
+  strong,
+  span {
+    display: block;
+  }
+
+  strong {
+    margin-bottom: 2px;
+    color: var(--app-ink);
+    font-size: 0.86rem;
+  }
+
+  span {
+    color: var(--app-ink-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+}
