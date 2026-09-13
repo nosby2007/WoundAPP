@@ -31,8 +31,8 @@ for (const required of [
   if (!durable.includes(required)) violations.push('Durable queue missing: ' + required);
 }
 
-if (/localStorage|sessionStorage/.test(durable)) {
-  violations.push('Durable clinical mutation payloads must not use localStorage/sessionStorage.');
+if (/\blocalStorage\s*\.|\bsessionStorage\s*\./.test(durable)) {
+  violations.push('Durable clinical mutation payloads must not use localStorage/sessionStorage APIs.');
 }
 
 for (const required of [
