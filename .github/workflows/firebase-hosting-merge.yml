@@ -14,8 +14,18 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
   # So a deploy can be re-run from the Actions tab without an empty commit.
   workflow_dispatch:
+concurrency:
+  group: firebase-production-innovacare-mobile
+  cancel-in-progress: false
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
