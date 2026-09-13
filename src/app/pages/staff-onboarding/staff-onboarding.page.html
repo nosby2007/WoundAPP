@@ -1,0 +1,55 @@
+<ion-content [fullscreen]="true" class="onboarding-content">
+  <div class="onboarding-shell">
+    <div class="sky-glow glow-one"></div>
+    <div class="sky-glow glow-two"></div>
+
+    <header class="welcome-head">
+      <div class="brand-orb"><ion-icon name="heart-outline"></ion-icon></div>
+      <div class="welcome-copy">
+        <span>{{ greeting }}</span>
+        <h1>Welcome, {{ firstName }}</h1>
+        <p>Here’s your field rhythm for a safe, complete wound-care visit.</p>
+      </div>
+      <div class="day-chip"><ion-icon name="sparkles-outline"></ion-icon>{{ todayLabel }}</div>
+    </header>
+
+    <section class="message-stage">
+      <ng-container *ngIf="showStep">
+      <div class="message-thread" *ngIf="activeStep as step" [attr.data-step]="stepIndex">
+        <div class="step-number">{{ stepIndex + 1 }}</div>
+        <article class="workflow-message">
+          <div class="message-icon"><ion-icon [name]="step.icon"></ion-icon></div>
+          <div class="message-copy">
+            <span class="message-eyebrow">{{ step.eyebrow }}</span>
+            <h2>{{ step.title }}</h2>
+            <p>{{ step.message }}</p>
+          </div>
+          <div class="message-check"><ion-icon name="checkmark-circle-outline"></ion-icon></div>
+        </article>
+      </div>
+      </ng-container>
+    </section>
+
+    <section class="progress-zone">
+      <div class="progress-meta">
+        <span>Today’s visit flow</span>
+        <strong>{{ stepIndex + 1 }} / {{ steps.length }}</strong>
+      </div>
+      <ion-progress-bar [value]="progress"></ion-progress-bar>
+      <div class="step-dots">
+        <button type="button" *ngFor="let step of steps; let i = index"
+          [class.active]="i === stepIndex" [class.done]="i < stepIndex"
+          (click)="goToStep(i)" [attr.aria-label]="'Go to step ' + (i + 1)"></button>
+      </div>
+    </section>
+
+    <footer class="onboarding-actions">
+      <button type="button" class="quiet-action" (click)="nextStep()" *ngIf="stepIndex < steps.length - 1">Next</button>
+      <ion-button class="start-day" expand="block" (click)="startDay()" [disabled]="starting">
+        <ion-icon slot="start" name="shield-checkmark-outline"></ion-icon>
+        {{ starting ? 'Opening your day…' : 'Start my day' }}
+      </ion-button>
+      <p>Document what happened, close the visit, confirm the signature, then leave knowing the loop is complete.</p>
+    </footer>
+  </div>
+</ion-content>

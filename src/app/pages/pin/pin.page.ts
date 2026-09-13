@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonContent,
   IonInput,
@@ -34,7 +34,11 @@ export class PinPage {
   busy = false;
   errorMsg: string | null = null;
 
-  constructor(private pinService: PinService, private router: Router) {
+  constructor(
+    private pinService: PinService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {
     // Ionic standalone does not ship a global icon registry -- each page
     // registers what it renders, the same way patient-assessments does.
     // Without this the icon slot is simply blank.
@@ -62,7 +66,13 @@ export class PinPage {
       } else {
         await this.pinService.verify(this.pin);
       }
-      await this.router.navigate(['/tabs', 'patients']);
+      const reason = this.route.snapshot.queryParamMap.get('reason');
+      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+      if (reason === 'inactivity' && returnUrl?.startsWith('/tabs')) {
+        await this.router.navigateByUrl(returnUrl, { replaceUrl: true });
+      } else {
+        await this.router.navigateByUrl('/welcome', { replaceUrl: true });
+      }
     } catch (e: any) {
       // The server's message carries what the user needs to act on --
       // attempts remaining, or how long the lockout has left.
