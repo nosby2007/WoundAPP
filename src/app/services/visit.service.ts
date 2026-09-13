@@ -280,6 +280,7 @@ export class VisitService {
       attestedByName?: string | null;
       relationship?: string | null;
       reason?: string | null;
+      electronicSignature?: EvvPatientAttestation['electronicSignature'];
     } | null
   ): Promise<{ location: EvvLocation; syncStatus: 'synced' | 'queued' }> {
     const user = auth.currentUser;
@@ -290,7 +291,10 @@ export class VisitService {
     // no reason says nothing an auditor could use.
     if (attestation) {
       const problem = describeAttestationProblem(
-        attestation.method, attestation.attestedByName, attestation.reason
+        attestation.method,
+        attestation.attestedByName,
+        attestation.reason,
+        attestation.electronicSignature?.sha256 ?? null
       );
       if (problem) throw new Error(problem);
     }
@@ -325,6 +329,14 @@ export class VisitService {
         recordedByUid: user.uid,
         recordedByName: user.displayName ?? null,
         recordedAt: DurableClinicalMutationService.serverTimestamp(),
+        electronicSignature: attestation.electronicSignature
+          ? {
+              storagePath: attestation.electronicSignature.storagePath,
+              downloadUrl: attestation.electronicSignature.downloadUrl,
+              sha256: attestation.electronicSignature.sha256,
+              capturedAtIso: attestation.electronicSignature.capturedAtIso,
+            }
+          : null,
       };
     }
 
