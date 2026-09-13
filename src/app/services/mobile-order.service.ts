@@ -4,6 +4,7 @@ import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
 
 export interface MobileCareAlgorithmStep {
   id?: string;
@@ -40,6 +41,7 @@ export interface MobilePrescriber {
 export interface MobileWoundOption {
   woundId: string;
   label: string;
+  guidanceInput: MobileWoundGuidanceInput;
 }
 
 export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
@@ -85,7 +87,18 @@ export class MobileOrderService {
       const data = item.data;
       const type = data.describe?.type || data.type || 'Wound';
       const location = data.describe?.location || data.location || '';
-      return { woundId: item.id, label: location ? `${type} — ${location}` : type };
+      return {
+        woundId: item.id,
+        label: location ? `${type} — ${location}` : type,
+        guidanceInput: {
+          woundType: type,
+          exudateAmount: data.exudate?.amount ?? null,
+          sloughPresent: data.woundBed?.slough?.present === true,
+          escharPresent: data.woundBed?.eschar === true,
+          infectionFindings: Array.isArray(data.woundBed?.infection) ? data.woundBed.infection : [],
+          infectionStatus: data.progress?.infection ?? null,
+        },
+      };
     }).sort((a, b) => a.label.localeCompare(b.label));
   }
 
@@ -117,6 +130,8 @@ export class MobileOrderService {
     receiptMethod: MobileOrderReceiptMethod;
     prescriberUid?: string | null;
     readBackConfirmed?: boolean;
+    guidance?: MobileAlgorithmGuidance | null;
+    selectedTypeMatchedGuidance?: boolean;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
     const user = auth.currentUser;
@@ -169,6 +184,34 @@ export class MobileOrderService {
       algorithmId: input.algorithm.id,
       algorithmName: input.algorithm.name,
       algorithmWoundType: input.algorithm.woundType,
+      algorithmVersion: input.algorithm.version ?? 1,
+      schemaVersion: 2,
+      source: {
+        mode: 'algorithm',
+        algorithmId: input.algorithm.id,
+        algorithmName: input.algorithm.name,
+        algorithmVersion: input.algorithm.version ?? 1,
+        guidance: input.guidance ? {
+          suggestedWoundTypes: input.guidance.suggestedTypes,
+          rationale: input.guidance.rationale,
+          cautions: input.guidance.cautions,
+          selectedTypeMatchedGuidance: input.selectedTypeMatchedGuidance === true,
+        } : null,
+      },
+      clinical: {
+        woundType: input.algorithm.woundType,
+        woundLocation: input.woundLabel ?? null,
+        schedule: {
+          frequency: (input.algorithm.steps || []).map(step => step.frequency).find(value => !!value) ?? null,
+        },
+        cleanse: (input.algorithm.steps || []).map(step => step.woundCleanser).filter((value): value is string => !!value),
+        apply: (input.algorithm.steps || []).map(step => step.applyToWoundProduct).filter((value): value is string => !!value),
+        cover: (input.algorithm.steps || []).map(step => step.coverMethod).filter((value): value is string => !!value),
+        contingencies: (input.algorithm.contingencies || []).map(entry => ({
+          trigger: entry.trigger,
+          action: entry.action,
+        })),
+      },
       workflow: { state: 'created', history: [{ fromState: null, toState: 'created', occurredAt: Timestamp.now(), actor, comment: 'Order placed from published organization algorithm in mobile field workflow.' }] },
       createdAt: now,
       updatedAt: now,

@@ -43,6 +43,9 @@ export interface FieldVisit {
   notDoneAt?: any;
   completedAt?: any;
   nextAppointmentId?: string | null;
+  archivedAt?: any;
+  archivedByUid?: string | null;
+  archiveReason?: string | null;
   patient?: FieldPatient | null;
 }
 
@@ -101,7 +104,9 @@ export class FieldWorkService {
             id: d.id,
             ...d.data(),
             patient: await this.patient((d.data() as any).patientId),
-          } as FieldVisit)))).filter(visit => this.rolePolicy.canAccessAssignedVisit(identity, visit as any));
+          } as FieldVisit))))
+            .filter(visit => !visit.archivedAt)
+            .filter(visit => this.rolePolicy.canAccessAssignedVisit(identity, visit as any));
           emit();
         }, err => { console.warn('[Today] visits unavailable', err); visits = []; emit(); });
 
@@ -137,7 +142,7 @@ export class FieldWorkService {
     const snap = await getDoc(doc(db, 'appointments', id));
     if (!snap.exists()) return null;
     const data: any = snap.data();
-    if (data.orgId !== orgId || data.assignedToUid !== user.uid) return null;
+    if (data.orgId !== orgId || data.assignedToUid !== user.uid || data.archivedAt) return null;
     const identity = await this.rolePolicy.currentIdentity();
     if (!this.rolePolicy.canAccessAssignedVisit(identity, data)) return null;
 

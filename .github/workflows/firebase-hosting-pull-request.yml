@@ -19,6 +19,8 @@ jobs:
       # Running it here is the only thing that keeps it from drifting back.
       - name: Unit tests
         run: npm run test:ci
+      - name: Verify mobile provider order guidance
+        run: node scripts/verify-mobile-order-guidance.js
       - name: Verify clinical sync queue contract
         run: node scripts/verify-clinical-sync-queue.js
       - run: npm run build
