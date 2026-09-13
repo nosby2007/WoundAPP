@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { FieldRolePolicyService } from './field-role-policy.service';
+import { DurableClinicalMutationService } from './durable-clinical-mutation.service';
 
 export interface FieldPatient {
   id: string;
