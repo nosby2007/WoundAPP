@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import {
@@ -18,6 +18,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
+import { PinService } from '../../services/pin.service';
+import { auth, authStateReady } from '../../firebase';
 
 @Component({
   selector: 'app-login',
@@ -42,7 +44,7 @@ import { AuthService } from '../../services/auth.service';
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
 })
-export class LoginPage {
+export class LoginPage implements OnInit {
   loading = false;
   errorMsg = '';
 
@@ -54,11 +56,22 @@ export class LoginPage {
   constructor(
     private fb: FormBuilder,
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private pin: PinService
   ) {
     addIcons({
       lockClosedOutline,
       mailOutline,
+    });
+  }
+
+  async ngOnInit(): Promise<void> {
+    await authStateReady;
+    if (!auth.currentUser) return;
+
+    const unlocked = await this.pin.hasPassedThisSession().catch(() => false);
+    await this.router.navigateByUrl(unlocked ? '/tabs/today' : '/pin', {
+      replaceUrl: true,
     });
   }
 
