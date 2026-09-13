@@ -136,9 +136,58 @@ export class VisitService {
     patientId: string,
     visitType = 'routine',
     linked: LinkedVisitContext = {}
-  ): Promise<{ visitId: string; location: EvvLocation; syncStatus: 'synced' | 'queued' }> {
+  ): Promise<{ visitId: string; location: EvvLocation; checkpoint: EvvCheckpoint; syncStatus: 'synced' | 'queued' }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking in.');
+
+    // A scheduled/linked visit can still be checked in when connectivity
+    // drops after the clinician opened the workspace. Conflict guards on
+    // replay protect against a second device having already checked in.
+    if (linked.woundVisitId && !this.isOnline()) {
+      const location = await this.location.capture();
+      const checkpoint = this.buildCheckpoint(location);
+      const mutation = await this.durableMutations.enqueueUpdate({
+        operation: 'visit_check_in',
+        patientId,
+        entityType: 'woundVisit',
+        entityId: linked.woundVisitId,
+        firestorePath: `patients/${patientId}/woundVisits/${linked.woundVisitId}`,
+        conflict: { expectedAbsentFields: ['checkIn'] },
+        payload: {
+          appointmentId: (linked.appointmentId ?? null) as DurableJson,
+          woundId: (linked.woundId ?? null) as DurableJson,
+          episodeId: (linked.episodeId ?? null) as DurableJson,
+          visitType,
+          clinicianUid: user.uid,
+          clinicianName: (user.displayName ?? null) as DurableJson,
+          clinicianRole: (linked.clinicianRole ?? null) as DurableJson,
+          checkIn: this.buildDurableCheckpoint(location),
+          executionAuthority: 'woundapp',
+          fieldVisitState: 'on_site',
+          officeDocumentationState: 'field_in_progress',
+          performedByUid: user.uid,
+          performedByName: (user.displayName ?? null) as DurableJson,
+          performedByRole: (linked.clinicianRole ?? null) as DurableJson,
+          'mobileWorkflow.appointmentId': (linked.appointmentId ?? null) as DurableJson,
+          'mobileWorkflow.currentStep': 'check_in',
+          'mobileWorkflow.lastRoute': linked.appointmentId
+            ? '/tabs/today/visit/' + linked.appointmentId
+            : '/tabs/skin-wound/' + patientId + '/assessments',
+          'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
+          'mobileWorkflow.steps.check_in.enteredAt': DurableClinicalMutationService.serverTimestamp(),
+          'mobileWorkflow.steps.check_in.byUid': user.uid,
+          'mobileWorkflow.steps.check_in.byName': (user.displayName ?? null) as DurableJson,
+          updatedAt: DurableClinicalMutationService.serverTimestamp(),
+          updatedBy: user.uid,
+        },
+      });
+      return {
+        visitId: linked.woundVisitId,
+        location,
+        checkpoint,
+        syncStatus: mutation.status === 'synced' ? 'synced' : 'queued',
+      };
+    }
 
     const already = await this.openVisit(patientId);
     if (already) throw new Error('You are already checked in to this patient.');
@@ -211,7 +260,7 @@ export class VisitService {
       if (mutation.status === 'synced') {
         await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
       }
-      return { visitId: linked.woundVisitId, location, syncStatus: mutation.status };
+      return { visitId: linked.woundVisitId, location, checkpoint, syncStatus: mutation.status };
     }
 
     // Legacy/manual chart entry with no scheduler linkage. Kept only for
@@ -262,7 +311,7 @@ export class VisitService {
     }));
 
     await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
-    return { visitId: created.id, location, syncStatus: 'synced' };
+    return { visitId: created.id, location, checkpoint, syncStatus: 'synced' };
   }
 
   /**
@@ -414,6 +463,10 @@ export class VisitService {
         updatedBy: user.uid,
       },
     });
+  }
+
+  private isOnline(): boolean {
+    return typeof navigator === 'undefined' ? true : navigator.onLine;
   }
 
   private buildDurableCheckpoint(location: EvvLocation): DurableJson {
