@@ -12,12 +12,21 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
+  writeBatch,
+  arrayUnion,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Storage, ref, uploadString, getDownloadURL } from '@angular/fire/storage';
 import { ClinicalIdentityService } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+
+export interface FieldAssessmentContext {
+  appointmentId?: string | null;
+  fieldEncounterVisitId?: string | null;
+  /** True only for the first assessment that establishes a brand-new wound. */
+  newWound?: boolean;
+}
 
 export interface MobileAssessment {
   id: string;
@@ -127,9 +136,120 @@ export class AssessmentsService {
     return doc(collection(this.firestore, `patients/${patientId}/woundAssessments`)).id;
   }
 
-  async createWithId(patientId: string, id: string, data: any): Promise<void> {
-    const payload = await this.withCanonicalAuthor(data);
-    await setDoc(doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`), payload);
+  async createWithId(
+    patientId: string,
+    id: string,
+    data: any,
+    fieldContext: FieldAssessmentContext = {}
+  ): Promise<void> {
+    const payload = await this.withCanonicalAuthor({
+      ...data,
+      appointmentId: fieldContext.appointmentId || null,
+      fieldEncounterVisitId: fieldContext.fieldEncounterVisitId || null,
+    });
+    const identity = payload.authorIdentity;
+    const batch = writeBatch(this.firestore);
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
+
+    if (fieldContext.newWound) {
+      // A new wound is established at the bedside, not speculatively by JADE
+      // before the visit. WoundAPP writes the native wound and an intake
+      // episode shell in the same batch as the first assessment.
+      const patientSnap = await getDoc(doc(this.firestore, `patients/${patientId}`));
+      if (!patientSnap.exists()) throw new Error('Patient not found.');
+      const patient = patientSnap.data() as any;
+      const facilityId = patient.facilityId ?? patient.primaryFacilityId ?? null;
+      const episodeRef = doc(collection(this.firestore, `patients/${patientId}/woundEpisodes`));
+      const now = serverTimestamp();
+      const actor = {
+        uid: identity.uid,
+        displayName: identity.displayName,
+        role: identity.role,
+        credentials: identity.credentials ?? null,
+        npi: identity.npi ?? null,
+      };
+
+      payload.episodeId = episodeRef.id;
+
+      batch.set(doc(this.firestore, `patients/${patientId}/wounds/${id}`), {
+        orgId: identity.orgId,
+        facilityId,
+        patientId,
+        label: payload.describe?.location || `Wound ${id.slice(0, 6)}`,
+        type: payload.describe?.type || 'Other',
+        stage: payload.describe?.stage || null,
+        acquired: payload.describe?.acquired || null,
+        location: payload.describe?.location || null,
+        firstAssessmentId: id,
+        latestAssessmentId: id,
+        latestAssessedAt: payload.assessedAt ?? now,
+        activeEpisodeId: episodeRef.id,
+        workflow: {
+          state: 'created',
+          history: [{
+            toState: 'created',
+            fromState: null,
+            occurredAt: now,
+            actor,
+            comment: 'Wound established from WoundAPP field assessment.',
+          }],
+        },
+        sourceOfTruth: 'woundapp',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actor,
+        updatedBy: actor,
+      });
+
+      batch.set(episodeRef, {
+        orgId: identity.orgId,
+        facilityId,
+        patientId,
+        woundId: id,
+        episodeType: 'treatment',
+        status: 'active',
+        clinicalState: 'intake_pending',
+        title: payload.describe?.location
+          ? `${payload.describe.location} wound episode`
+          : 'Field wound episode',
+        primaryGoal: '',
+        careVenue: facilityId ? 'facility' : 'home_health',
+        assignedClinicianUid: identity.uid,
+        assignedClinicianName: identity.displayName,
+        episodeOwnerType: identity.role === 'np' ? 'np' : 'rn',
+        providerOfRecordUid: identity.role === 'np' ? identity.uid : null,
+        providerOfRecordName: identity.role === 'np' ? identity.displayName : null,
+        providerOfRecordNpi: identity.role === 'np' ? identity.npi : null,
+        billingProviderUid: identity.role === 'np' ? identity.uid : null,
+        billingProviderName: identity.role === 'np' ? identity.displayName : null,
+        billingProviderNpi: identity.role === 'np' ? identity.npi : null,
+        needsProviderAssignment: identity.role !== 'np',
+        startDate: new Date().toISOString().slice(0, 10),
+        notes: 'Created from WoundAPP first field assessment.',
+        sourceOfTruth: 'woundapp',
+        appointmentId: fieldContext.appointmentId || null,
+        fieldEncounterVisitId: fieldContext.fieldEncounterVisitId || null,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: identity.uid,
+        updatedBy: identity.uid,
+      });
+
+      if (fieldContext.fieldEncounterVisitId) {
+        batch.update(
+          doc(this.firestore, `patients/${patientId}/woundVisits/${fieldContext.fieldEncounterVisitId}`),
+          {
+            fieldWoundIds: arrayUnion(id),
+            fieldEpisodeIds: arrayUnion(episodeRef.id),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          }
+        );
+      }
+    }
+
+    batch.set(assessmentRef, payload);
+    await batch.commit();
     await this.audit.record({ action: 'wound_assessment_created', patientId, entityType: 'woundAssessment', entityId: id });
   }
 
