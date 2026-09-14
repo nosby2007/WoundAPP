@@ -46,6 +46,8 @@ jobs:
         run: node scripts/verify-scheduler-field-authority.js
       - name: Verify mobile checkout recovery
         run: node scripts/verify-mobile-checkout-recovery.js
+      - name: Verify professional visit packet
+        run: node scripts/verify-professional-visit-packet.js
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
