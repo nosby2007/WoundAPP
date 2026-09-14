@@ -647,7 +647,7 @@ export class PatientAssessmentsPage implements OnInit {
     this.documentBusy.set(true);
     this.evvMessage.set('');
     try {
-      await this.documentExport.printVisitPacket(this.patientId);
+      await this.documentExport.printVisitPacket(this.patientId, this.woundVisitId, this.appointmentId);
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'The visit packet could not be generated.');
     } finally {
@@ -660,7 +660,7 @@ export class PatientAssessmentsPage implements OnInit {
     this.documentBusy.set(true);
     this.evvMessage.set('');
     try {
-      const result = await this.documentExport.shareVisitPacket(this.patientId);
+      const result = await this.documentExport.shareVisitPacket(this.patientId, this.woundVisitId, this.appointmentId);
       if (result === 'print') {
         this.evvMessage.set('Direct file sharing is unavailable on this device. The printable visit packet was opened instead.');
       }
