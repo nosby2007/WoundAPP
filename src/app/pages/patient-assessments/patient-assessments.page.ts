@@ -183,16 +183,20 @@ export class PatientAssessmentsPage implements OnInit {
 
   async checkIn(): Promise<void> {
     if (this.evvBusy()) return;
-    this.evvBusy.set(true);
+    this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkIn(
-        this.patientId,
-        'routine',
-        {
-          appointmentId: this.appointmentId || null,
-          woundVisitId: this.woundVisitId || null,
-        }
+      const { location } = await this.withTimeout(
+        this.visits.checkIn(
+          this.patientId,
+          'routine',
+          {
+            appointmentId: this.appointmentId || null,
+            woundVisitId: this.woundVisitId || null,
+          }
+        ),
+        30_000,
+        'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
       await this.refreshOpenVisit();
       // Said out loud when the position did not come: the arrival IS
@@ -228,7 +232,7 @@ export class PatientAssessmentsPage implements OnInit {
     // previous geolocation/network operation failed to settle. If the busy
     // state is older than the watchdog window, treat it as stale and recover.
     if (this.evvBusy()) {
-      if (this.evvBusySince && Date.now() - this.evvBusySince > 30_000) {
+      if (!this.evvBusySince || Date.now() - this.evvBusySince > 30_000) {
         this.clearEvvBusy();
         this.evvMessage.set('Recovered from a stalled EVV action. You can continue checkout.');
       } else {
