@@ -184,44 +184,13 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
         <ion-card class="followup-card" *ngIf="visit.status === 'completed' || visit.status === 'not_done'">
           <ion-card-content>
             <div class="section-head">
-              <div><p class="eyebrow dark">CONTINUITY</p><h2>Schedule next visit</h2></div>
+              <div><p class="eyebrow dark">CONTINUITY</p><h2>Follow-up scheduling</h2></div>
               <ion-icon [icon]="calendarOutline"></ion-icon>
             </div>
-
-            <ng-container *ngIf="!nextAppointmentId; else nextScheduledTpl">
-              <p class="followup-copy">{{ visit.status === 'not_done' ? 'Replan the missed visit when another attempt is appropriate.' : 'Create your own next visit before leaving the patient. Use the ordered visit frequency; this does not assign another clinician.' }}</p>
-              <div class="preset-row">
-                <ion-button size="small" fill="outline" (click)="setNextVisitDays(1)">Tomorrow</ion-button>
-                <ion-button size="small" fill="outline" (click)="setNextVisitDays(2)">+2 days</ion-button>
-                <ion-button size="small" fill="outline" (click)="setNextVisitDays(3)">+3 days</ion-button>
-                <ion-button size="small" fill="outline" (click)="setNextVisitDays(7)">+7 days</ion-button>
-              </div>
-              <ion-item lines="none" class="next-date">
-                <ion-input type="datetime-local" label="Next visit date & time" labelPlacement="stacked" [(ngModel)]="nextVisitLocal"></ion-input>
-              </ion-item>
-              <ion-item lines="none" class="next-date">
-                <ion-select label="Planned duration" labelPlacement="stacked" [(ngModel)]="nextVisitDurationMinutes">
-                  <ion-select-option [value]="30">30 minutes</ion-select-option>
-                  <ion-select-option [value]="45">45 minutes</ion-select-option>
-                  <ion-select-option [value]="60">60 minutes</ion-select-option>
-                  <ion-select-option [value]="90">90 minutes</ion-select-option>
-                  <ion-select-option [value]="120">120 minutes</ion-select-option>
-                </ion-select>
-              </ion-item>
-              <div class="status-banner" *ngIf="scheduleMessage" [class.error]="scheduleError">{{ scheduleMessage }}</div>
-              <ion-button expand="block" [disabled]="schedulingNext || !nextVisitLocal" (click)="scheduleNextVisit()">
-                <ion-spinner *ngIf="schedulingNext" name="crescent"></ion-spinner>
-                <span *ngIf="!schedulingNext">Create my next visit</span>
-              </ion-button>
-              <ion-note>The appointment is assigned only to you. Frontdesk/Scheduler can later reassign it if operationally necessary.</ion-note>
-            </ng-container>
-
-            <ng-template #nextScheduledTpl>
-              <div class="next-created">
-                <ion-icon [icon]="checkmarkCircleOutline"></ion-icon>
-                <div><strong>Next visit scheduled</strong><p>The follow-up is now in your schedule and will appear in Today on that date.</p></div>
-              </div>
-            </ng-template>
+            <p class="followup-copy">
+              Document the recommended follow-up interval in the clinical note/order. Scheduler / Frontdesk is the only authority that creates the next appointment.
+            </p>
+            <ion-note>WoundAPP does not create or self-assign a future visit.</ion-note>
           </ion-card-content>
         </ion-card>
 
@@ -497,46 +466,4 @@ export class FieldVisitPage implements OnInit {
     );
   }
 
-  setNextVisitDays(days: number): void {
-    const base = new Date();
-    const currentStart = this.work.toDate(this.visit?.start);
-    if (currentStart) {
-      base.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
-    } else {
-      base.setHours(9, 0, 0, 0);
-    }
-    base.setDate(base.getDate() + days);
-    this.nextVisitLocal = this.toLocalInput(base);
-    this.scheduleMessage = '';
-    this.scheduleError = false;
-  }
-
-  async scheduleNextVisit(): Promise<void> {
-    if (!this.visit || this.schedulingNext || !this.nextVisitLocal) return;
-    const start = new Date(this.nextVisitLocal);
-    if (Number.isNaN(start.getTime())) {
-      this.scheduleError = true;
-      this.scheduleMessage = 'Choose a valid next visit date and time.';
-      return;
-    }
-
-    this.schedulingNext = true;
-    this.scheduleError = false;
-    this.scheduleMessage = '';
-    try {
-      this.nextAppointmentId = await this.work.scheduleNextVisit(this.visit.id, start, this.nextVisitDurationMinutes);
-      this.visit = { ...this.visit, nextAppointmentId: this.nextAppointmentId };
-      this.scheduleMessage = 'Next visit created and assigned to you.';
-    } catch (error: any) {
-      this.scheduleError = true;
-      this.scheduleMessage = error?.message || 'Unable to schedule the next visit.';
-    } finally {
-      this.schedulingNext = false;
-    }
-  }
-
-  private toLocalInput(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
 }

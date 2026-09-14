@@ -136,6 +136,10 @@ export class AssessmentFormPage implements OnInit {
    * used to link that saved source record back to the active wound round.
    */
   roundId = this.route.snapshot.queryParamMap.get('roundId');
+  /** Scheduler/Frontdesk appointment context carried through the mobile field workflow. */
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId');
+  /** Pre-wound field execution envelope opened by WoundAPP check-in. */
+  fieldEncounterVisitId = this.route.snapshot.queryParamMap.get('woundVisitId');
 
   /**
    * WHICH WOUND THIS ASSESSMENT IS OF.
@@ -596,7 +600,11 @@ export class AssessmentFormPage implements OnInit {
         // so it points at itself.
         id = this.assessments.newId(this.patientId);
         basePayload.woundId = woundIdForCreate(this.woundId, id);
-        await this.assessments.createWithId(this.patientId, id, basePayload);
+        await this.assessments.createWithId(this.patientId, id, basePayload, {
+          appointmentId: this.appointmentId,
+          fieldEncounterVisitId: this.fieldEncounterVisitId,
+          newWound: !this.woundId,
+        });
       } else {
         basePayload.updatedAt = now;
         // Never on an update. The stored value is the wound's identity and

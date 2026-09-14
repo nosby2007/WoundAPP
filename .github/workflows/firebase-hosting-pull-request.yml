@@ -42,6 +42,8 @@ jobs:
         run: node scripts/verify-clinical-sync-queue.js
       - name: Verify visit execution hardening
         run: node scripts/verify-visit-execution-hardening.js
+      - name: Verify Scheduler → WoundAPP field authority
+        run: node scripts/verify-scheduler-field-authority.js
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

@@ -347,117 +347,15 @@ export class FieldWorkService {
    * duplicate visit. The caller can only schedule itself; server rules are expected to
    * enforce the same invariant (`assignedToUid == request.auth.uid`).
    */
-  async scheduleNextVisit(currentAppointmentId: string, start: Date, durationMinutes = 60): Promise<string> {
-    const user = auth.currentUser;
-    const orgId = await this.tenant.currentOrgId();
-    if (!user || !orgId) throw new Error('Sign in required');
-    if (!currentAppointmentId) throw new Error('Current appointment is required');
-    if (!(start instanceof Date) || Number.isNaN(start.getTime())) throw new Error('Choose a valid next visit date and time');
-    if (start.getTime() <= Date.now()) throw new Error('The next visit must be scheduled in the future');
-    if (!Number.isFinite(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) throw new Error('Visit duration is invalid');
-
-    const currentRef = doc(db, 'appointments', currentAppointmentId);
-    return runTransaction(db, async transaction => {
-      const currentSnap = await transaction.get(currentRef);
-      if (!currentSnap.exists()) throw new Error('Current appointment no longer exists');
-      const current: any = currentSnap.data();
-
-      if (current.orgId !== orgId || current.assignedToUid !== user.uid) {
-        throw new Error('You can only schedule a follow-up for your own assigned visit');
-      }
-      if (current.status !== 'completed' && current.status !== 'not_done') {
-        throw new Error('Complete or mark the current visit not done before scheduling the next visit');
-      }
-      if (typeof current.nextAppointmentId === 'string' && current.nextAppointmentId) {
-        return current.nextAppointmentId;
-      }
-
-      const patientId = current.patientId ?? null;
-      if (!patientId) throw new Error('The current appointment has no patient link');
-
-      const nextRef = doc(collection(db, 'appointments'));
-      const nextWoundVisitRef = doc(collection(db, `patients/${patientId}/woundVisits`));
-      const end = new Date(start.getTime() + durationMinutes * 60_000);
-      const facilityId = current.facilityId ?? current.patient?.facilityId ?? null;
-      const clinicianName = current.assignedToName ?? user.displayName ?? '';
-      const clinicianRole = current.assignedToRole ?? '';
-
-      const next: Record<string, unknown> = {
-        orgId,
-        facilityId,
-        patientId,
-        patientName: current.patientName ?? 'Patient',
-        workflowKind: 'wound',
-        woundId: current.woundId ?? null,
-        woundLabel: current.woundLabel ?? null,
-        woundLocation: current.woundLocation ?? null,
-        episodeId: current.episodeId ?? null,
-        episodeTitle: current.episodeTitle ?? null,
-        woundVisitId: nextWoundVisitRef.id,
-        visitType: current.visitType ?? 'routine',
-        appointmentDetails: current.appointmentDetails ?? '',
-        homeAddress: current.homeAddress ?? '',
-        patientTelephone: current.patientTelephone ?? '',
-        assignedToUid: user.uid,
-        assignedToName: clinicianName,
-        assignedToRole: clinicianRole,
-        createdByUid: user.uid,
-        start: Timestamp.fromDate(start),
-        end: Timestamp.fromDate(end),
-        status: 'scheduled',
-        statusReason: null,
-        visitNote: '',
-        completedAt: null,
-        completedByUid: null,
-        source: 'field_followup',
-        previousAppointmentId: currentAppointmentId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      const woundVisit: Record<string, unknown> = {
-        orgId,
-        facilityId,
-        patientId,
-        woundId: current.woundId ?? null,
-        episodeId: current.episodeId ?? null,
-        appointmentId: nextRef.id,
-        appointmentStatus: 'scheduled',
-        visitType: current.visitType ?? 'routine',
-        status: 'planned',
-        scheduledFor: Timestamp.fromDate(start),
-        clinicianUid: user.uid,
-        clinicianName,
-        clinicianRole,
-        summary: current.appointmentDetails ?? '',
-        nextStep: '',
-        placeOfService: 'home',
-        executionAuthority: 'woundapp',
-        fieldVisitState: 'scheduled',
-        officeDocumentationState: 'not_started',
-        mobileWorkflow: {
-          appointmentId: nextRef.id,
-          currentStep: 'scheduled',
-          lastRoute: '/tabs/today/visit/' + nextRef.id,
-          lastUpdatedAt: serverTimestamp(),
-        },
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: user.uid,
-        updatedBy: user.uid,
-      };
-
-      // Scheduling a follow-up in WoundAPP creates BOTH sides of the same
-      // encounter in one transaction. JADE Episode Control sees it immediately.
-      transaction.set(nextWoundVisitRef, woundVisit);
-      transaction.set(nextRef, next);
-      transaction.update(currentRef, {
-        nextAppointmentId: nextRef.id,
-        nextVisitScheduledAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      return nextRef.id;
-    });
+  /**
+   * Scheduling authority lives in JADE Scheduler / Frontdesk.
+   * Field clinicians document the recommended follow-up interval in the
+   * clinical record; WoundAPP never creates the next appointment itself.
+   */
+  async scheduleNextVisit(): Promise<string> {
+    throw new Error(
+      'Next visits are created by Scheduler / Frontdesk. Document the recommended follow-up interval and send it for scheduling.'
+    );
   }
 
   async completeTask(id: string, workNote?: string): Promise<void> {
