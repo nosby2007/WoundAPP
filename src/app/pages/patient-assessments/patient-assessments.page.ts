@@ -154,7 +154,7 @@ export class PatientAssessmentsPage implements OnInit {
   openVisit = signal<FieldVisit | null>(null);
   evvBusy = signal(false);
   evvMessage = signal<string>('');
-  private evvBusySince = 0;
+  evvBusySince = 0;
 
   private readonly visits = inject(VisitService);
   private readonly fieldWork = inject(FieldWorkService);
