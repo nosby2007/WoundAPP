@@ -282,6 +282,13 @@ export class FieldVisitPage implements OnInit {
           this.activeEvv = null;
         }
 
+        if (this.activeEvv && !this.visit.woundVisitId) {
+          this.visit = { ...this.visit, woundVisitId: this.activeEvv.id };
+          void this.work.linkWoundVisit(this.visit.id, this.visit.patientId, this.activeEvv.id).catch((error) => {
+            console.warn('[FieldVisit] unable to self-heal appointment visit linkage', error);
+          });
+        }
+
         if (
           !this.activeEvv &&
           this.visit.woundVisitId &&
@@ -342,6 +349,9 @@ export class FieldVisitPage implements OnInit {
           clinicianRole: this.visit.assignedToRole ?? null,
         }
       );
+      this.visit = { ...this.visit, woundVisitId: result.visitId };
+      await this.work.linkWoundVisit(this.visit.id, this.visit.patientId, result.visitId);
+
       if (result.syncStatus === 'queued') {
         this.pendingArrivalQueued = true;
         this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
