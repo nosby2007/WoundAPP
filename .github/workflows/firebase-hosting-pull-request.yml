@@ -34,6 +34,8 @@ jobs:
         run: npm run test:ci
       - name: Verify staff onboarding and persisted session
         run: node scripts/verify-staff-onboarding-session.js
+      - name: Verify mobile claims preflight
+        run: node scripts/verify-mobile-claims-preflight.js
       - name: Verify mobile provider order guidance
         run: node scripts/verify-mobile-order-guidance.js
       - name: Verify clinical sync queue contract
