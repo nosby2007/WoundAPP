@@ -174,6 +174,14 @@ export class PatientAssessmentsPage implements OnInit {
         'Visit status refresh timed out.'
       );
       this.openVisit.set(visit);
+      if (visit?.id && !this.woundVisitId) {
+        this.woundVisitId = visit.id;
+        if (this.appointmentId) {
+          void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, visit.id).catch((error) => {
+            console.warn('[ClinicalCommand] unable to self-heal appointment visit linkage', error);
+          });
+        }
+      }
     } catch {
       // A denied, failed or stalled read must not leave EVV controls stuck.
       // Keep the existing visit state when one is already known.
@@ -186,7 +194,7 @@ export class PatientAssessmentsPage implements OnInit {
     this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.withTimeout(
+      const result = await this.withTimeout(
         this.visits.checkIn(
           this.patientId,
           'routine',
@@ -198,7 +206,12 @@ export class PatientAssessmentsPage implements OnInit {
         30_000,
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
+      this.woundVisitId = result.visitId;
+      if (this.appointmentId) {
+        await this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, result.visitId);
+      }
       await this.refreshOpenVisit();
+      const { location } = result;
       // Said out loud when the position did not come: the arrival IS
       // recorded, and the clinician should know the location is not.
       this.evvMessage.set(
@@ -446,7 +459,10 @@ export class PatientAssessmentsPage implements OnInit {
     this.readinessBusy.set(true);
     try {
       const [completion, findings] = await Promise.all([
-        this.completenessService.evaluate(this.patientId, 'routine'),
+        this.completenessService.evaluate(this.patientId, 'routine', new Date(), {
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+        }),
         this.qualityService.evaluatePatient(this.patientId),
       ]);
       this.workflowCompletion.set(completion);
