@@ -30,7 +30,7 @@
         <ion-button *ngIf="!openVisit()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
           <ion-icon slot="start" name="log-in-outline"></ion-icon>Check in
         </ion-button>
-        <ion-button *ngIf="openVisit()" size="small" color="medium" [disabled]="evvBusy()" (click)="beginCheckOut()">
+        <ion-button *ngIf="openVisit()" size="small" color="success" [disabled]="evvBusy() && !!evvBusySince" (click)="beginCheckOut()">
           <ion-icon slot="start" name="log-out-outline"></ion-icon>Check out
         </ion-button>
       </div>
