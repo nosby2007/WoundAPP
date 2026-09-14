@@ -8,6 +8,7 @@ import {
   orderBy,
   doc,
   docData,
+  getDoc,
   addDoc,
   setDoc,
   updateDoc,
