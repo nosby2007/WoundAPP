@@ -409,7 +409,7 @@ export class ClinicalDocumentExportService {
         ['Cardiovascular', d.cardiovascular],
         ['Respiratory', d.respiratory],
         ['Neurologic', d.neurologic],
-        ['GI / GU', this.textValue([d.gastrointestinal, d.genitourinary].filter(Boolean))),
+        ['GI / GU', this.textValue([d.gastrointestinal, d.genitourinary].filter(Boolean))],
         ['Other findings', d.summary || d.notes]
       );
     } else if (kind === 'carePlan') {
