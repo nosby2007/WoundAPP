@@ -120,6 +120,32 @@ export class DurableClinicalMutationService {
     return { __firestoreServerTimestamp: true };
   }
 
+  /**
+   * Persist a critical mutation locally and return as soon as the encrypted
+   * envelope is durable. Network delivery continues in the background.
+   *
+   * Use this for point-of-care exit actions such as EVV checkout: a weak
+   * connection must never keep the clinician trapped on the visit screen.
+   */
+  async queueUpdate(input: Omit<DurableClinicalMutation, 'id' | 'queuedAt'>): Promise<DurableMutationResult> {
+    await this.ready();
+    const mutation: DurableClinicalMutation = {
+      ...input,
+      id: this.id(),
+      queuedAt: Date.now(),
+    };
+    const envelope = await this.encryptEnvelope(mutation);
+    await this.putEnvelope(envelope);
+    await this.reloadViews();
+
+    // Fire-and-forget delivery. The encrypted local envelope is already the
+    // durable source for retry, and conflict rules still protect replay.
+    if (this.isOnline()) {
+      void this.flush();
+    }
+    return { id: mutation.id, status: 'queued' };
+  }
+
   async enqueueUpdate(input: Omit<DurableClinicalMutation, 'id' | 'queuedAt'>): Promise<DurableMutationResult> {
     await this.ready();
     const mutation: DurableClinicalMutation = {
