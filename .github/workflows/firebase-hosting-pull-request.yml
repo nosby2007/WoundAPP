@@ -44,6 +44,8 @@ jobs:
         run: node scripts/verify-visit-execution-hardening.js
       - name: Verify Scheduler → WoundAPP field authority
         run: node scripts/verify-scheduler-field-authority.js
+      - name: Verify mobile checkout recovery
+        run: node scripts/verify-mobile-checkout-recovery.js
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
