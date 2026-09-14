@@ -19,7 +19,22 @@ for (const value of [
   'Checkout did not finish in time.',
   'Check-in did not finish in time.',
   'this.fieldWork.completeVisit(this.appointmentId)',
+  'this.visits.hasPendingCheckout(visit.id)',
 ]) need(page, value, 'checkout recovery');
+
+const durable = read('src/app/services/durable-clinical-mutation.service.ts');
+const visitService = read('src/app/services/visit.service.ts');
+for (const value of [
+  'async queueUpdate(',
+  'void this.flush()',
+  "status: 'queued'",
+]) need(durable, value, 'durable checkout queue');
+
+for (const value of [
+  "this.durableMutations.queueUpdate({",
+  "operation: 'visit_check_out'",
+  "hasPendingCheckout(visitId: string)",
+]) need(visitService, value, 'VisitService checkout persistence');
 
 for (const value of [
   'color="success"',
