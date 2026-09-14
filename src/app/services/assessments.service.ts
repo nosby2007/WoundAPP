@@ -151,32 +151,40 @@ export class AssessmentsService {
     const identity = payload.authorIdentity;
     const batch = writeBatch(this.firestore);
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
+    const woundId = String(payload.woundId || id);
+    const now = serverTimestamp();
 
-    if (fieldContext.newWound) {
-      // A new wound is established at the bedside, not speculatively by JADE
-      // before the visit. WoundAPP writes the native wound and an intake
-      // episode shell in the same batch as the first assessment.
+    let patient: any = null;
+    let facilityId: string | null = null;
+    if (fieldContext.newWound || fieldContext.fieldEncounterVisitId) {
       const patientSnap = await getDoc(doc(this.firestore, `patients/${patientId}`));
       if (!patientSnap.exists()) throw new Error('Patient not found.');
-      const patient = patientSnap.data() as any;
-      const facilityId = patient.facilityId ?? patient.primaryFacilityId ?? null;
+      patient = patientSnap.data() as any;
+      facilityId = patient.facilityId ?? patient.primaryFacilityId ?? null;
+    }
+
+    const actor = {
+      uid: identity.uid,
+      displayName: identity.displayName,
+      role: identity.role,
+      credentials: identity.credentials ?? null,
+      npi: identity.npi ?? null,
+    };
+
+    let episodeId: string | null = null;
+
+    if (fieldContext.newWound) {
+      // WoundAPP establishes the wound and its initial episode from actual
+      // bedside findings. JADE never has to pre-create either record.
       const episodeRef = doc(collection(this.firestore, `patients/${patientId}/woundEpisodes`));
-      const now = serverTimestamp();
-      const actor = {
-        uid: identity.uid,
-        displayName: identity.displayName,
-        role: identity.role,
-        credentials: identity.credentials ?? null,
-        npi: identity.npi ?? null,
-      };
+      episodeId = episodeRef.id;
+      payload.episodeId = episodeId;
 
-      payload.episodeId = episodeRef.id;
-
-      batch.set(doc(this.firestore, `patients/${patientId}/wounds/${id}`), {
+      batch.set(doc(this.firestore, `patients/${patientId}/wounds/${woundId}`), {
         orgId: identity.orgId,
         facilityId,
         patientId,
-        label: payload.describe?.location || `Wound ${id.slice(0, 6)}`,
+        label: payload.describe?.location || `Wound ${woundId.slice(0, 6)}`,
         type: payload.describe?.type || 'Other',
         stage: payload.describe?.stage || null,
         acquired: payload.describe?.acquired || null,
@@ -184,7 +192,7 @@ export class AssessmentsService {
         firstAssessmentId: id,
         latestAssessmentId: id,
         latestAssessedAt: payload.assessedAt ?? now,
-        activeEpisodeId: episodeRef.id,
+        activeEpisodeId: episodeId,
         workflow: {
           state: 'created',
           history: [{
@@ -206,7 +214,7 @@ export class AssessmentsService {
         orgId: identity.orgId,
         facilityId,
         patientId,
-        woundId: id,
+        woundId,
         episodeType: 'treatment',
         status: 'active',
         clinicalState: 'intake_pending',
@@ -236,23 +244,125 @@ export class AssessmentsService {
         createdBy: identity.uid,
         updatedBy: identity.uid,
       });
+    } else if (fieldContext.fieldEncounterVisitId) {
+      // Re-evaluations inherit the active episode for the wound when one is
+      // already established. Missing provider assignment remains an explicit
+      // JADE office blocker; WoundAPP never guesses it.
+      const woundSnap = await getDoc(doc(this.firestore, `patients/${patientId}/wounds/${woundId}`));
+      episodeId = woundSnap.exists()
+        ? ((woundSnap.data() as any).activeEpisodeId ?? null)
+        : null;
+      if (episodeId) payload.episodeId = episodeId;
+    }
 
-      if (fieldContext.fieldEncounterVisitId) {
-        batch.update(
-          doc(this.firestore, `patients/${patientId}/woundVisits/${fieldContext.fieldEncounterVisitId}`),
-          {
-            fieldWoundIds: arrayUnion(id),
-            fieldEpisodeIds: arrayUnion(episodeRef.id),
-            updatedAt: now,
-            updatedBy: identity.uid,
-          }
-        );
+    if (fieldContext.fieldEncounterVisitId) {
+      const fieldVisitId = fieldContext.fieldEncounterVisitId;
+      const fieldVisitRef = doc(this.firestore, `patients/${patientId}/woundVisits/${fieldVisitId}`);
+      const fieldVisitSnap = await getDoc(fieldVisitRef);
+      if (!fieldVisitSnap.exists()) {
+        throw new Error('The active field encounter is missing. Return to the scheduled visit before saving this assessment.');
       }
+
+      const fieldVisit = fieldVisitSnap.data() as any;
+      const appointmentId = fieldContext.appointmentId || fieldVisit.appointmentId || null;
+      const existingWoundId = String(fieldVisit.woundId || '').trim();
+
+      let clinicalVisitId = fieldVisitId;
+
+      if (!existingWoundId || existingWoundId === woundId) {
+        // First wound discovered in this physical appointment: promote the
+        // pre-wound field envelope into the wound-specific clinical visit.
+        // This preserves the original EVV/check-in identity and avoids a
+        // shadow visit.
+        batch.update(fieldVisitRef, {
+          woundId,
+          visitScope: 'single_wound',
+          episodeId: episodeId || fieldVisit.episodeId || null,
+          assessmentIds: arrayUnion(id),
+          fieldWoundIds: arrayUnion(woundId),
+          fieldWoundVisitIds: arrayUnion(fieldVisitId),
+          ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+      } else {
+        // A single physical appointment can include several wounds. Each
+        // additional wound gets a deterministic wound-specific clinical
+        // record while sharing the physical appointment/EVV source.
+        clinicalVisitId = `${fieldVisitId}__${woundId}`;
+        const childRef = doc(this.firestore, `patients/${patientId}/woundVisits/${clinicalVisitId}`);
+        const childSnap = await getDoc(childRef);
+
+        const childPatch: any = {
+          orgId: identity.orgId,
+          facilityId: fieldVisit.facilityId ?? facilityId,
+          patientId,
+          woundId,
+          visitScope: 'single_wound',
+          episodeId,
+          appointmentId,
+          visitType: fieldVisit.visitType || 'routine',
+          status: fieldVisit.status === 'completed' ? 'completed' : 'planned',
+          scheduledFor: fieldVisit.scheduledFor ?? now,
+          clinicianUid: fieldVisit.clinicianUid ?? identity.uid,
+          clinicianName: fieldVisit.clinicianName ?? identity.displayName,
+          clinicianRole: fieldVisit.clinicianRole ?? identity.role,
+          executionAuthority: 'woundapp',
+          fieldEvidenceVisitId: fieldVisitId,
+          fieldVisitState:
+            fieldVisit.fieldVisitState === 'completed' || fieldVisit.checkOut
+              ? 'completed'
+              : 'on_site',
+          officeDocumentationState:
+            fieldVisit.fieldVisitState === 'completed' || fieldVisit.checkOut
+              ? 'pending_office_documentation'
+              : 'field_in_progress',
+          performedByUid: fieldVisit.performedByUid ?? identity.uid,
+          performedByName: fieldVisit.performedByName ?? identity.displayName,
+          performedByRole: fieldVisit.performedByRole ?? identity.role,
+          assessmentIds: childSnap.exists()
+            ? arrayUnion(id)
+            : [id],
+          updatedAt: now,
+          updatedBy: identity.uid,
+        };
+
+        if (!childSnap.exists()) {
+          childPatch.createdAt = now;
+          childPatch.createdBy = identity.uid;
+        }
+
+        batch.set(childRef, childPatch, { merge: true });
+        batch.update(fieldVisitRef, {
+          fieldWoundIds: arrayUnion(woundId),
+          fieldWoundVisitIds: arrayUnion(clinicalVisitId),
+          ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+      }
+
+      payload.visitId = clinicalVisitId;
+      payload.woundVisitId = clinicalVisitId;
+      payload.fieldEncounterVisitId = fieldVisitId;
+      payload.appointmentId = appointmentId;
+      if (episodeId) payload.episodeId = episodeId;
     }
 
     batch.set(assessmentRef, payload);
     await batch.commit();
-    await this.audit.record({ action: 'wound_assessment_created', patientId, entityType: 'woundAssessment', entityId: id });
+    await this.audit.record({
+      action: 'wound_assessment_created',
+      patientId,
+      entityType: 'woundAssessment',
+      entityId: id,
+      metadata: {
+        appointmentId: fieldContext.appointmentId || null,
+        fieldEncounterVisitId: fieldContext.fieldEncounterVisitId || null,
+        visitId: payload.visitId || null,
+        woundId,
+      },
+    });
   }
 
   async update(patientId: string, id: string, data: any): Promise<void> {
