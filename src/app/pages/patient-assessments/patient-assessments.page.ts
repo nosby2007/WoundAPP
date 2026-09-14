@@ -59,6 +59,7 @@ import {
 } from '../../services/assessments.service';
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { FieldVisit, VisitService } from '../../services/visit.service';
+import { FieldWorkService } from '../../services/field-work.service';
 import { ClinicalDocumentExportService, ClinicalDocumentKind } from '../../services/clinical-document-export.service';
 import { VisitCompletenessService, WorkflowCompletionResult } from '../../services/visit-completeness.service';
 import { ClinicalQualityCheckService, ClinicalQualityFinding } from '../../services/clinical-quality-check.service';
@@ -153,8 +154,10 @@ export class PatientAssessmentsPage implements OnInit {
   openVisit = signal<FieldVisit | null>(null);
   evvBusy = signal(false);
   evvMessage = signal<string>('');
+  private evvBusySince = 0;
 
   private readonly visits = inject(VisitService);
+  private readonly fieldWork = inject(FieldWorkService);
   private readonly documentExport = inject(ClinicalDocumentExportService);
   private readonly completenessService = inject(VisitCompletenessService);
   private readonly qualityService = inject(ClinicalQualityCheckService);
@@ -165,12 +168,16 @@ export class PatientAssessmentsPage implements OnInit {
 
   private async refreshOpenVisit(): Promise<void> {
     try {
-      this.openVisit.set(await this.visits.openVisit(this.patientId));
+      const visit = await this.withTimeout(
+        this.visits.openVisit(this.patientId),
+        8_000,
+        'Visit status refresh timed out.'
+      );
+      this.openVisit.set(visit);
     } catch {
-      // A denied or failed read must not take the page down with it; the
-      // buttons simply offer a check-in, and the write will report its
-      // own error if it also fails.
-      this.openVisit.set(null);
+      // A denied, failed or stalled read must not leave EVV controls stuck.
+      // Keep the existing visit state when one is already known.
+      if (!this.openVisit()) this.openVisit.set(null);
     }
   }
 
@@ -198,7 +205,7 @@ export class PatientAssessmentsPage implements OnInit {
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check in.');
     } finally {
-      this.evvBusy.set(false);
+      this.clearEvvBusy();
     }
   }
 
@@ -215,7 +222,20 @@ export class PatientAssessmentsPage implements OnInit {
   /** Check-out asks first. The person who can attest is standing there
    *  once; the web app cannot ask them because it does not travel. */
   beginCheckOut(): void {
-    if (!this.openVisit() || this.evvBusy()) return;
+    if (!this.openVisit()) return;
+
+    // Never leave the checkout affordance permanently disabled because a
+    // previous geolocation/network operation failed to settle. If the busy
+    // state is older than the watchdog window, treat it as stale and recover.
+    if (this.evvBusy()) {
+      if (this.evvBusySince && Date.now() - this.evvBusySince > 30_000) {
+        this.clearEvvBusy();
+        this.evvMessage.set('Recovered from a stalled EVV action. You can continue checkout.');
+      } else {
+        return;
+      }
+    }
+
     this.attestMethod.set(null);
     this.attestName.set('');
     this.attestReason.set('');
@@ -263,20 +283,62 @@ export class PatientAssessmentsPage implements OnInit {
   async checkOut(attestation: Parameters<VisitService['checkOut']>[2] = null): Promise<void> {
     const visit = this.openVisit();
     if (!visit || this.evvBusy()) return;
-    this.evvBusy.set(true);
+
+    this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.visits.checkOut(this.patientId, visit.id, attestation);
+      const { location } = await this.withTimeout(
+        this.visits.checkOut(this.patientId, visit.id, attestation),
+        30_000,
+        'Checkout did not finish in time. The app released the button so you can retry safely.'
+      );
+
+      // The woundVisit and Scheduler appointment represent one physical
+      // encounter. Closing EVV from the clinical-command screen must also
+      // close the assigned appointment, just like FieldVisitPage does.
+      if (this.appointmentId) {
+        await this.withTimeout(
+          this.fieldWork.completeVisit(this.appointmentId),
+          15_000,
+          'Departure was captured, but appointment completion is still syncing.'
+        ).catch(() => undefined);
+      }
+
+      this.attesting.set(false);
       await this.refreshOpenVisit();
       this.evvMessage.set(
         location.status === 'captured'
-          ? 'Checked out.'
-          : `Checked out — but the location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+          ? 'Checked out. Visit completed.'
+          : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
       );
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check out.');
     } finally {
-      this.evvBusy.set(false);
+      this.clearEvvBusy();
+    }
+  }
+
+  private startEvvBusy(): void {
+    this.evvBusySince = Date.now();
+    this.evvBusy.set(true);
+  }
+
+  private clearEvvBusy(): void {
+    this.evvBusySince = 0;
+    this.evvBusy.set(false);
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -339,6 +401,8 @@ export class PatientAssessmentsPage implements OnInit {
       this.patientId = normalizePatientId(id);
 
       if (id) {
+        this.clearEvvBusy();
+        this.attesting.set(false);
         this.load(id);
         this.loadPatient(id);
         void this.refreshOpenVisit();
