@@ -466,46 +466,4 @@ export class FieldVisitPage implements OnInit {
     );
   }
 
-  setNextVisitDays(days: number): void {
-    const base = new Date();
-    const currentStart = this.work.toDate(this.visit?.start);
-    if (currentStart) {
-      base.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
-    } else {
-      base.setHours(9, 0, 0, 0);
-    }
-    base.setDate(base.getDate() + days);
-    this.nextVisitLocal = this.toLocalInput(base);
-    this.scheduleMessage = '';
-    this.scheduleError = false;
-  }
-
-  async scheduleNextVisit(): Promise<void> {
-    if (!this.visit || this.schedulingNext || !this.nextVisitLocal) return;
-    const start = new Date(this.nextVisitLocal);
-    if (Number.isNaN(start.getTime())) {
-      this.scheduleError = true;
-      this.scheduleMessage = 'Choose a valid next visit date and time.';
-      return;
-    }
-
-    this.schedulingNext = true;
-    this.scheduleError = false;
-    this.scheduleMessage = '';
-    try {
-      this.nextAppointmentId = await this.work.scheduleNextVisit(this.visit.id, start, this.nextVisitDurationMinutes);
-      this.visit = { ...this.visit, nextAppointmentId: this.nextAppointmentId };
-      this.scheduleMessage = 'Next visit created and assigned to you.';
-    } catch (error: any) {
-      this.scheduleError = true;
-      this.scheduleMessage = error?.message || 'Unable to schedule the next visit.';
-    } finally {
-      this.schedulingNext = false;
-    }
-  }
-
-  private toLocalInput(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
 }
