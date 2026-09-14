@@ -288,6 +288,19 @@ export class PatientAssessmentsPage implements OnInit {
     const visit = this.openVisit();
     if (!visit || this.evvBusy()) return;
 
+    // If a previous attempt timed out after the encrypted checkout was
+    // already persisted, do not create a duplicate departure. Treat the
+    // durable queue as the source of truth and let Sync Center deliver it.
+    if (this.visits.hasPendingCheckout(visit.id)) {
+      this.openVisit.set(null);
+      this.attesting.set(false);
+      if (this.appointmentId) {
+        void this.fieldWork.completeVisit(this.appointmentId).catch(() => undefined);
+      }
+      this.evvMessage.set('Checkout is already saved securely on this device and queued for sync. No second checkout was created.');
+      return;
+    }
+
     this.startEvvBusy();
     this.evvMessage.set('');
     try {
@@ -309,11 +322,11 @@ export class PatientAssessmentsPage implements OnInit {
       }
 
       this.attesting.set(false);
-      await this.refreshOpenVisit();
+      this.openVisit.set(null);
       this.evvMessage.set(
         location.status === 'captured'
-          ? 'Checked out. Visit completed.'
-          : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+          ? 'Checked out. Departure is saved securely and syncing in the background.'
+          : `Checked out. Departure is saved securely and syncing in the background; location was not captured (${describeEvvLocation(location).toLowerCase()}).`
       );
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check out.');
