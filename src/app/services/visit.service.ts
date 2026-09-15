@@ -427,6 +427,42 @@ export class VisitService {
       payload: durablePatch,
     });
 
+    // One physical appointment may contain several wound-specific clinical
+    // records. EVV stays on the physical/source visit, while child wound
+    // records reference that source. Propagate only completion metadata so
+    // JADE can continue office documentation for every wound without
+    // duplicating or fabricating check-in/check-out evidence.
+    try {
+      const sourceSnap = await getDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`));
+      const source = sourceSnap.exists() ? sourceSnap.data() as any : null;
+      const childIds = Array.isArray(source?.fieldWoundVisitIds)
+        ? source.fieldWoundVisitIds.filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== visitId)
+        : [];
+
+      await Promise.all(childIds.map((childId) =>
+        this.durableMutations.queueUpdate({
+          operation: 'wound_visit_field_complete',
+          patientId,
+          entityType: 'woundVisit',
+          entityId: childId,
+          firestorePath: `patients/${patientId}/woundVisits/${childId}`,
+          payload: {
+            status: 'completed',
+            fieldVisitState: 'completed',
+            fieldCompletedAt: DurableClinicalMutationService.serverTimestamp(),
+            officeDocumentationState: 'pending_office_documentation',
+            fieldEvidenceVisitId: visitId,
+            updatedAt: DurableClinicalMutationService.serverTimestamp(),
+            updatedBy: user.uid,
+          },
+        })
+      ));
+    } catch (error) {
+      // The source visit is the immutable EVV record and checkout must not be
+      // rolled back because one child record could not be marked complete.
+      console.warn('[VisitService] child wound visit completion will require sync/reconciliation', error);
+    }
+
     if (mutation.status === 'needs_review') {
       throw new Error('Departure could not be applied because newer checkout evidence exists. Open Sync Review before leaving the visit.');
     }
