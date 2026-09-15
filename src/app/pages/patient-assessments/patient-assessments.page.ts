@@ -602,9 +602,12 @@ export class PatientAssessmentsPage implements OnInit {
 
   private visitQueryParams(): Record<string, string> | undefined {
     const params: Record<string, string> = {};
+    const active = this.openVisit();
     if (this.roundId) params['roundId'] = this.roundId;
     if (this.appointmentId) params['appointmentId'] = this.appointmentId;
     if (this.woundVisitId) params['woundVisitId'] = this.woundVisitId;
+    if (active?.woundId) params['woundId'] = active.woundId;
+    if (active?.episodeId) params['episodeId'] = active.episodeId;
     return Object.keys(params).length ? params : undefined;
   }
 
