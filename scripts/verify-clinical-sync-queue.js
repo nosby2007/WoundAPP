@@ -32,6 +32,11 @@ for (const operation of [
   "operation: 'visit_journey_step'",
   "operation: 'wound_visit_field_complete'",
 ]) {
+
+if (!visit.includes("const mutation = await this.durableMutations.queueUpdate({\n        operation: 'visit_check_in'")) {
+  throw new Error('Point-of-care check-in must persist locally before attempting network sync.');
+}
+
   if (!visit.includes(operation)) {
     throw new Error(`Critical visit write is not routed through sync queue: ${operation}`);
   }
