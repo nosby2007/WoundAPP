@@ -18,10 +18,13 @@ function forbid(src, value, label) {
 }
 
 for (const value of [
-  "if (!linked.appointmentId)",
-  "Open the visit from a Scheduler / Frontdesk appointment before checking in.",
-  "visitScope: linked.woundId ? 'single_wound' : 'field_encounter'",
+  "if (linked.woundVisitId)",
+  "This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.",
+  "operation: 'visit_check_in'",
 ]) need(visit, value, 'VisitService');
+
+forbid(visit, "operation: 'visit_check_in_legacy_create'", 'VisitService');
+forbid(visit, "addDoc(collection(db, `patients/${patientId}/woundVisits`", 'VisitService');
 
 for (const value of [
   'Next visits are created by Scheduler / Frontdesk.',
