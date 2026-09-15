@@ -209,17 +209,44 @@ export class PatientAssessmentsPage implements OnInit {
       );
       this.woundVisitId = result.visitId;
       if (this.appointmentId) {
-        await this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, result.visitId);
+        void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, result.visitId).catch((error) => {
+          console.warn('[ClinicalCommand] appointment visit linkage will retry', error);
+        });
       }
-      await this.refreshOpenVisit();
+
       const { location } = result;
-      // Said out loud when the position did not come: the arrival IS
-      // recorded, and the clinician should know the location is not.
-      this.evvMessage.set(
-        location.status === 'captured'
-          ? 'Checked in.'
-          : `Checked in — but the location was not captured (${describeEvvLocation(location).toLowerCase()}).`
-      );
+      if (result.syncStatus === 'queued') {
+        // Keep the bedside workflow usable immediately. The encrypted durable
+        // mutation is already on-device and will replay in order when
+        // Firestore responds; do not force the clinician to wait on WAN.
+        this.openVisit.set({
+          id: result.visitId,
+          patientId: this.patientId,
+          visitType: 'routine',
+          status: 'planned',
+          appointmentId: this.appointmentId || null,
+          woundId: null,
+          episodeId: null,
+          clinicianUid: null,
+          clinicianName: null,
+          clinicianRole: null,
+          checkIn: result.checkpoint,
+          checkOut: null,
+        });
+        void this.refreshReadiness();
+        this.evvMessage.set(
+          location.status === 'captured'
+            ? 'Checked in. Arrival is saved securely on this device and syncing.'
+            : `Checked in. Arrival is saved securely on this device and syncing; location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+        );
+      } else {
+        await this.refreshOpenVisit();
+        this.evvMessage.set(
+          location.status === 'captured'
+            ? 'Checked in.'
+            : `Checked in — but the location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+        );
+      }
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check in.');
     } finally {
