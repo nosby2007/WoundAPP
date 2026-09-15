@@ -38,7 +38,7 @@ need(fieldPage, 'Scheduler / Frontdesk is the only authority that creates the ne
 for (const value of [
   "sourceOfTruth: 'woundapp'",
   "patients/${patientId}/woundEpisodes",
-  'fieldWoundIds: arrayUnion(id)',
+  'fieldWoundIds: arrayUnion(woundId)',
   'needsProviderAssignment: identity.role !== \'np\'',
 ]) need(assessments, value, 'AssessmentsService');
 
