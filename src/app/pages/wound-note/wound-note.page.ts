@@ -109,7 +109,13 @@ export class WoundNotePage implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     try {
-      this.snapshot = await this.builder.gather(this.patientId);
+      this.snapshot = await this.builder.gather(this.patientId, new Date(), {
+        visitId: this.woundVisitId || null,
+        appointmentId: this.appointmentId || null,
+        woundId: this.woundId || null,
+        episodeId: this.episodeId || null,
+        fieldEncounterVisitId: this.woundVisitId || null,
+      });
       this.visitKind = this.snapshot.visitKind;
       this.reasonForConsult = this.snapshot.reasonForConsult;
       this.recommendation = this.snapshot.recommendation;
