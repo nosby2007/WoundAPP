@@ -3,6 +3,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 export interface SystemicAssessmentDraft {
   general?: string | null;
@@ -29,7 +30,7 @@ export class SystemicAssessmentService {
   private tenant = inject(TenantService);
   private clinicalIdentity = inject(ClinicalIdentityService);
 
-  async create(patientId: string, draft: SystemicAssessmentDraft): Promise<string> {
+  async create(patientId: string, draft: SystemicAssessmentDraft, visitLink: ClinicalVisitLink = {}): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
     if (!auth.currentUser) throw new Error('Sign in required.');
     const identity = await this.clinicalIdentity.requireCurrentIdentity();
@@ -49,6 +50,7 @@ export class SystemicAssessmentService {
     const ref = await addDoc(collection(db, `patients/${patientId}/assessments`), {
       orgId,
       patientId,
+      ...clinicalVisitLinkFields(visitLink),
       program: 'Systemic',
       kind: 'systemic_assessment',
       type: 'systemic_assessment',

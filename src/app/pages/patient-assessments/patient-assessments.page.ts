@@ -174,6 +174,15 @@ export class PatientAssessmentsPage implements OnInit {
         'Visit status refresh timed out.'
       );
       this.openVisit.set(visit);
+      if (visit?.id && !this.woundVisitId) {
+        this.woundVisitId = visit.id;
+        if (this.appointmentId) {
+          void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, visit.id).catch((error) => {
+            console.warn('[ClinicalCommand] unable to self-heal appointment visit linkage', error);
+          });
+        }
+      }
+      void this.refreshReadiness();
     } catch {
       // A denied, failed or stalled read must not leave EVV controls stuck.
       // Keep the existing visit state when one is already known.
@@ -186,7 +195,7 @@ export class PatientAssessmentsPage implements OnInit {
     this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.withTimeout(
+      const result = await this.withTimeout(
         this.visits.checkIn(
           this.patientId,
           'routine',
@@ -198,7 +207,12 @@ export class PatientAssessmentsPage implements OnInit {
         30_000,
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
+      this.woundVisitId = result.visitId;
+      if (this.appointmentId) {
+        await this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, result.visitId);
+      }
       await this.refreshOpenVisit();
+      const { location } = result;
       // Said out loud when the position did not come: the arrival IS
       // recorded, and the clinician should know the location is not.
       this.evvMessage.set(
@@ -288,32 +302,38 @@ export class PatientAssessmentsPage implements OnInit {
     const visit = this.openVisit();
     if (!visit || this.evvBusy()) return;
 
+    if (this.visits.hasPendingCheckout(visit.id)) {
+      this.openVisit.set(null);
+      this.attesting.set(false);
+      this.evvMessage.set('Checkout is already saved securely on this device and queued for sync.');
+      return;
+    }
+
     this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.withTimeout(
+      const { location, syncStatus } = await this.withTimeout(
         this.visits.checkOut(this.patientId, visit.id, attestation),
         30_000,
-        'Checkout did not finish in time. The app released the button so you can retry safely.'
+        'Checkout could not be stored on this device in time. Try again once.'
       );
 
-      // The woundVisit and Scheduler appointment represent one physical
-      // encounter. Closing EVV from the clinical-command screen must also
-      // close the assigned appointment, just like FieldVisitPage does.
       if (this.appointmentId) {
         await this.withTimeout(
           this.fieldWork.completeVisit(this.appointmentId),
           15_000,
-          'Departure was captured, but appointment completion is still syncing.'
+          'Departure was saved, but appointment completion is still syncing.'
         ).catch(() => undefined);
       }
 
       this.attesting.set(false);
-      await this.refreshOpenVisit();
+      this.openVisit.set(null);
       this.evvMessage.set(
-        location.status === 'captured'
-          ? 'Checked out. Visit completed.'
-          : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+        syncStatus === 'queued'
+          ? 'Checked out. Departure is saved securely on this device and syncing in the background.'
+          : location.status === 'captured'
+            ? 'Checked out. Visit completed.'
+            : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
       );
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check out.');
@@ -446,7 +466,15 @@ export class PatientAssessmentsPage implements OnInit {
     this.readinessBusy.set(true);
     try {
       const [completion, findings] = await Promise.all([
-        this.completenessService.evaluate(this.patientId, 'routine'),
+        this.completenessService.evaluate(
+          this.patientId,
+          this.openVisit()?.visitType || 'routine',
+          new Date(),
+          {
+            visitId: this.woundVisitId || null,
+            appointmentId: this.appointmentId || null,
+          }
+        ),
         this.qualityService.evaluatePatient(this.patientId),
       ]);
       this.workflowCompletion.set(completion);
@@ -510,6 +538,10 @@ export class PatientAssessmentsPage implements OnInit {
       'assessments',
       a.id,
     ], { queryParams: this.visitQueryParams() });
+  }
+
+  openPatientAssessment() {
+    this.navigateVisitStep('assessment', ['/tabs', 'skin-wound', this.patientId, 'general-assessment']);
   }
 
   /** Braden Scale for this patient -- a risk score, not a wound record. */
@@ -582,9 +614,12 @@ export class PatientAssessmentsPage implements OnInit {
 
   private visitQueryParams(): Record<string, string> | undefined {
     const params: Record<string, string> = {};
+    const active = this.openVisit();
     if (this.roundId) params['roundId'] = this.roundId;
     if (this.appointmentId) params['appointmentId'] = this.appointmentId;
     if (this.woundVisitId) params['woundVisitId'] = this.woundVisitId;
+    if (active?.woundId) params['woundId'] = active.woundId;
+    if (active?.episodeId) params['episodeId'] = active.episodeId;
     return Object.keys(params).length ? params : undefined;
   }
 

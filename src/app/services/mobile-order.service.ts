@@ -5,6 +5,7 @@ import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 export interface MobileCareAlgorithmStep {
   id?: string;
@@ -132,6 +133,7 @@ export class MobileOrderService {
     readBackConfirmed?: boolean;
     guidance?: MobileAlgorithmGuidance | null;
     selectedTypeMatchedGuidance?: boolean;
+    visitLink?: ClinicalVisitLink | null;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
     const user = auth.currentUser;
@@ -171,8 +173,12 @@ export class MobileOrderService {
     await setDoc(ref, {
       orgId,
       patientId,
-      woundId: input.woundId || null,
-      episodeId: null,
+      ...clinicalVisitLinkFields({
+        ...(input.visitLink || {}),
+        woundId: input.woundId || input.visitLink?.woundId || null,
+      }),
+      woundId: input.woundId || input.visitLink?.woundId || null,
+      episodeId: input.visitLink?.episodeId || null,
       facilityId: null,
       orderType: 'wound_care_algorithm',
       description: descriptionWithWound,

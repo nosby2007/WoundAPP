@@ -14,6 +14,7 @@ import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { EducationDraft, EducationTopicOption } from '../shared/education';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 /**
  * Patient and caregiver education, recorded where it happens.
@@ -87,7 +88,7 @@ export class EducationService {
       .sort((a, b) => a.category.localeCompare(b.category) || a.topic.localeCompare(b.topic));
   }
 
-  async create(patientId: string, draft: EducationDraft): Promise<string> {
+  async create(patientId: string, draft: EducationDraft, visitLink: ClinicalVisitLink = {}): Promise<string> {
     if (!patientId) throw new Error('EducationService.create(): patientId is missing.');
 
     const user = auth.currentUser;
@@ -106,7 +107,11 @@ export class EducationService {
     const ref = await addDoc(collection(db, `patients/${patientId}/educationRecords`), {
       orgId,
       patientId,
-      woundId: draft.woundId ?? null,
+      ...clinicalVisitLinkFields({
+        ...visitLink,
+        woundId: draft.woundId ?? visitLink.woundId ?? null,
+      }),
+      woundId: draft.woundId ?? visitLink.woundId ?? null,
       topic: draft.topic.trim(),
       category: draft.category || null,
       learners: draft.learners,

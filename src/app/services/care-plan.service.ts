@@ -13,6 +13,7 @@ import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { CarePlanCatalogEntry, CarePlanProblemCategory } from '../shared/care-plan';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 export class NotAuthenticatedError extends Error {
   constructor() {
@@ -72,7 +73,7 @@ export class CarePlanService {
       }));
   }
 
-  async create(patientId: string, draft: CarePlanDraft): Promise<string> {
+  async create(patientId: string, draft: CarePlanDraft, visitLink: ClinicalVisitLink = {}): Promise<string> {
     if (!patientId) throw new Error('CarePlanService.create(): patientId is missing.');
     if (!auth.currentUser) throw new NotAuthenticatedError();
 
@@ -87,8 +88,12 @@ export class CarePlanService {
     await setDoc(planRef, {
       orgId,
       patientId,
-      woundId: draft.woundId ?? null,
-      episodeId: null,
+      ...clinicalVisitLinkFields({
+        ...visitLink,
+        woundId: draft.woundId ?? visitLink.woundId ?? null,
+      }),
+      woundId: draft.woundId ?? visitLink.woundId ?? null,
+      episodeId: visitLink.episodeId ?? null,
       title: draft.title.trim(),
       description: draft.description?.trim() || null,
       startDate: draft.startDate,

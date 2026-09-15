@@ -17,7 +17,6 @@ import { auth, db } from '../firebase';
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
 import { ClinicalAuditService } from './clinical-audit.service';
-import { ClinicalSyncQueueService } from './clinical-sync-queue.service';
 import {
   DurableClinicalMutationService,
   DurableJson,
@@ -75,7 +74,6 @@ export interface LinkedVisitContext {
 export class VisitService {
   private readonly location = inject(VisitLocationService);
   private readonly audit = inject(ClinicalAuditService);
-  private readonly syncQueue = inject(ClinicalSyncQueueService);
   private readonly durableMutations = inject(DurableClinicalMutationService);
 
   /**
@@ -263,64 +261,12 @@ export class VisitService {
       return { visitId: linked.woundVisitId, location, checkpoint, syncStatus: mutation.status };
     }
 
-    // Scheduler / Frontdesk is the ONLY source of a new field appointment.
-    // When the scheduler did not pre-create a clinical record, WoundAPP may
-    // create the field-execution record for that appointment at check-in,
-    // but it may never invent an unscheduled visit.
-    if (!linked.appointmentId) {
-      throw new Error('Open the visit from a Scheduler / Frontdesk appointment before checking in.');
-    }
-
-    const created = await this.syncQueue.enqueue({
-      operation: 'visit_check_in_legacy_create',
-      patientId,
-      entityType: 'woundVisit',
-      entityId: null,
-    }, () => addDoc(collection(db, `patients/${patientId}/woundVisits`), {
-      orgId,
-      facilityId: (patient['facilityId'] as string) ?? null,
-      patientId,
-      woundId: linked.woundId ?? null,
-      visitScope: linked.woundId ? 'single_wound' : 'field_encounter',
-      episodeId: linked.episodeId ?? null,
-      appointmentId: linked.appointmentId,
-      visitType,
-      status: 'planned',
-      // The appointment owns the scheduled time. This timestamp only marks
-      // when the field execution record was opened; it is not a new schedule.
-      scheduledFor: Timestamp.fromDate(new Date()),
-      clinicianUid: user.uid,
-      clinicianName: user.displayName ?? null,
-      clinicianRole: linked.clinicianRole ?? null,
-      checkIn: checkpoint,
-      executionAuthority: 'woundapp',
-      fieldVisitState: 'on_site',
-      officeDocumentationState: 'field_in_progress',
-      performedByUid: user.uid,
-      performedByName: user.displayName ?? null,
-      performedByRole: linked.clinicianRole ?? null,
-      mobileWorkflow: {
-        appointmentId: linked.appointmentId ?? null,
-        currentStep: 'check_in',
-        lastRoute: '/tabs/skin-wound/' + patientId + '/assessments',
-        lastUpdatedAt: serverTimestamp(),
-        steps: {
-          check_in: {
-            enteredAt: serverTimestamp(),
-            byUid: user.uid,
-            byName: user.displayName ?? null,
-          },
-        },
-      },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: user.uid,
-      updatedBy: user.uid,
-    }));
-
-    await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
-    return { visitId: created.id, location, checkpoint, syncStatus: 'synced' };
-  }
+    // Prospective workflow is strict: Scheduler / Frontdesk creates both
+    // the appointment and the empty field-encounter shell. WoundAPP captures
+    // clinical data into that existing visit; it never creates a visit.
+    throw new Error(
+      'This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.'
+    );
 
   /**
    * Record departure.
@@ -417,7 +363,7 @@ export class VisitService {
       };
     }
 
-    const mutation = await this.durableMutations.enqueueUpdate({
+    const mutation = await this.durableMutations.queueUpdate({
       operation: 'visit_check_out',
       patientId,
       entityType: 'woundVisit',
@@ -427,6 +373,42 @@ export class VisitService {
       payload: durablePatch,
     });
 
+    // One physical appointment may contain several wound-specific clinical
+    // records. EVV stays on the physical/source visit, while child wound
+    // records reference that source. Propagate only completion metadata so
+    // JADE can continue office documentation for every wound without
+    // duplicating or fabricating check-in/check-out evidence.
+    try {
+      const sourceSnap = await getDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`));
+      const source = sourceSnap.exists() ? sourceSnap.data() as any : null;
+      const childIds = Array.isArray(source?.fieldWoundVisitIds)
+        ? source.fieldWoundVisitIds.filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== visitId)
+        : [];
+
+      await Promise.all(childIds.map((childId) =>
+        this.durableMutations.queueUpdate({
+          operation: 'wound_visit_field_complete',
+          patientId,
+          entityType: 'woundVisit',
+          entityId: childId,
+          firestorePath: `patients/${patientId}/woundVisits/${childId}`,
+          payload: {
+            status: 'completed',
+            fieldVisitState: 'completed',
+            fieldCompletedAt: DurableClinicalMutationService.serverTimestamp(),
+            officeDocumentationState: 'pending_office_documentation',
+            fieldEvidenceVisitId: visitId,
+            updatedAt: DurableClinicalMutationService.serverTimestamp(),
+            updatedBy: user.uid,
+          },
+        })
+      ));
+    } catch (error) {
+      // The source visit is the immutable EVV record and checkout must not be
+      // rolled back because one child record could not be marked complete.
+      console.warn('[VisitService] child wound visit completion will require sync/reconciliation', error);
+    }
+
     if (mutation.status === 'needs_review') {
       throw new Error('Departure could not be applied because newer checkout evidence exists. Open Sync Review before leaving the visit.');
     }
@@ -435,6 +417,10 @@ export class VisitService {
       await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     }
     return { location, syncStatus: mutation.status };
+  }
+
+  hasPendingCheckout(visitId: string): boolean {
+    return this.durableMutations.hasPending('visit_check_out', visitId);
   }
 
   /**

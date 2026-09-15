@@ -120,6 +120,28 @@ export class DurableClinicalMutationService {
     return { __firestoreServerTimestamp: true };
   }
 
+  /**
+   * Persist first, then return immediately. Critical point-of-care transitions
+   * (appointment linkage, checkout fan-out) must survive weak connectivity
+   * without holding the clinician UI open.
+   */
+  async queueUpdate(input: Omit<DurableClinicalMutation, 'id' | 'queuedAt'>): Promise<DurableMutationResult> {
+    await this.ready();
+    const mutation: DurableClinicalMutation = {
+      ...input,
+      id: this.id(),
+      queuedAt: Date.now(),
+    };
+    const envelope = await this.encryptEnvelope(mutation);
+    await this.putEnvelope(envelope);
+    await this.reloadViews();
+
+    if (this.isOnline()) {
+      void this.flush();
+    }
+    return { id: mutation.id, status: 'queued' };
+  }
+
   async enqueueUpdate(input: Omit<DurableClinicalMutation, 'id' | 'queuedAt'>): Promise<DurableMutationResult> {
     await this.ready();
     const mutation: DurableClinicalMutation = {

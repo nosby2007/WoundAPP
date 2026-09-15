@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VisitWorkflowPolicyService, WorkflowCircle } from './visit-workflow-policy.service';
+import { ClinicalVisitLink } from '../shared/clinical-visit-link';
 
 export interface WorkflowCompletionItem {
   circle: WorkflowCircle;
@@ -22,7 +23,12 @@ export interface WorkflowCompletionResult {
 export class VisitCompletenessService {
   private policies = inject(VisitWorkflowPolicyService);
 
-  async evaluate(patientId: string, visitType = 'routine', day = new Date()): Promise<WorkflowCompletionResult> {
+  async evaluate(
+    patientId: string,
+    visitType = 'routine',
+    day = new Date(),
+    link: ClinicalVisitLink = {}
+  ): Promise<WorkflowCompletionResult> {
     const policy = await this.policies.get(visitType);
     const required = new Set(policy.required);
     const circles: WorkflowCircle[] = [
@@ -39,17 +45,19 @@ export class VisitCompletenessService {
       this.read(`patients/${patientId}/providerNotes`),
     ]);
 
-    const sameDay = (row: any) => this.isSameLocalDay(this.extractDate(row), day);
+    const scoped = (row: any) => this.matchesVisit(row, link) ||
+      (!link.visitId && !link.appointmentId && this.isSameLocalDay(this.extractDate(row), day));
+
     const counts: Record<WorkflowCircle, number> = {
-      visit: visits.filter(sameDay).length,
-      assessment: assessments.filter((r) => r.kind !== 'braden' && r.kind !== 'systemic_assessment' && sameDay(r)).length,
-      braden: assessments.filter((r) => r.kind === 'braden' && sameDay(r)).length,
-      systemic: assessments.filter((r) => r.kind === 'systemic_assessment' && sameDay(r)).length,
-      carePlan: carePlans.filter(sameDay).length,
-      order: orders.filter(sameDay).length,
-      education: education.filter(sameDay).length,
-      woundAssessment: wounds.filter(sameDay).length,
-      progressNote: notes.filter(sameDay).length,
+      visit: visits.filter((row) => scoped(row)).length,
+      assessment: assessments.filter((r) => r.kind !== 'braden' && r.kind !== 'systemic_assessment' && scoped(r)).length,
+      braden: assessments.filter((r) => r.kind === 'braden' && scoped(r)).length,
+      systemic: assessments.filter((r) => r.kind === 'systemic_assessment' && scoped(r)).length,
+      carePlan: carePlans.filter(scoped).length,
+      order: orders.filter(scoped).length,
+      education: education.filter(scoped).length,
+      woundAssessment: wounds.filter(scoped).length,
+      progressNote: notes.filter(scoped).length,
     };
 
     const items = circles.map((circle) => ({
@@ -66,6 +74,33 @@ export class VisitCompletenessService {
       missingRequired,
       items,
     };
+  }
+
+  private matchesVisit(row: any, link: ClinicalVisitLink): boolean {
+    const visitId = (link.visitId || '').trim();
+    const appointmentId = (link.appointmentId || '').trim();
+
+    if (visitId) {
+      const visitRefs = [
+        row?.id,
+        row?.visitId,
+        row?.woundVisitId,
+        row?.clinicalVisitId,
+        row?.fieldEncounterVisitId,
+        row?.mobileWorkflow?.woundVisitId,
+      ].filter(Boolean).map(String);
+      if (visitRefs.includes(visitId)) return true;
+    }
+
+    if (appointmentId) {
+      const appointmentRefs = [
+        row?.appointmentId,
+        row?.mobileWorkflow?.appointmentId,
+      ].filter(Boolean).map(String);
+      if (appointmentRefs.includes(appointmentId)) return true;
+    }
+
+    return false;
   }
 
   private async read(path: string): Promise<any[]> {

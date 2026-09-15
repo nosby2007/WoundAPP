@@ -32,6 +32,7 @@ import {
 import { WoundNoteSnapshot, WoundProgressNoteService } from '../../services/wound-progress-note.service';
 import { ProgressNoteService, ProgressNoteVoiceProvenance } from '../../services/progress-note.service';
 import { MobileVoiceNoteService } from '../../services/mobile-voice-note.service';
+import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 /**
  * The wound progress note, on the way out of the visit.
@@ -71,6 +72,10 @@ export class WoundNotePage implements OnInit, OnDestroy {
   readonly voice = inject(MobileVoiceNoteService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  woundId = this.route.snapshot.queryParamMap.get('woundId') || '';
+  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
 
   reasons = WOUND_NOTE_REASONS;
   recommendations = WOUND_NOTE_RECOMMENDATIONS;
@@ -104,7 +109,13 @@ export class WoundNotePage implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     try {
-      this.snapshot = await this.builder.gather(this.patientId);
+      this.snapshot = await this.builder.gather(this.patientId, new Date(), {
+        visitId: this.woundVisitId || null,
+        appointmentId: this.appointmentId || null,
+        woundId: this.woundId || null,
+        episodeId: this.episodeId || null,
+        fieldEncounterVisitId: this.woundVisitId || null,
+      });
       this.visitKind = this.snapshot.visitKind;
       this.reasonForConsult = this.snapshot.reasonForConsult;
       this.recommendation = this.snapshot.recommendation;
@@ -241,14 +252,28 @@ export class WoundNotePage implements OnInit, OnDestroy {
         this.patientId,
         this.noteText,
         null,
-        this.acceptedVoiceProvenance
+        this.acceptedVoiceProvenance,
+        {
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+          woundId: this.woundId || null,
+          episodeId: this.episodeId || null,
+          fieldEncounterVisitId: this.woundVisitId || null,
+        }
       );
       const toast = await this.toastCtrl.create({
         message: 'Wound progress note filed.',
         duration: 2400,
       });
       await toast.present();
-      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments'], {
+        queryParams: clinicalVisitQueryParams({
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+          woundId: this.woundId || null,
+          episodeId: this.episodeId || null,
+        }),
+      });
     } catch (err: any) {
       console.error('[WoundNotePage] save failed', err);
       this.errorMsg = err?.code === 'permission-denied'

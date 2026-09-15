@@ -176,6 +176,58 @@ export class FieldWorkService {
     } as FieldTask;
   }
 
+  /**
+   * Persist the appointment → woundVisit pointer as soon as WoundAPP opens
+   * the field encounter. The Scheduler creates the appointment with no wound
+   * identity; WoundAPP owns the first clinical visit id at check-in.
+   */
+  async linkWoundVisit(
+    appointmentId: string,
+    patientId: string,
+    woundVisitId: string
+  ): Promise<'synced' | 'queued'> {
+    if (!appointmentId || !patientId || !woundVisitId) {
+      throw new Error('Appointment, patient and wound visit are required.');
+    }
+
+    // Prospective Scheduler appointments already carry this pointer. Keep the
+    // method as an idempotent repair path for older appointments and transient
+    // stale mobile snapshots.
+    try {
+      const snap = await getDoc(doc(db, `appointments/${appointmentId}`));
+      if (snap.exists()) {
+        const existing = String((snap.data() as any).woundVisitId || '').trim();
+        if (existing === woundVisitId) return 'synced';
+        if (existing && existing !== woundVisitId) {
+          throw new Error('The appointment already points to a different clinical visit.');
+        }
+      }
+    } catch (error: any) {
+      if (String(error?.message || '').includes('different clinical visit')) throw error;
+      // Continue to the durable repair write when the lookup itself is
+      // unavailable; conflict protection will prevent overwriting a server
+      // pointer later.
+    }
+
+    const result = await this.durableMutations.queueUpdate({
+      operation: 'appointment_link_wound_visit',
+      patientId,
+      entityType: 'appointment',
+      entityId: appointmentId,
+      firestorePath: `appointments/${appointmentId}`,
+      conflict: { expectedAbsentFields: ['woundVisitId'] },
+      payload: {
+        woundVisitId,
+        updatedAt: DurableClinicalMutationService.serverTimestamp(),
+      },
+    });
+
+    if (result.status === 'needs_review') {
+      throw new Error('The appointment already points to another clinical visit. Open Sync Review before continuing.');
+    }
+    return result.status;
+  }
+
   async completeVisit(id: string): Promise<'synced' | 'queued'> {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error('Sign in required');

@@ -71,6 +71,7 @@ import {
   stripWoundIdForUpdate,
   woundIdForCreate,
 } from 'src/app/shared/wound-identity';
+import { clinicalVisitQueryParams } from 'src/app/shared/clinical-visit-link';
 
 /**
  * A wound assessment, as recorded at the bedside.
@@ -667,7 +668,15 @@ export class AssessmentFormPage implements OnInit {
           queryParams: { patientId: this.patientId },
         });
       } else {
-        await this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+        await this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments'], {
+          queryParams: clinicalVisitQueryParams({
+            visitId: this.fieldEncounterVisitId || null,
+            appointmentId: this.appointmentId || null,
+            woundId: basePayload.woundId || this.woundId || id || null,
+            episodeId: basePayload.episodeId || null,
+            fieldEncounterVisitId: this.fieldEncounterVisitId || null,
+          }),
+        });
       }
     } catch (err) {
       console.error(err);
