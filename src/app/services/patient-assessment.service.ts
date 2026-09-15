@@ -13,6 +13,7 @@ import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService } from './clinical-identity.service';
 import { bradenRiskText, bradenTotal, BradenSubscales, buildBradenAnswers } from '../shared/braden';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 /**
  * Non-wound patient assessments stored under patients/{id}/assessments.
@@ -39,7 +40,12 @@ export class PatientAssessmentService {
   private tenant = inject(TenantService);
   private clinicalIdentity = inject(ClinicalIdentityService);
 
-  async createBraden(patientId: string, subscales: BradenSubscales, assessedAt: Date): Promise<string> {
+  async createBraden(
+    patientId: string,
+    subscales: BradenSubscales,
+    assessedAt: Date,
+    visitLink: ClinicalVisitLink = {}
+  ): Promise<string> {
     if (!patientId) throw new Error('PatientAssessmentService.createBraden(): patientId is missing.');
     if (!auth.currentUser) throw new NotAuthenticatedError();
 
@@ -52,6 +58,7 @@ export class PatientAssessmentService {
     const payload: Record<string, unknown> = {
       orgId,
       patientId,
+      ...clinicalVisitLinkFields(visitLink),
       program: 'Braden',
       kind: 'braden',
       status: 'submitted',
