@@ -36,6 +36,7 @@ import {
   educationIsRecordable,
 } from '../../shared/education';
 import { EducationRow, EducationService } from '../../services/education.service';
+import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 /**
  * What the patient or their caregiver was taught, recorded while they are
@@ -74,6 +75,9 @@ export class EducationPage implements OnInit {
   /** Set when this was opened from a wound assessment. */
   woundId = this.route.snapshot.queryParamMap.get('woundId');
   woundLabel = this.route.snapshot.queryParamMap.get('woundLabel') || '';
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
 
   learnerOptions = EDUCATION_LEARNERS;
   readinessOptions = EDUCATION_READINESS;
@@ -166,13 +170,26 @@ export class EducationPage implements OnInit {
     this.errorMsg = '';
 
     try {
-      await this.education.create(this.patientId, this.draft);
+      await this.education.create(this.patientId, this.draft, {
+        visitId: this.woundVisitId || null,
+        appointmentId: this.appointmentId || null,
+        woundId: this.woundId || null,
+        episodeId: this.episodeId || null,
+        fieldEncounterVisitId: this.woundVisitId || null,
+      });
       const toast = await this.toastCtrl.create({
         message: 'Education recorded.',
         duration: 2200,
       });
       await toast.present();
-      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments']);
+      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments'], {
+        queryParams: clinicalVisitQueryParams({
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+          woundId: this.woundId || null,
+          episodeId: this.episodeId || null,
+        }),
+      });
     } catch (err: any) {
       console.error('[EducationPage] save failed', err);
       this.errorMsg = err?.code === 'permission-denied'
