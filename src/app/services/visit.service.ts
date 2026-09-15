@@ -8,6 +8,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -261,12 +262,93 @@ export class VisitService {
       return { visitId: linked.woundVisitId, location, checkpoint, syncStatus: mutation.status };
     }
 
-    // Prospective workflow is strict: Scheduler / Frontdesk creates both
-    // the appointment and the empty field-encounter shell. WoundAPP captures
-    // clinical data into that existing visit; it never creates a visit.
+    // Legacy/recent appointments may exist without the shared woundVisit
+    // pointer because older Scheduler builds wrote woundVisitId: null.
+    // Repair ONLY the already-existing, caller-assigned appointment using a
+    // deterministic shell id equal to appointmentId. This is idempotent and
+    // cannot manufacture an unscheduled visit.
+    if (linked.appointmentId) {
+      const repairedVisitId = await this.repairAssignedAppointmentShell(
+        linked.appointmentId,
+        patientId,
+        visitType,
+        linked
+      );
+      return this.checkIn(patientId, visitType, {
+        ...linked,
+        woundVisitId: repairedVisitId,
+      });
+    }
+
     throw new Error(
-      'This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.'
+      'This visit has no Scheduler / Frontdesk appointment link and cannot be checked in.'
     );
+  }
+
+  private async repairAssignedAppointmentShell(
+    appointmentId: string,
+    patientId: string,
+    visitType: string,
+    linked: LinkedVisitContext
+  ): Promise<string> {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sign in before repairing this visit.');
+
+    const appointmentRef = doc(db, 'appointments', appointmentId);
+    const deterministicVisitId = appointmentId;
+    const visitRef = doc(db, `patients/${patientId}/woundVisits/${deterministicVisitId}`);
+
+    return runTransaction(db, async transaction => {
+      const appointmentSnap = await transaction.get(appointmentRef);
+      if (!appointmentSnap.exists()) throw new Error('The scheduled appointment no longer exists.');
+
+      const appointment = appointmentSnap.data() as Record<string, unknown>;
+      if ((appointment['patientId'] as string | undefined) !== patientId) {
+        throw new Error('The scheduled appointment belongs to a different patient.');
+      }
+      if ((appointment['assignedToUid'] as string | undefined) !== user.uid) {
+        throw new Error('Only the clinician assigned to this appointment can repair its clinical visit shell.');
+      }
+
+      const existingPointer = String(appointment['woundVisitId'] ?? '').trim();
+      if (existingPointer) return existingPointer;
+
+      const visitSnap = await transaction.get(visitRef);
+      if (!visitSnap.exists()) {
+        transaction.set(visitRef, {
+          orgId: appointment['orgId'] ?? null,
+          facilityId: appointment['facilityId'] ?? null,
+          patientId,
+          appointmentId,
+          visitScope: 'field_encounter',
+          executionAuthority: 'woundapp',
+          visitType: (appointment['visitType'] as string | undefined) ?? visitType,
+          status: 'planned',
+          appointmentStatus: 'scheduled',
+          fieldVisitState: 'scheduled',
+          officeDocumentationState: 'not_started',
+          clinicianUid: user.uid,
+          clinicianName: user.displayName ?? (appointment['assignedToName'] as string | null | undefined) ?? null,
+          clinicianRole: linked.clinicianRole ?? (appointment['assignedToRole'] as string | null | undefined) ?? null,
+          woundId: linked.woundId ?? null,
+          episodeId: linked.episodeId ?? null,
+          checkIn: null,
+          checkOut: null,
+          patientAttestation: null,
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.uid,
+        });
+      }
+
+      transaction.update(appointmentRef, {
+        woundVisitId: deterministicVisitId,
+        updatedAt: serverTimestamp(),
+      });
+
+      return deterministicVisitId;
+    });
   }
 
   /**

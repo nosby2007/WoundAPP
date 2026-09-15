@@ -19,12 +19,18 @@ function forbid(src, value, label) {
 
 for (const value of [
   "if (linked.woundVisitId)",
-  "This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.",
+  "if (linked.appointmentId)",
+  "repairAssignedAppointmentShell(",
+  "assignedToUid",
+  "const deterministicVisitId = appointmentId;",
+  "visitScope: 'field_encounter'",
+  "executionAuthority: 'woundapp'",
   "operation: 'visit_check_in'",
 ]) need(visit, value, 'VisitService');
 
 forbid(visit, "operation: 'visit_check_in_legacy_create'", 'VisitService');
 forbid(visit, "addDoc(collection(db, `patients/${patientId}/woundVisits`", 'VisitService');
+need(visit, "This visit has no Scheduler / Frontdesk appointment link and cannot be checked in.", 'VisitService unscheduled guard');
 
 for (const value of [
   'Next visits are created by Scheduler / Frontdesk.',
