@@ -71,6 +71,9 @@ export class EducationPage implements OnInit {
   private toastCtrl = inject(ToastController);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
 
   /** Set when this was opened from a wound assessment. */
   woundId = this.route.snapshot.queryParamMap.get('woundId');
