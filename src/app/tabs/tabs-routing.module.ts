@@ -14,6 +14,7 @@ import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page
 import { PatientCarePlanPage } from '../pages/patient-care-plan/patient-care-plan.page';
 import { ClinicalOrderPage } from '../pages/clinical-order/clinical-order.page';
 import { SystemicAssessmentPage } from '../pages/systemic-assessment/systemic-assessment.page';
+import { GeneralClinicalAssessmentPage } from '../pages/general-clinical-assessment/general-clinical-assessment.page';
 import { EducationPage } from '../pages/education/education.page';
 import { WoundNotePage } from '../pages/wound-note/wound-note.page';
 import { TodayPage } from '../pages/today/today.page';
@@ -63,6 +64,7 @@ const routes: Routes = [
       { path: 'skin-wound/:patientId/education', component: EducationPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/braden', component: BradenFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'skin-wound/:patientId/general-assessment', component: GeneralClinicalAssessmentPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [fieldAccessGuard, clinicalRoleGuard], data: { access: 'clinical', roles: ['provider','np','nurse','rn','lpn','lvn','md','do','physician','wound_nurse','wound_nurse_internal','don'] } },
       { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
