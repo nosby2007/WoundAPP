@@ -275,16 +275,17 @@ export class FieldVisitPage implements OnInit {
       this.visit = await this.work.getVisit(id);
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
+        const patientId = this.visit.patientId;
         await this.durable.whenReady();
         try {
-          this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+          this.activeEvv = await this.visits.openVisit(patientId);
         } catch {
           this.activeEvv = null;
         }
 
         if (this.activeEvv && !this.visit.woundVisitId) {
           this.visit = { ...this.visit, woundVisitId: this.activeEvv.id };
-          void this.work.linkWoundVisit(this.visit.id, this.visit.patientId, this.activeEvv.id).catch((error) => {
+          void this.work.linkWoundVisit(this.visit.id, patientId, this.activeEvv.id).catch((error) => {
             console.warn('[FieldVisit] unable to self-heal appointment visit linkage', error);
           });
         }
@@ -300,7 +301,7 @@ export class FieldVisitPage implements OnInit {
         }
 
         await this.visits.recordJourneyStep(
-          this.visit.patientId,
+          patientId,
           this.visit.woundVisitId,
           this.visit.id,
           this.activeEvv ? 'on_site' : 'visit_workspace',
@@ -336,10 +337,11 @@ export class FieldVisitPage implements OnInit {
 
   async checkIn(): Promise<void> {
     if (!this.visit?.patientId || this.busy) return;
+    const patientId = this.visit.patientId;
     this.busy = true; this.message = ''; this.isError = false;
     try {
       const result = await this.visits.checkIn(
-        this.visit.patientId,
+        patientId,
         this.visit.visitType || 'routine',
         {
           appointmentId: this.visit.id,
@@ -350,7 +352,7 @@ export class FieldVisitPage implements OnInit {
         }
       );
       this.visit = { ...this.visit, woundVisitId: result.visitId };
-      await this.work.linkWoundVisit(this.visit.id, this.visit.patientId, result.visitId);
+      await this.work.linkWoundVisit(this.visit.id, patientId, result.visitId);
 
       if (result.syncStatus === 'queued') {
         this.pendingArrivalQueued = true;
@@ -358,7 +360,7 @@ export class FieldVisitPage implements OnInit {
         this.message = 'Checked in. Arrival evidence is encrypted on this device and queued for sync.';
       } else {
         this.pendingArrivalQueued = false;
-        this.activeEvv = await this.visits.openVisit(this.visit.patientId);
+        this.activeEvv = await this.visits.openVisit(patientId);
         this.message = result.location.status === 'captured'
           ? 'Checked in. Arrival time and device location were captured.'
           : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
@@ -371,6 +373,7 @@ export class FieldVisitPage implements OnInit {
 
   async checkOut(): Promise<void> {
     if (!this.visit?.patientId || !this.activeEvv || this.busy) return;
+    const patientId = this.visit.patientId;
     this.busy = true; this.message = ''; this.isError = false;
     try {
       let electronicSignature: EvvPatientAttestation['electronicSignature'] = null;
@@ -379,7 +382,7 @@ export class FieldVisitPage implements OnInit {
           throw new Error('Capture the patient or representative signature before checkout.');
         }
         electronicSignature = await this.visitSignatures.upload(
-          this.visit.patientId,
+          patientId,
           this.activeEvv.id,
           this.signatureDataUrl
         );
@@ -393,7 +396,7 @@ export class FieldVisitPage implements OnInit {
         electronicSignature,
       } : null;
 
-      const result = await this.visits.checkOut(this.visit.patientId, this.activeEvv.id, attestation);
+      const result = await this.visits.checkOut(patientId, this.activeEvv.id, attestation);
       const appointmentSyncStatus = await this.work.completeVisit(this.visit.id);
       this.visit = { ...this.visit, status: 'completed' };
       this.activeEvv = null;

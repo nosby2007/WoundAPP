@@ -78,9 +78,6 @@ export class EducationPage implements OnInit {
   /** Set when this was opened from a wound assessment. */
   woundId = this.route.snapshot.queryParamMap.get('woundId');
   woundLabel = this.route.snapshot.queryParamMap.get('woundLabel') || '';
-  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
-  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
-  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
 
   learnerOptions = EDUCATION_LEARNERS;
   readinessOptions = EDUCATION_READINESS;

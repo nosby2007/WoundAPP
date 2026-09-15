@@ -28,13 +28,17 @@ for (const required of [
 
 for (const operation of [
   "operation: 'visit_check_in'",
-  "operation: 'visit_check_in_legacy_create'",
   "operation: 'visit_check_out'",
   "operation: 'visit_journey_step'",
+  "operation: 'wound_visit_field_complete'",
 ]) {
   if (!visit.includes(operation)) {
     throw new Error(`Critical visit write is not routed through sync queue: ${operation}`);
   }
+}
+
+if (visit.includes("operation: 'visit_check_in_legacy_create'")) {
+  throw new Error('Legacy WoundAPP visit creation must remain removed; Scheduler / Frontdesk owns visit-shell creation.');
 }
 
 for (const required of [

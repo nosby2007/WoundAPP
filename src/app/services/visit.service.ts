@@ -267,6 +267,7 @@ export class VisitService {
     throw new Error(
       'This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.'
     );
+  }
 
   /**
    * Record departure.
@@ -381,7 +382,7 @@ export class VisitService {
     try {
       const sourceSnap = await getDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`));
       const source = sourceSnap.exists() ? sourceSnap.data() as any : null;
-      const childIds = Array.isArray(source?.fieldWoundVisitIds)
+      const childIds: string[] = Array.isArray(source?.fieldWoundVisitIds)
         ? source.fieldWoundVisitIds.filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== visitId)
         : [];
 
@@ -416,7 +417,7 @@ export class VisitService {
     if (mutation.status === 'synced') {
       await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     }
-    return { location, syncStatus: mutation.status };
+    return { location, syncStatus: mutation.status === 'synced' ? 'synced' : 'queued' };
   }
 
   hasPendingCheckout(visitId: string): boolean {
