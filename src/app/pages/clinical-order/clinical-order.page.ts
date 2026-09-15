@@ -15,6 +15,7 @@ import {
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
 import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
+import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 @Component({
   selector: 'app-clinical-order',
@@ -127,6 +128,9 @@ export class ClinicalOrderPage implements OnInit {
   private orderService = inject(MobileOrderService); private identityService = inject(ClinicalIdentityService);
   private toast = inject(ToastController);
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
   loading = true; saving = false; error = '';
   algorithms: MobileCareAlgorithm[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = [];
   identity: ClinicalIdentitySnapshot | null = null; algorithmId = ''; woundId = ''; selectedAlgorithm: MobileCareAlgorithm | null = null; woundLabel = '';
@@ -175,9 +179,23 @@ export class ClinicalOrderPage implements OnInit {
         readBackConfirmed: this.readBackConfirmed,
         guidance: this.guidance,
         selectedTypeMatchedGuidance: this.selectedTypeMatchedGuidance,
+        visitLink: {
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+          woundId: this.woundId || null,
+          episodeId: this.episodeId || null,
+          fieldEncounterVisitId: this.woundVisitId || null,
+        },
       });
       const t = await this.toast.create({ message:'Order saved to patient chart', duration:2200, color:'success' }); await t.present();
-      await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments']);
+      await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments'], {
+        queryParams: clinicalVisitQueryParams({
+          visitId: this.woundVisitId || null,
+          appointmentId: this.appointmentId || null,
+          woundId: this.woundId || null,
+          episodeId: this.episodeId || null,
+        }),
+      });
     } catch(e:any){ const t = await this.toast.create({message:e?.message || 'Order could not be saved', duration:3200, color:'danger'}); await t.present(); }
     finally { this.saving = false; }
   }
