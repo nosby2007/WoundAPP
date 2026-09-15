@@ -382,7 +382,7 @@ export class VisitService {
     try {
       const sourceSnap = await getDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`));
       const source = sourceSnap.exists() ? sourceSnap.data() as any : null;
-      const childIds = Array.isArray(source?.fieldWoundVisitIds)
+      const childIds: string[] = Array.isArray(source?.fieldWoundVisitIds)
         ? source.fieldWoundVisitIds.filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== visitId)
         : [];
 
