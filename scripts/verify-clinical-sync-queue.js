@@ -37,6 +37,10 @@ for (const operation of [
   }
 }
 
+if (!visit.includes("const mutation = await this.durableMutations.queueUpdate({\n        operation: 'visit_check_in'")) {
+  throw new Error('Point-of-care check-in must persist locally before attempting network sync.');
+}
+
 if (visit.includes("operation: 'visit_check_in_legacy_create'")) {
   throw new Error('Legacy WoundAPP visit creation must remain removed; Scheduler / Frontdesk owns visit-shell creation.');
 }
