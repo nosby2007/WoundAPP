@@ -218,7 +218,7 @@ export class VisitService {
       }
 
       const durableCheckpoint = this.buildDurableCheckpoint(location);
-      const mutation = await this.durableMutations.enqueueUpdate({
+      const mutation = await this.durableMutations.queueUpdate({
         operation: 'visit_check_in',
         patientId,
         entityType: 'woundVisit',
@@ -500,6 +500,10 @@ export class VisitService {
       await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     }
     return { location, syncStatus: mutation.status === 'synced' ? 'synced' : 'queued' };
+  }
+
+  hasPendingCheckIn(visitId: string): boolean {
+    return this.durableMutations.hasPending('visit_check_in', visitId);
   }
 
   hasPendingCheckout(visitId: string): boolean {
