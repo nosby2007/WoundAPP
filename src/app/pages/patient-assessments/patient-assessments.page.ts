@@ -182,6 +182,7 @@ export class PatientAssessmentsPage implements OnInit {
           });
         }
       }
+      void this.refreshReadiness();
     } catch {
       // A denied, failed or stalled read must not leave EVV controls stuck.
       // Keep the existing visit state when one is already known.
@@ -459,10 +460,15 @@ export class PatientAssessmentsPage implements OnInit {
     this.readinessBusy.set(true);
     try {
       const [completion, findings] = await Promise.all([
-        this.completenessService.evaluate(this.patientId, 'routine', new Date(), {
-          visitId: this.woundVisitId || null,
-          appointmentId: this.appointmentId || null,
-        }),
+        this.completenessService.evaluate(
+          this.patientId,
+          this.openVisit()?.visitType || 'routine',
+          new Date(),
+          {
+            visitId: this.woundVisitId || null,
+            appointmentId: this.appointmentId || null,
+          }
+        ),
         this.qualityService.evaluatePatient(this.patientId),
       ]);
       this.workflowCompletion.set(completion);
