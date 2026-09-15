@@ -10,6 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { bodyOutline, bulbOutline, heartOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { SystemicAssessmentService } from '../../services/systemic-assessment.service';
+import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 @Component({
   selector:'app-systemic-assessment',
@@ -57,9 +58,9 @@ import { SystemicAssessmentService } from '../../services/systemic-assessment.se
 })
 export class SystemicAssessmentPage{
   private fb=inject(FormBuilder);private route=inject(ActivatedRoute);private router=inject(Router);private service=inject(SystemicAssessmentService);private toast=inject(ToastController);
-  patientId=this.route.snapshot.paramMap.get('patientId')||'';saving=false;
+  patientId=this.route.snapshot.paramMap.get('patientId')||'';appointmentId=this.route.snapshot.queryParamMap.get('appointmentId')||'';woundVisitId=this.route.snapshot.queryParamMap.get('woundVisitId')||'';woundId=this.route.snapshot.queryParamMap.get('woundId')||'';episodeId=this.route.snapshot.queryParamMap.get('episodeId')||'';saving=false;
   readonly bodyOutline=bodyOutline;readonly bulbOutline=bulbOutline;readonly heartOutline=heartOutline;readonly shieldCheckmarkOutline=shieldCheckmarkOutline;
   form=this.fb.group({general:[''],headToToe:[''],neurologic:[''],cardiovascular:[''],respiratory:[''],gastrointestinal:[''],genitourinary:[''],musculoskeletal:[''],integumentary:[''],mentalStatus:[''],psychological:[''],pain:[''],nutritionHydration:[''],functionalMobility:[''],safetyRisks:[''],other:[''],clinicalSummary:['']});
   constructor(){addIcons({bodyOutline,bulbOutline,heartOutline,shieldCheckmarkOutline});}
-  async save(){if(this.saving)return;this.saving=true;try{await this.service.create(this.patientId,this.form.getRawValue());const t=await this.toast.create({message:'Systemic assessment saved',duration:2200,color:'success'});await t.present();await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments']);}catch(e:any){const t=await this.toast.create({message:e?.message||'Assessment could not be saved',duration:3200,color:'danger'});await t.present();}finally{this.saving=false;}}
+  async save(){if(this.saving)return;this.saving=true;try{await this.service.create(this.patientId,this.form.getRawValue(),{visitId:this.woundVisitId||null,appointmentId:this.appointmentId||null,woundId:this.woundId||null,episodeId:this.episodeId||null,fieldEncounterVisitId:this.woundVisitId||null});const t=await this.toast.create({message:'Systemic assessment saved',duration:2200,color:'success'});await t.present();await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments'],{queryParams:clinicalVisitQueryParams({visitId:this.woundVisitId||null,appointmentId:this.appointmentId||null,woundId:this.woundId||null,episodeId:this.episodeId||null})});}catch(e:any){const t=await this.toast.create({message:e?.message||'Assessment could not be saved',duration:3200,color:'danger'});await t.present();}finally{this.saving=false;}}
 }
