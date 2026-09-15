@@ -20,6 +20,17 @@ import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-v
  * Braden remains an unsigned recorded assessment unless a real e-sign flow
  * is performed elsewhere; author identity is not a substitute for signature.
  */
+export interface GeneralClinicalAssessmentDraft {
+  reasonForVisit?: string | null;
+  generalStatus?: string | null;
+  painScore?: number | null;
+  functionalStatus?: string | null;
+  nutritionHydration?: string | null;
+  medicationConcerns?: string | null;
+  safetyConcerns?: string | null;
+  clinicalSummary?: string | null;
+}
+
 export interface BradenRow {
   id: string;
   total: number;
@@ -39,6 +50,55 @@ export class NotAuthenticatedError extends Error {
 export class PatientAssessmentService {
   private tenant = inject(TenantService);
   private clinicalIdentity = inject(ClinicalIdentityService);
+
+  async createGeneralAssessment(
+    patientId: string,
+    draft: GeneralClinicalAssessmentDraft,
+    visitLink: ClinicalVisitLink = {}
+  ): Promise<string> {
+    if (!patientId) throw new Error('PatientAssessmentService.createGeneralAssessment(): patientId is missing.');
+    if (!auth.currentUser) throw new NotAuthenticatedError();
+
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) throw new Error('Organization context is unavailable.');
+    const identity = await this.clinicalIdentity.requireCurrentIdentity();
+
+    const normalized = {
+      reasonForVisit: draft.reasonForVisit?.trim() || null,
+      generalStatus: draft.generalStatus?.trim() || null,
+      painScore: draft.painScore ?? null,
+      functionalStatus: draft.functionalStatus?.trim() || null,
+      nutritionHydration: draft.nutritionHydration?.trim() || null,
+      medicationConcerns: draft.medicationConcerns?.trim() || null,
+      safetyConcerns: draft.safetyConcerns?.trim() || null,
+      clinicalSummary: draft.clinicalSummary?.trim() || null,
+    };
+
+    if (!Object.values(normalized).some((value) => value !== null && value !== '')) {
+      throw new Error('Document at least one general assessment finding.');
+    }
+
+    const now = serverTimestamp();
+    const ref = await addDoc(collection(db, `patients/${patientId}/assessments`), {
+      orgId,
+      patientId,
+      ...clinicalVisitLinkFields(visitLink),
+      program: 'General Clinical Assessment',
+      kind: 'general_assessment',
+      type: 'general_assessment',
+      status: 'submitted',
+      assessedAt: now,
+      answers: normalized,
+      recordedByUid: identity.uid,
+      recordedByName: identity.displayName,
+      authorIdentity: identity,
+      createdBy: identity,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return ref.id;
+  }
 
   async createBraden(
     patientId: string,
