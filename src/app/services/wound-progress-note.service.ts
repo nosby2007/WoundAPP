@@ -12,6 +12,7 @@ import {
 import { auth, db } from '../firebase';
 import { PatientAssessmentService } from './patient-assessment.service';
 import { latestAssessmentPerWound, resolveWoundId } from '../shared/wound-identity';
+import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 import {
   WoundNoteEducation,
   WoundNoteInput,
@@ -44,16 +45,20 @@ export interface WoundNoteSnapshot extends WoundNoteInput {
 export class WoundProgressNoteService {
   private assessments = inject(PatientAssessmentService);
 
-  async gather(patientId: string, now: Date = new Date()): Promise<WoundNoteSnapshot> {
+  async gather(
+    patientId: string,
+    now: Date = new Date(),
+    visitLink: ClinicalVisitLink = {}
+  ): Promise<WoundNoteSnapshot> {
     if (!patientId) throw new Error('WoundProgressNoteService.gather(): patientId is missing.');
 
     const user = auth.currentUser;
     const [patient, assessments, orders, braden, education] = await Promise.all([
       this.readPatient(patientId),
-      this.readAssessments(patientId),
-      this.readOrders(patientId),
-      this.readBraden(patientId),
-      this.readEducation(patientId),
+      this.readAssessments(patientId, visitLink),
+      this.readOrders(patientId, visitLink),
+      this.readBraden(patientId, visitLink),
+      this.readEducation(patientId, visitLink),
     ]);
 
     const current = latestAssessmentPerWound(assessments);
@@ -128,6 +133,14 @@ export class WoundProgressNoteService {
     };
   }
 
+  private bradenRiskLabel(total: number): string {
+    if (total <= 9) return 'Very high risk';
+    if (total <= 12) return 'High risk';
+    if (total <= 14) return 'Moderate risk';
+    if (total <= 18) return 'At risk';
+    return 'Low risk';
+  }
+
   private numOrNull(value: any): number | null {
     if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
@@ -162,7 +175,7 @@ export class WoundProgressNoteService {
     }
   }
 
-  private async readAssessments(patientId: string): Promise<any[]> {
+  private async readAssessments(patientId: string, visitLink: ClinicalVisitLink): Promise<any[]> {
     const snap = await getDocs(collection(db, `patients/${patientId}/woundAssessments`));
     return snap.docs.map((d) => {
       const data: any = d.data();
@@ -172,16 +185,21 @@ export class WoundProgressNoteService {
         assessedAt: this.toDate(data.assessedAt) ?? this.toDate(data.createdAt),
         firstAssessedAt: this.toDate(data.createdAt),
       };
-    });
+    }).filter((row) =>
+      !visitLink.visitId && !visitLink.appointmentId
+        ? true
+        : matchesClinicalVisitLink(row, visitLink)
+    );
   }
 
-  private async readOrders(patientId: string): Promise<Array<{ woundId: string | null; note: WoundNoteOrder }>> {
+  private async readOrders(patientId: string, visitLink: ClinicalVisitLink): Promise<Array<{ woundId: string | null; note: WoundNoteOrder }>> {
     try {
       const snap = await getDocs(collection(db, `patients/${patientId}/orders`));
       return snap.docs
         .map((d) => {
           const data: any = d.data();
           return {
+            raw: { ...data, id: d.id },
             woundId: typeof data.woundId === 'string' ? data.woundId : null,
             state: data.workflow?.state ?? null,
             note: {
@@ -194,22 +212,45 @@ export class WoundProgressNoteService {
         })
         // Archived orders are not active orders. A note that lists a
         // discontinued dressing tells the next clinician to keep applying it.
-        .filter((row) => row.state !== 'archived' && row.note.description);
+        .filter((row) =>
+          row.state !== 'archived' &&
+          row.note.description &&
+          (!visitLink.visitId && !visitLink.appointmentId
+            ? true
+            : matchesClinicalVisitLink(row.raw, visitLink))
+        )
+        .map(({ woundId, note }) => ({ woundId, note }));
     } catch {
       return [];
     }
   }
 
-  private async readBraden(patientId: string) {
+  private async readBraden(patientId: string, visitLink: ClinicalVisitLink) {
     try {
-      const rows = await this.assessments.listBraden(patientId, 1);
-      return rows[0] ?? null;
+      const snap = await getDocs(collection(db, `patients/${patientId}/assessments`));
+      const rows = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) }))
+        .filter((row: any) =>
+          row.kind === 'braden' &&
+          (!visitLink.visitId && !visitLink.appointmentId
+            ? true
+            : matchesClinicalVisitLink(row, visitLink))
+        )
+        .sort((a: any, b: any) =>
+          (this.toDate(b.assessedAt || b.createdAt)?.getTime() ?? 0) -
+          (this.toDate(a.assessedAt || a.createdAt)?.getTime() ?? 0)
+        );
+      const row: any = rows[0];
+      if (!row) return null;
+      const braden = row.answers?.braden ?? row.braden ?? {};
+      const total = typeof row.score === 'number' ? row.score : null;
+      return { total, riskText: total == null ? null : this.bradenRiskLabel(total), braden };
     } catch {
       return null;
     }
   }
 
-  private async readEducation(patientId: string): Promise<WoundNoteEducation[]> {
+  private async readEducation(patientId: string, visitLink: ClinicalVisitLink): Promise<WoundNoteEducation[]> {
     try {
       const q = query(
         collection(db, `patients/${patientId}/educationRecords`),
@@ -220,11 +261,17 @@ export class WoundProgressNoteService {
       return snap.docs.map((d) => {
         const data: any = d.data();
         return {
+          raw: { ...data, id: d.id },
           topic: data.topic || '',
           learners: Array.isArray(data.learners) ? data.learners : [],
           response: Array.isArray(data.response) ? data.response : [],
         };
-      }).filter((entry) => !!entry.topic);
+      }).filter((entry) =>
+        !!entry.topic &&
+        (!visitLink.visitId && !visitLink.appointmentId
+          ? true
+          : matchesClinicalVisitLink(entry.raw, visitLink))
+      ).map(({ topic, learners, response }) => ({ topic, learners, response }));
     } catch {
       return [];
     }
