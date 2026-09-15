@@ -190,6 +190,25 @@ export class FieldWorkService {
       throw new Error('Appointment, patient and wound visit are required.');
     }
 
+    // Prospective Scheduler appointments already carry this pointer. Keep the
+    // method as an idempotent repair path for older appointments and transient
+    // stale mobile snapshots.
+    try {
+      const snap = await getDoc(doc(db, `appointments/${appointmentId}`));
+      if (snap.exists()) {
+        const existing = String((snap.data() as any).woundVisitId || '').trim();
+        if (existing === woundVisitId) return 'synced';
+        if (existing && existing !== woundVisitId) {
+          throw new Error('The appointment already points to a different clinical visit.');
+        }
+      }
+    } catch (error: any) {
+      if (String(error?.message || '').includes('different clinical visit')) throw error;
+      // Continue to the durable repair write when the lookup itself is
+      // unavailable; conflict protection will prevent overwriting a server
+      // pointer later.
+    }
+
     const result = await this.durableMutations.queueUpdate({
       operation: 'appointment_link_wound_visit',
       patientId,
