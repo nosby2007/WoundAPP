@@ -417,7 +417,7 @@ export class VisitService {
       };
     }
 
-    const mutation = await this.durableMutations.enqueueUpdate({
+    const mutation = await this.durableMutations.queueUpdate({
       operation: 'visit_check_out',
       patientId,
       entityType: 'woundVisit',
@@ -471,6 +471,10 @@ export class VisitService {
       await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     }
     return { location, syncStatus: mutation.status };
+  }
+
+  hasPendingCheckout(visitId: string): boolean {
+    return this.durableMutations.hasPending('visit_check_out', visitId);
   }
 
   /**
