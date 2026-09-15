@@ -33,3 +33,31 @@ export function clinicalVisitQueryParams(link?: ClinicalVisitLink | null): Recor
   if (link.fieldEncounterVisitId) params['fieldEncounterVisitId'] = link.fieldEncounterVisitId;
   return Object.keys(params).length ? params : undefined;
 }
+
+export function matchesClinicalVisitLink(row: any, link?: ClinicalVisitLink | null): boolean {
+  if (!row || !link) return false;
+  const visitId = (link.visitId || '').trim();
+  const appointmentId = (link.appointmentId || '').trim();
+
+  if (visitId) {
+    const visitRefs = [
+      row.id,
+      row.visitId,
+      row.woundVisitId,
+      row.clinicalVisitId,
+      row.fieldEncounterVisitId,
+      row.mobileWorkflow?.woundVisitId,
+    ].filter(Boolean).map(String);
+    if (visitRefs.includes(visitId)) return true;
+  }
+
+  if (appointmentId) {
+    const appointmentRefs = [
+      row.appointmentId,
+      row.mobileWorkflow?.appointmentId,
+    ].filter(Boolean).map(String);
+    if (appointmentRefs.includes(appointmentId)) return true;
+  }
+
+  return false;
+}
