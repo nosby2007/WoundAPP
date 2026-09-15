@@ -528,6 +528,10 @@ export class PatientAssessmentsPage implements OnInit {
     ], { queryParams: this.visitQueryParams() });
   }
 
+  openPatientAssessment() {
+    this.navigateVisitStep('assessment', ['/tabs', 'skin-wound', this.patientId, 'general-assessment']);
+  }
+
   /** Braden Scale for this patient -- a risk score, not a wound record. */
   openBraden() {
     this.navigateVisitStep('braden', ['/tabs', 'skin-wound', this.patientId, 'braden']);
