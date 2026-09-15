@@ -56,8 +56,8 @@ export class VisitWorkflowPolicyService {
       return {
         id: 'default-admission',
         visitType,
-        required: ['visit','assessment','braden','systemic','carePlan','order','education','woundAssessment','progressNote'],
-        optional: [],
+        required: ['visit','assessment','braden','systemic','carePlan','woundAssessment','progressNote'],
+        optional: ['order','education'],
         active: true,
       };
     }
