@@ -302,32 +302,38 @@ export class PatientAssessmentsPage implements OnInit {
     const visit = this.openVisit();
     if (!visit || this.evvBusy()) return;
 
+    if (this.visits.hasPendingCheckout(visit.id)) {
+      this.openVisit.set(null);
+      this.attesting.set(false);
+      this.evvMessage.set('Checkout is already saved securely on this device and queued for sync.');
+      return;
+    }
+
     this.startEvvBusy();
     this.evvMessage.set('');
     try {
-      const { location } = await this.withTimeout(
+      const { location, syncStatus } = await this.withTimeout(
         this.visits.checkOut(this.patientId, visit.id, attestation),
         30_000,
-        'Checkout did not finish in time. The app released the button so you can retry safely.'
+        'Checkout could not be stored on this device in time. Try again once.'
       );
 
-      // The woundVisit and Scheduler appointment represent one physical
-      // encounter. Closing EVV from the clinical-command screen must also
-      // close the assigned appointment, just like FieldVisitPage does.
       if (this.appointmentId) {
         await this.withTimeout(
           this.fieldWork.completeVisit(this.appointmentId),
           15_000,
-          'Departure was captured, but appointment completion is still syncing.'
+          'Departure was saved, but appointment completion is still syncing.'
         ).catch(() => undefined);
       }
 
       this.attesting.set(false);
-      await this.refreshOpenVisit();
+      this.openVisit.set(null);
       this.evvMessage.set(
-        location.status === 'captured'
-          ? 'Checked out. Visit completed.'
-          : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
+        syncStatus === 'queued'
+          ? 'Checked out. Departure is saved securely on this device and syncing in the background.'
+          : location.status === 'captured'
+            ? 'Checked out. Visit completed.'
+            : `Checked out. Departure location was not captured (${describeEvvLocation(location).toLowerCase()}).`
       );
     } catch (error: any) {
       this.evvMessage.set(error?.message ?? 'Could not check out.');
