@@ -17,7 +17,6 @@ import { auth, db } from '../firebase';
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
 import { ClinicalAuditService } from './clinical-audit.service';
-import { ClinicalSyncQueueService } from './clinical-sync-queue.service';
 import {
   DurableClinicalMutationService,
   DurableJson,
@@ -75,7 +74,6 @@ export interface LinkedVisitContext {
 export class VisitService {
   private readonly location = inject(VisitLocationService);
   private readonly audit = inject(ClinicalAuditService);
-  private readonly syncQueue = inject(ClinicalSyncQueueService);
   private readonly durableMutations = inject(DurableClinicalMutationService);
 
   /**
@@ -263,64 +261,12 @@ export class VisitService {
       return { visitId: linked.woundVisitId, location, checkpoint, syncStatus: mutation.status };
     }
 
-    // Scheduler / Frontdesk is the ONLY source of a new field appointment.
-    // When the scheduler did not pre-create a clinical record, WoundAPP may
-    // create the field-execution record for that appointment at check-in,
-    // but it may never invent an unscheduled visit.
-    if (!linked.appointmentId) {
-      throw new Error('Open the visit from a Scheduler / Frontdesk appointment before checking in.');
-    }
-
-    const created = await this.syncQueue.enqueue({
-      operation: 'visit_check_in_legacy_create',
-      patientId,
-      entityType: 'woundVisit',
-      entityId: null,
-    }, () => addDoc(collection(db, `patients/${patientId}/woundVisits`), {
-      orgId,
-      facilityId: (patient['facilityId'] as string) ?? null,
-      patientId,
-      woundId: linked.woundId ?? null,
-      visitScope: linked.woundId ? 'single_wound' : 'field_encounter',
-      episodeId: linked.episodeId ?? null,
-      appointmentId: linked.appointmentId,
-      visitType,
-      status: 'planned',
-      // The appointment owns the scheduled time. This timestamp only marks
-      // when the field execution record was opened; it is not a new schedule.
-      scheduledFor: Timestamp.fromDate(new Date()),
-      clinicianUid: user.uid,
-      clinicianName: user.displayName ?? null,
-      clinicianRole: linked.clinicianRole ?? null,
-      checkIn: checkpoint,
-      executionAuthority: 'woundapp',
-      fieldVisitState: 'on_site',
-      officeDocumentationState: 'field_in_progress',
-      performedByUid: user.uid,
-      performedByName: user.displayName ?? null,
-      performedByRole: linked.clinicianRole ?? null,
-      mobileWorkflow: {
-        appointmentId: linked.appointmentId ?? null,
-        currentStep: 'check_in',
-        lastRoute: '/tabs/skin-wound/' + patientId + '/assessments',
-        lastUpdatedAt: serverTimestamp(),
-        steps: {
-          check_in: {
-            enteredAt: serverTimestamp(),
-            byUid: user.uid,
-            byName: user.displayName ?? null,
-          },
-        },
-      },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: user.uid,
-      updatedBy: user.uid,
-    }));
-
-    await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: created.id });
-    return { visitId: created.id, location, checkpoint, syncStatus: 'synced' };
-  }
+    // Prospective workflow is strict: Scheduler / Frontdesk creates both
+    // the appointment and the empty field-encounter shell. WoundAPP captures
+    // clinical data into that existing visit; it never creates a visit.
+    throw new Error(
+      'This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.'
+    );
 
   /**
    * Record departure.
