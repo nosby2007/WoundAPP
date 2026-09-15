@@ -16,7 +16,7 @@ for (const value of [
   'private clearEvvBusy(): void',
   'private async withTimeout<T>',
   'Recovered from a stalled EVV action.',
-  'Checkout did not finish in time.',
+  'Checkout could not be stored on this device in time. Try again once.',
   'Check-in did not finish in time.',
   'this.fieldWork.completeVisit(this.appointmentId)',
 ]) need(page, value, 'checkout recovery');
