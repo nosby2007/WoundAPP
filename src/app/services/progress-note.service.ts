@@ -12,6 +12,7 @@ import {
 import { auth, db } from '../firebase';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
 export interface ProgressNote {
   id: string;
@@ -61,6 +62,7 @@ export class ProgressNoteService {
     details: string,
     wound?: ProgressNoteWoundContext | null,
     voiceProvenance?: ProgressNoteVoiceProvenance | null,
+    visitLink: ClinicalVisitLink = {},
   ): Promise<string> {
     if (!patientId) throw new Error('ProgressNoteService.create(): patientId is missing.');
     const text = (details || '').trim();
@@ -74,6 +76,10 @@ export class ProgressNoteService {
     const now = serverTimestamp();
     const payload: Record<string, unknown> = {
       patientId,
+      ...clinicalVisitLinkFields({
+        ...visitLink,
+        woundId: wound?.woundId ?? visitLink.woundId ?? null,
+      }),
       type: 'Progress Notes',
       details: text,
       effectiveAt: now,
