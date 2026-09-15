@@ -267,6 +267,7 @@ export class VisitService {
     throw new Error(
       'This scheduled appointment is missing its clinical visit shell. Return it to Scheduler / Frontdesk for repair before check-in.'
     );
+  }
 
   /**
    * Record departure.
@@ -416,7 +417,7 @@ export class VisitService {
     if (mutation.status === 'synced') {
       await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
     }
-    return { location, syncStatus: mutation.status };
+    return { location, syncStatus: mutation.status === 'synced' ? 'synced' : 'queued' };
   }
 
   hasPendingCheckout(visitId: string): boolean {
