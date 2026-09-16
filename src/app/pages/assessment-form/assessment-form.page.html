@@ -50,6 +50,10 @@
       <div class="reeval-banner" *ngIf="isReevaluation">
         Re-evaluation<ng-container *ngIf="woundLabel"> — {{ woundLabel }}</ng-container>
         <span>Adds to this wound's history. It does not open a new wound.</span>
+        <span *ngIf="previousAssessmentId" class="baseline-note">
+          Previous assessment values are loaded as a baseline<ng-container *ngIf="previousAssessmentDate"> from {{ previousAssessmentDate | date:'MM/dd/yyyy' }}</ng-container>.
+          Confirm or update the findings and measurements before saving.
+        </span>
       </div>
 
       <ion-accordion-group [multiple]="true" [value]="['describe','measurements']">

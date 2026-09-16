@@ -200,6 +200,10 @@
         <ion-label class="assessment-main">
           <div class="assessment-left"><h2 class="assessment-title">{{ a.type || 'Assessment' }}</h2>
             <p class="assessment-sub">{{ a.location || 'Location N/A' }}<span *ngIf="a.assessedAt"> · {{ a.assessedAt | date: 'MM/dd/yyyy' }}</span><span *ngIf="a.assessmentCount > 1" class="reeval-count"> · {{ a.assessmentCount }} assessments</span></p>
+            <ion-button size="small" fill="solid" class="btn-reeval reeval-mobile" (click)="$event.stopPropagation(); reEvaluate(a)">
+              <ion-icon slot="start" name="refresh-outline"></ion-icon>
+              Re-evaluate
+            </ion-button>
           </div>
           <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
         </ion-label>
@@ -207,7 +211,7 @@
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment', a.id)" aria-label="Print this wound assessment"><ion-icon slot="icon-only" name="print-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment', a.id)" aria-label="Send this wound assessment"><ion-icon slot="icon-only" name="share-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>
-          <ion-button size="small" fill="solid" class="btn-reeval" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="solid" class="btn-reeval reeval-desktop" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
         </div>
       </ion-item>
     </ion-list>

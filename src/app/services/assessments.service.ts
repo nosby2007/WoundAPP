@@ -9,6 +9,7 @@ import {
   doc,
   docData,
   getDoc,
+  getDocs,
   addDoc,
   setDoc,
   updateDoc,
@@ -97,6 +98,28 @@ export class AssessmentsService {
   getRaw(patientId: string, assessmentId: string): Observable<any | null> {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     return docData(refDoc).pipe(map((d: any) => d ? { ...d, id: assessmentId } : null));
+  }
+
+
+  async getLatestRawForWound(patientId: string, woundId: string): Promise<any | null> {
+    const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
+    const snapshot = await getDocs(colRef);
+
+    const candidates = snapshot.docs
+      .map((snap) => ({ ...(snap.data() as any), id: snap.id }))
+      .filter((data: any) => String(data?.woundId || data.id) === woundId)
+      .sort((a: any, b: any) => this.assessmentTimeMs(b) - this.assessmentTimeMs(a));
+
+    return candidates[0] ?? null;
+  }
+
+  private assessmentTimeMs(data: any): number {
+    const raw = data?.assessedAt ?? data?.createdAt ?? data?.updatedAt ?? null;
+    if (!raw) return 0;
+    if (typeof raw?.toMillis === 'function') return raw.toMillis();
+    if (typeof raw?.toDate === 'function') return raw.toDate().getTime();
+    const date = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
   }
 
   buildPayloadFromForm(formValue: any) {
