@@ -9,6 +9,7 @@ import {
   doc,
   docData,
   getDoc,
+  getDocs,
   addDoc,
   setDoc,
   updateDoc,
@@ -97,6 +98,21 @@ export class AssessmentsService {
   getRaw(patientId: string, assessmentId: string): Observable<any | null> {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     return docData(refDoc).pipe(map((d: any) => d ? { ...d, id: assessmentId } : null));
+  }
+
+
+  async getLatestRawForWound(patientId: string, woundId: string): Promise<any | null> {
+    const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
+    const snapshot = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
+
+    for (const snap of snapshot.docs) {
+      const data = snap.data() as any;
+      const resolvedWoundId = String(data?.woundId || snap.id);
+      if (resolvedWoundId === woundId) {
+        return { ...data, id: snap.id };
+      }
+    }
+    return null;
   }
 
   buildPayloadFromForm(formValue: any) {
