@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { collection, doc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
@@ -171,6 +171,73 @@ export class MobileOrderService {
     }).sort((a, b) => a.label.localeCompare(b.label));
   }
 
+  private async resolveOrderVisitLink(
+    patientId: string,
+    woundId: string | null,
+    link?: ClinicalVisitLink | null
+  ): Promise<ClinicalVisitLink> {
+    const baseLink: ClinicalVisitLink = { ...(link || {}) };
+    const requestedVisitId = String(baseLink.visitId || '').trim() || null;
+    const fieldEncounterVisitId =
+      String(baseLink.fieldEncounterVisitId || requestedVisitId || '').trim() || null;
+
+    if (!requestedVisitId || !woundId) {
+      return {
+        ...baseLink,
+        visitId: requestedVisitId,
+        fieldEncounterVisitId,
+        woundId,
+      };
+    }
+
+    const requestedRef = doc(db, `patients/${patientId}/woundVisits/${requestedVisitId}`);
+    const requestedSnap = await getDoc(requestedRef);
+    if (requestedSnap.exists()) {
+      const requested = requestedSnap.data() as Record<string, unknown>;
+      const requestedWoundId = String(requested['woundId'] || '').trim();
+      if (requestedWoundId === woundId) {
+        return {
+          ...baseLink,
+          visitId: requestedVisitId,
+          fieldEncounterVisitId,
+          woundId,
+          episodeId: String(requested['episodeId'] || baseLink.episodeId || '').trim() || null,
+        };
+      }
+    }
+
+    if (fieldEncounterVisitId) {
+      const childVisitId = `${fieldEncounterVisitId}__${woundId}`;
+      const childRef = doc(db, `patients/${patientId}/woundVisits/${childVisitId}`);
+      const childSnap = await getDoc(childRef);
+      if (childSnap.exists()) {
+        const child = childSnap.data() as Record<string, unknown>;
+        const childWoundId = String(child['woundId'] || '').trim();
+        if (childWoundId === woundId) {
+          return {
+            ...baseLink,
+            visitId: childVisitId,
+            fieldEncounterVisitId,
+            woundId,
+            episodeId: String(child['episodeId'] || baseLink.episodeId || '').trim() || null,
+          };
+        }
+      }
+    }
+
+    // Do not create a shadow wound visit from the Order screen. When the
+    // assessment has not established a wound-specific child visit yet, keep
+    // the physical encounter link separately and leave visitId unscoped.
+    // JADE's active Order List can then match this order by woundId while
+    // preserving the real field encounter for audit.
+    return {
+      ...baseLink,
+      visitId: null,
+      fieldEncounterVisitId,
+      woundId,
+    };
+  }
+
   async createTreatmentProtocolOrder(patientId: string, input: {
     treatmentProtocol: MobileTreatmentProtocolTemplate;
     woundId?: string | null;
@@ -258,18 +325,22 @@ export class MobileOrderService {
       ...treatmentLines,
     ].filter((line): line is string => !!line).join('\n');
 
+    const selectedWoundId = input.woundId || input.visitLink?.woundId || null;
+    const resolvedVisitLink = await this.resolveOrderVisitLink(
+      patientId,
+      selectedWoundId,
+      input.visitLink
+    );
+
     const ref = doc(collection(db, `patients/${patientId}/orders`));
     const now = serverTimestamp();
 
     await setDoc(ref, {
       orgId,
       patientId,
-      ...clinicalVisitLinkFields({
-        ...(input.visitLink || {}),
-        woundId: input.woundId || input.visitLink?.woundId || null,
-      }),
-      woundId: input.woundId || input.visitLink?.woundId || null,
-      episodeId: input.visitLink?.episodeId || null,
+      ...clinicalVisitLinkFields(resolvedVisitLink),
+      woundId: selectedWoundId,
+      episodeId: resolvedVisitLink.episodeId || null,
       facilityId: null,
       orderType: 'wound_care_protocol',
       description,
@@ -335,6 +406,9 @@ export class MobileOrderService {
         treatmentTemplateId: treatment.id,
         treatmentTemplateVersion: treatment.version ?? 1,
         treatmentCategory: treatment.category,
+        visitId: resolvedVisitLink.visitId ?? null,
+        fieldEncounterVisitId: resolvedVisitLink.fieldEncounterVisitId ?? null,
+        woundId: selectedWoundId,
       },
     });
     return ref.id;
