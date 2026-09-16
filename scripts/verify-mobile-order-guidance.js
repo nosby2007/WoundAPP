@@ -24,8 +24,10 @@ for (const forbidden of ['setDoc(', 'createAlgorithmOrder(', 'MobileOrderService
 for (const required of [
   'guidance: input.guidance ?',
   'selectedTypeMatchedGuidance',
-  'schemaVersion: treatment ? 3 : 2',
-  "mode: 'algorithm'",
+  'schemaVersion: 3',
+  "mode: 'treatment_protocol'",
+  'createTreatmentProtocolOrder',
+  'orderType: 'wound_care_protocol'",
   'listPublishedTreatmentProtocols',
   'snapshotTreatmentProtocol',
   'treatmentProtocol:',
@@ -37,15 +39,31 @@ for (const required of [
 for (const required of [
   'It does not choose treatment or place an order.',
   'chooseWoundType(',
-  'filteredAlgorithms',
+  'treatmentCategories',
   'selectedTypeMatchedGuidance',
-  'TREATMENT TEMPLATE',
+  'TREATMENT PROTOCOL',
   'onTreatmentTemplateChanged(',
   'protocolOptions(',
   'toggleProtocolOption(',
   'selectedTreatmentTemplate',
 ]) {
   if (!page.includes(required)) throw new Error(`Mobile provider guidance UI invariant missing: ${required}`);
+}
+
+
+for (const forbidden of [
+  'PUBLISHED ALGORITHM',
+  'onAlgorithmChanged(',
+  'selectedAlgorithm',
+  'createAlgorithmOrder(',
+]) {
+  if (page.includes(forbidden)) {
+    throw new Error(`Care Algorithm must not remain an executable order template in mobile UI: ${forbidden}`);
+  }
+}
+
+if (orderService.includes("orderType: 'wound_care_algorithm'")) {
+  throw new Error('Mobile treatment-template orders must not be stored as wound_care_algorithm.');
 }
 
 if (!fieldWork.includes('.filter(visit => !visit.archivedAt)')) {
