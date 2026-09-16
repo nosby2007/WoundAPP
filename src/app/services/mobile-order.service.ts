@@ -211,29 +211,36 @@ export class MobileOrderService {
     return [algorithm.name, ...lines, ...contingencies].join('\n');
   }
 
-  async createAlgorithmOrder(patientId: string, input: {
-    algorithm: MobileCareAlgorithm;
+  async createTreatmentProtocolOrder(patientId: string, input: {
+    treatmentProtocol: MobileTreatmentProtocolTemplate;
     woundId?: string | null;
     woundLabel?: string | null;
+    selectedCategory: string;
     receiptMethod: MobileOrderReceiptMethod;
     prescriberUid?: string | null;
     readBackConfirmed?: boolean;
     guidance?: MobileAlgorithmGuidance | null;
     selectedTypeMatchedGuidance?: boolean;
-    treatmentProtocol?: MobileTreatmentProtocolTemplate | null;
     treatmentSelections?: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>>;
     visitLink?: ClinicalVisitLink | null;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in required.');
+
     const actor = await this.identity.requireCurrentIdentity();
     this.assertClinicalAuthor(actor);
-    const orgId = await this.tenant.currentOrgId();
-    if (!orgId || input.algorithm.orgId !== orgId || !input.algorithm.active) throw new Error('This algorithm is not published for your organization.');
 
-    const description = this.renderAlgorithm(input.algorithm);
-    if (!description) throw new Error('This algorithm has no orderable steps.');
+    const orgId = await this.tenant.currentOrgId();
+    const treatment = input.treatmentProtocol;
+    if (!orgId || treatment.orgId !== orgId || treatment.active !== true) {
+      throw new Error('This treatment protocol is not published for your organization.');
+    }
+
+    const mappedCategory = this.treatmentCategoryForWoundType(input.selectedCategory) || input.selectedCategory;
+    if (mappedCategory && treatment.category !== mappedCategory) {
+      throw new Error('Selected treatment protocol does not match the provider-selected wound category.');
+    }
 
     const isPrescriber = ['provider', 'np'].includes(actor.role.toLowerCase());
     let receiptMethod: MobileOrderReceiptMethod = input.receiptMethod;
@@ -242,29 +249,34 @@ export class MobileOrderService {
     if (isPrescriber) {
       receiptMethod = 'direct';
     } else {
-      if (!['telephone', 'verbal'].includes(receiptMethod)) throw new Error('Nursing staff must record how the prescriber order was received.');
-      if (!input.readBackConfirmed) throw new Error('Confirm read-back before recording a telephone or verbal order.');
+      if (!['telephone', 'verbal'].includes(receiptMethod)) {
+        throw new Error('Nursing staff must record how the prescriber order was received.');
+      }
+      if (!input.readBackConfirmed) {
+        throw new Error('Confirm read-back before recording a telephone or verbal order.');
+      }
       const prescribers = await this.listPrescribers();
       const prescriber = prescribers.find(p => p.uid === input.prescriberUid);
       if (!prescriber) throw new Error('Select the prescriber who gave the order.');
       coSignature = {
         status: 'pending',
-        provider: { uid: prescriber.uid, displayName: prescriber.displayName, role: prescriber.role, credentials: prescriber.credentials || null, npi: prescriber.npi || null },
+        provider: {
+          uid: prescriber.uid,
+          displayName: prescriber.displayName,
+          role: prescriber.role,
+          credentials: prescriber.credentials || null,
+          npi: prescriber.npi || null,
+        },
         requestedAt: Timestamp.now(),
         signedAt: null,
         signedBy: null,
       };
     }
 
-    const ref = doc(collection(db, `patients/${patientId}/orders`));
-    const now = serverTimestamp();
-    const treatment = input.treatmentProtocol || null;
-    if (treatment && (treatment.orgId !== orgId || treatment.active !== true)) {
-      throw new Error('This treatment protocol is not published for your organization.');
-    }
     const selections = input.treatmentSelections || {};
-    const treatmentLines = treatment ? [
-      `Treatment template: ${treatment.name} (v${treatment.version || 1})`,
+    const treatmentLines = [
+      `Treatment protocol: ${treatment.name} (v${treatment.version || 1})`,
+      selections.specialInstructions?.length ? `Special instructions: ${selections.specialInstructions.join(', ')}` : null,
       selections.cleanse?.length ? `Cleanse: ${selections.cleanse.join(', ')}` : null,
       selections.prep?.length ? `Prep/periwound: ${selections.prep.join(', ')}` : null,
       selections.fillApply?.length ? `Fill/apply: ${selections.fillApply.join(', ')}` : null,
@@ -272,12 +284,16 @@ export class MobileOrderService {
       selections.secureWith?.length ? `Secure: ${selections.secureWith.join(', ')}` : null,
       selections.changePrn?.length ? `Change/PRN: ${selections.changePrn.join(', ')}` : null,
       treatment.orderDefaults?.frequency ? `Frequency: ${treatment.orderDefaults.frequency}` : null,
-    ].filter((line): line is string => !!line) : [];
-    const descriptionWithWound = [
+    ].filter((line): line is string => !!line);
+
+    const description = [
       input.woundLabel ? `Wound: ${input.woundLabel}` : null,
-      description,
       ...treatmentLines,
     ].filter((line): line is string => !!line).join('\n');
+
+    const ref = doc(collection(db, `patients/${patientId}/orders`));
+    const now = serverTimestamp();
+
     await setDoc(ref, {
       orgId,
       patientId,
@@ -288,25 +304,18 @@ export class MobileOrderService {
       woundId: input.woundId || input.visitLink?.woundId || null,
       episodeId: input.visitLink?.episodeId || null,
       facilityId: null,
-      orderType: 'wound_care_algorithm',
-      description: descriptionWithWound,
+      orderType: 'wound_care_protocol',
+      description,
+      generatedOrderText: treatmentLines.join(' '),
+      treatmentProtocol: this.snapshotTreatmentProtocol(treatment),
       orderedAt: now,
       orderedBy: actor,
       receiptMethod,
       readBackConfirmed: receiptMethod === 'direct' ? null : true,
       coSignature,
-      algorithmId: input.algorithm.id,
-      algorithmName: input.algorithm.name,
-      algorithmWoundType: input.algorithm.woundType,
-      algorithmVersion: input.algorithm.version ?? 1,
-      schemaVersion: treatment ? 3 : 2,
-      generatedOrderText: treatmentLines.join(' '),
-      treatmentProtocol: treatment ? this.snapshotTreatmentProtocol(treatment) : null,
+      schemaVersion: 3,
       source: {
-        mode: 'algorithm',
-        algorithmId: input.algorithm.id,
-        algorithmName: input.algorithm.name,
-        algorithmVersion: input.algorithm.version ?? 1,
+        mode: 'treatment_protocol',
         guidance: input.guidance ? {
           suggestedWoundTypes: input.guidance.suggestedTypes,
           rationale: input.guidance.rationale,
@@ -315,43 +324,49 @@ export class MobileOrderService {
         } : null,
       },
       clinical: {
-        woundType: input.algorithm.woundType,
+        woundType: treatment.category,
         woundLocation: input.woundLabel ?? null,
-        woundManagement: treatment?.orderDefaults?.woundManagement ?? null,
+        woundManagement: treatment.orderDefaults?.woundManagement ?? null,
         specialInstructions: selections.specialInstructions || [],
         schedule: {
-          frequency: treatment?.orderDefaults?.frequency ??
-            (input.algorithm.steps || []).map(step => step.frequency).find(value => !!value) ?? null,
+          frequency: treatment.orderDefaults?.frequency ?? null,
           prn: selections.changePrn || [],
         },
-        cleanse: selections.cleanse?.length
-          ? selections.cleanse
-          : (input.algorithm.steps || []).map(step => step.woundCleanser).filter((value): value is string => !!value),
+        cleanse: selections.cleanse || [],
         prep: selections.prep || [],
-        apply: selections.fillApply?.length
-          ? selections.fillApply
-          : (input.algorithm.steps || []).map(step => step.applyToWoundProduct).filter((value): value is string => !!value),
-        cover: selections.cover?.length
-          ? selections.cover
-          : (input.algorithm.steps || []).map(step => step.coverMethod).filter((value): value is string => !!value),
+        apply: selections.fillApply || [],
+        cover: selections.cover || [],
         secure: selections.secureWith || [],
-        contingencies: (input.algorithm.contingencies || []).map(entry => ({
-          trigger: entry.trigger,
-          action: entry.action,
-        })),
+        contingencies: [],
       },
-      workflow: { state: 'created', history: [{ fromState: null, toState: 'created', occurredAt: Timestamp.now(), actor, comment: 'Order placed from published organization algorithm in mobile field workflow.' }] },
+      workflow: {
+        state: 'created',
+        history: [{
+          fromState: null,
+          toState: 'created',
+          occurredAt: Timestamp.now(),
+          actor,
+          comment: 'Order placed from admin-published treatment protocol in mobile field workflow.',
+        }],
+      },
       createdAt: now,
       updatedAt: now,
       createdBy: actor,
       updatedBy: actor,
     });
-    await this.audit.record({ action: 'order_created', patientId, entityType: 'order', entityId: ref.id, metadata: {
-      receiptMethod,
-      algorithmVersion: input.algorithm.version ?? 1,
-      treatmentTemplateId: treatment?.id ?? null,
-      treatmentTemplateVersion: treatment?.version ?? null,
-    } });
+
+    await this.audit.record({
+      action: 'order_created',
+      patientId,
+      entityType: 'order',
+      entityId: ref.id,
+      metadata: {
+        receiptMethod,
+        treatmentTemplateId: treatment.id,
+        treatmentTemplateVersion: treatment.version ?? 1,
+        treatmentCategory: treatment.category,
+      },
+    });
     return ref.id;
   }
 
