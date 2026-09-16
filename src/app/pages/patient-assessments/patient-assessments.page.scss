@@ -108,6 +108,13 @@ ion-list {
   font-size: 0.78rem;
 }
 
+
+.reeval-mobile {
+  display: none;
+  margin-top: var(--app-space-2);
+  width: fit-content;
+}
+
 .actions {
   display: grid;
   gap: var(--app-space-2);
@@ -267,6 +274,22 @@ ion-list {
   .clinical-command-head { align-items: start; }
   .clinical-command-head small { display: none; }
   .assessment-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .reeval-desktop {
+    display: none;
+  }
+
+  .reeval-mobile {
+    display: inline-flex;
+  }
+
+  .assessment-item {
+    align-items: flex-start;
+  }
+
+  .actions {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 430px) {
