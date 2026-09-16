@@ -231,15 +231,15 @@ export class ClinicalOrderPage implements OnInit {
   identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
-  routineWoundManagement = 'Wound care per specified algorithm/order';
+  routineWoundManagement = 'Wound care per specified treatment protocol/order';
   routineFrequency = 'Daily';
   routineStartDate = new Date().toISOString().slice(0, 10);
   routineDuration = 'Until discontinued';
   routineComments = '';
   readonly woundManagementOptions = [
     'NPWT',
-    'Wound care per algorithm',
-    'Wound care per specified algorithm/order',
+    'Wound care per treatment protocol',
+    'Wound care per specified treatment protocol/order',
     'Wound care per provider',
     'Wound prevention',
   ];
@@ -254,7 +254,7 @@ export class ClinicalOrderPage implements OnInit {
     'Every 2 days',
     'Every 3 days',
     'Q 21 Days',
-    'Per algorithm',
+    'Per treatment protocol',
   ];
   guidance: MobileAlgorithmGuidance | null = null; selectedWoundType = '';
   receiptMethod: MobileOrderReceiptMethod = 'telephone'; prescriberUid = ''; readBackConfirmed = false;
@@ -303,7 +303,9 @@ export class ClinicalOrderPage implements OnInit {
     this.selectedTreatmentTemplate = this.filteredTreatmentTemplates.find(t => t.id === this.treatmentTemplateId) || null;
     this.treatmentSelections = {};
     if (!this.selectedTreatmentTemplate) return;
-    this.routineWoundManagement = this.selectedTreatmentTemplate.orderDefaults?.woundManagement || 'Wound care per specified algorithm/order';
+    this.routineWoundManagement = this.normalizeTreatmentManagement(
+      this.selectedTreatmentTemplate.orderDefaults?.woundManagement
+    );
     this.routineFrequency = this.selectedTreatmentTemplate.orderDefaults?.frequency || 'Daily';
     this.routineStartDate = new Date().toISOString().slice(0, 10);
     this.routineDuration = 'Until discontinued';
@@ -346,8 +348,19 @@ export class ClinicalOrderPage implements OnInit {
     this.resetRoutine();
   }
 
+  private normalizeTreatmentManagement(value: string | null | undefined): string {
+    const normalized = String(value || '').trim();
+    if (!normalized || normalized === 'Wound care per specified algorithm/order') {
+      return 'Wound care per specified treatment protocol/order';
+    }
+    if (normalized === 'Wound care per algorithm') {
+      return 'Wound care per treatment protocol';
+    }
+    return normalized;
+  }
+
   private resetRoutine(): void {
-    this.routineWoundManagement = 'Wound care per specified algorithm/order';
+    this.routineWoundManagement = 'Wound care per specified treatment protocol/order';
     this.routineFrequency = 'Daily';
     this.routineStartDate = new Date().toISOString().slice(0, 10);
     this.routineDuration = 'Until discontinued';
