@@ -7,30 +7,6 @@ import { ClinicalAuditService } from './clinical-audit.service';
 import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
 import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
-export interface MobileCareAlgorithmStep {
-  id?: string;
-  sequence?: number;
-  instruction: string;
-  woundCleanser?: string | null;
-  applyToWoundProduct?: string | null;
-  coverMethod?: string | null;
-  frequency?: string | null;
-  appliesWhen?: string | null;
-  notes?: string | null;
-}
-
-export interface MobileCareAlgorithm {
-  id: string;
-  orgId: string;
-  woundType: string;
-  name: string;
-  description?: string | null;
-  steps: MobileCareAlgorithmStep[];
-  contingencies?: Array<{ trigger: string; action: string }>;
-  active: boolean;
-  version?: number;
-}
-
 export interface MobileTreatmentProtocolOption {
   id: string;
   label: string;
@@ -121,16 +97,6 @@ export class MobileOrderService {
   private identity = inject(ClinicalIdentityService);
   private audit = inject(ClinicalAuditService);
 
-  async listPublishedAlgorithms(): Promise<MobileCareAlgorithm[]> {
-    const orgId = await this.tenant.currentOrgId();
-    if (!orgId) return [];
-    const snap = await getDocs(collection(db, `organizations/${orgId}/careAlgorithms`));
-    return snap.docs
-      .map(d => ({ id: d.id, ...(d.data() as any) } as MobileCareAlgorithm))
-      .filter(a => a.orgId === orgId && a.active === true && Array.isArray(a.steps) && a.steps.some(step => !!step?.instruction?.trim()))
-      .sort((a, b) => (a.woundType || '').localeCompare(b.woundType || '') || a.name.localeCompare(b.name));
-  }
-
   async listPublishedTreatmentProtocols(): Promise<MobileTreatmentProtocolTemplate[]> {
     const orgId = await this.tenant.currentOrgId();
     if (!orgId) return [];
@@ -203,27 +169,6 @@ export class MobileOrderService {
         },
       };
     }).sort((a, b) => a.label.localeCompare(b.label));
-  }
-
-  renderAlgorithm(algorithm: MobileCareAlgorithm): string {
-    const steps = [...(algorithm.steps || [])]
-      .filter(s => !!s?.instruction?.trim())
-      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-    if (!steps.length) return '';
-    const lines = steps.map((step, index) => {
-      const details = [
-        step.appliesWhen ? `when ${step.appliesWhen}` : null,
-        step.woundCleanser ? `cleanser: ${step.woundCleanser}` : null,
-        step.applyToWoundProduct ? `apply: ${step.applyToWoundProduct}` : null,
-        step.coverMethod ? `cover: ${step.coverMethod}` : null,
-        step.frequency ? `frequency: ${step.frequency}` : null,
-      ].filter(Boolean);
-      return `${index + 1}. ${step.instruction.trim()}${details.length ? ` (${details.join('; ')})` : ''}`;
-    });
-    const contingencies = (algorithm.contingencies || [])
-      .filter(c => !!c?.trigger?.trim() && !!c?.action?.trim())
-      .map(c => `${c.trigger.trim()}: ${c.action.trim()}`);
-    return [algorithm.name, ...lines, ...contingencies].join('\n');
   }
 
   async createTreatmentProtocolOrder(patientId: string, input: {
