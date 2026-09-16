@@ -203,6 +203,8 @@ export class AssessmentFormPage implements OnInit {
   additionalCareOptions = ADDITIONAL_CARE;
 
   loading = false;
+  previousAssessmentId: string | null = null;
+  previousAssessmentDate: Date | null = null;
 
   /**
    * Mirrors the web app's WoundAssessment form group, section for section, so
@@ -314,6 +316,99 @@ export class AssessmentFormPage implements OnInit {
   ngOnInit(): void {
     if (this.assessmentId) {
       this.loadForEdit();
+      return;
+    }
+    if (this.isReevaluation) {
+      void this.loadReevaluationBaseline();
+    }
+  }
+
+  private async loadReevaluationBaseline(): Promise<void> {
+    if (!this.woundId) return;
+    this.loading = true;
+    try {
+      const data = await this.assessments.getLatestRawForWound(this.patientId, this.woundId);
+      if (!data) return;
+
+      this.previousAssessmentId = data.id ?? null;
+      const rawDate = data.assessedAt ?? data.createdAt ?? null;
+      this.previousAssessmentDate = rawDate?.toDate
+        ? rawDate.toDate()
+        : rawDate
+          ? new Date(rawDate)
+          : null;
+
+      // Carry forward the last documented wound baseline so the clinician can
+      // compare and update it. Visit-specific evidence is intentionally NOT
+      // copied: photo, progress notes and treatment performed today start fresh.
+      this.form.patchValue({
+        describe: {
+          type: data.describe?.type || data.type || '',
+          stage: data.describe?.stage || data.stage || '',
+          location: data.describe?.location || data.location || '',
+          acquired: data.describe?.acquired || data.acquired || '',
+          notes: '',
+        },
+        measurements: {
+          length: this.numOrNull(data.measurements?.length),
+          width: this.numOrNull(data.measurements?.width),
+          depth: this.numOrNull(data.measurements?.depth),
+          undermining: data.measurements?.undermining || '',
+          tunneling: data.measurements?.tunneling || '',
+        },
+        woundBed: {
+          epithelial: !!data.woundBed?.epithelial,
+          granulationPresent: !!data.woundBed?.granulation?.present,
+          granulationPercent: this.numOrNull(data.woundBed?.granulation?.percent),
+          sloughPresent: !!data.woundBed?.slough?.present,
+          sloughPercent: this.numOrNull(data.woundBed?.slough?.percent),
+          eschar: !!data.woundBed?.eschar,
+          infection: data.woundBed?.infection || [],
+          other: data.woundBed?.other || [],
+          otherNote: data.woundBed?.otherNote || '',
+        },
+        exudate: {
+          amount: data.exudate?.amount || 'None',
+          type: data.exudate?.type || 'None',
+          odor: data.exudate?.odor || 'None',
+        },
+        periwound: {
+          edges: data.periwound?.edges || 'Attached',
+          surrounding: data.periwound?.surrounding || [],
+          induration: data.periwound?.induration || 'None present',
+          edema: data.periwound?.edema || 'No swelling or edema',
+          temperature: data.periwound?.temperature || 'Normal',
+        },
+        pain: {
+          cognitivelyImpaired: !!data.pain?.cognitivelyImpaired,
+          score: data.pain?.score ?? 0,
+          frequency: data.pain?.frequency || 'None',
+          notes: '',
+        },
+        progress: {
+          status: data.progress?.status || data.status || 'New',
+          infection: data.progress?.infection || 'None',
+          notes: '',
+        },
+        orders: {
+          goalOfCare: data.orders?.goalOfCare || '',
+        },
+        treatment: {
+          dressingAppearance: '',
+          cleansing: '',
+          debridement: '',
+          primary: '',
+          primaryOther: '',
+          secondary: '',
+          secondaryOther: '',
+          modalities: '',
+          additionalCare: [],
+        },
+      });
+    } catch (error) {
+      console.error('[AssessmentForm] re-evaluation baseline load failed', error);
+    } finally {
+      this.loading = false;
     }
   }
 
