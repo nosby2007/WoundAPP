@@ -89,6 +89,20 @@ export interface MobileTreatmentRoutine {
   comments: string | null;
 }
 
+export interface MobileClinicalOrderRow {
+  id: string;
+  orderType: string;
+  description: string;
+  generatedOrderText?: string | null;
+  visitId?: string | null;
+  fieldEncounterVisitId?: string | null;
+  woundId?: string | null;
+  orderedAt?: any;
+  treatmentProtocol?: MobileAppliedTreatmentProtocol | null;
+  workflow?: { state?: string | null } | null;
+  archivedAt?: any;
+}
+
 export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
 
 @Injectable({ providedIn: 'root' })
@@ -169,6 +183,30 @@ export class MobileOrderService {
         },
       };
     }).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  async listOrders(
+    patientId: string,
+    link?: ClinicalVisitLink | null
+  ): Promise<MobileClinicalOrderRow[]> {
+    if (!patientId) return [];
+    const snap = await getDocs(collection(db, `patients/${patientId}/orders`));
+    const rows = snap.docs
+      .map(d => ({ id: d.id, ...(d.data() as any) } as MobileClinicalOrderRow))
+      .filter(order => !order.archivedAt);
+
+    const visitId = String(link?.visitId || '').trim();
+    const woundId = String(link?.woundId || '').trim();
+
+    return rows
+      .filter(order => {
+        if (!visitId) return true;
+        if (order.visitId === visitId) return true;
+        if (order.fieldEncounterVisitId === visitId) return true;
+        if (!order.visitId && woundId && order.woundId === woundId) return true;
+        return false;
+      })
+      .sort((a, b) => this.toMillis(b.orderedAt) - this.toMillis(a.orderedAt));
   }
 
   private async resolveOrderVisitLink(
