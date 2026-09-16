@@ -32,6 +32,10 @@ for (const required of [
   'snapshotTreatmentProtocol',
   'treatmentProtocol:',
   'specialInstructions:',
+  'MobileTreatmentRoutine',
+  'startAt',
+  'duration: routine.duration',
+  'comments: routine.comments',
 ]) {
   if (!orderService.includes(required)) throw new Error(`Shared order contract invariant missing: ${required}`);
 }
@@ -46,6 +50,20 @@ for (const required of [
   'protocolOptions(',
   'toggleProtocolOption(',
   'selectedTreatmentTemplate',
+  'BUILD ROUTINE',
+  'Wound management',
+  'Frequency',
+  'Start date',
+  'Duration',
+  'Change / PRN',
+  'Provider comments / parameters',
+  'Generated routine',
+  'routinePreview',
+  'routineWoundManagement',
+  'routineFrequency',
+  'routineStartDate',
+  'routineDuration',
+  'routineComments',
 ]) {
   if (!page.includes(required)) throw new Error(`Mobile provider guidance UI invariant missing: ${required}`);
 }
@@ -56,6 +74,7 @@ for (const forbidden of [
   'onAlgorithmChanged(',
   'selectedAlgorithm',
   'createAlgorithmOrder(',
+  'PUBLISHED ALGORITHM',
 ]) {
   if (page.includes(forbidden)) {
     throw new Error(`Care Algorithm must not remain an executable order template in mobile UI: ${forbidden}`);
@@ -64,6 +83,21 @@ for (const forbidden of [
 
 if (orderService.includes("orderType: 'wound_care_algorithm'")) {
   throw new Error('Mobile treatment-template orders must not be stored as wound_care_algorithm.');
+}
+
+
+for (const forbidden of [
+  'listPublishedAlgorithms()',
+  'renderAlgorithm(',
+  "orderType: 'wound_care_algorithm'",
+]) {
+  if (orderService.includes(forbidden)) {
+    throw new Error(`Mobile order service must not use Care Algorithm as an executable template: ${forbidden}`);
+  }
+}
+
+if (!page.includes('Wound care per specified treatment protocol/order')) {
+  throw new Error('Mobile routine must use treatment-protocol terminology.');
 }
 
 if (!fieldWork.includes('.filter(visit => !visit.archivedAt)')) {
