@@ -318,6 +318,7 @@ export class MobileOrderService {
         woundType: input.algorithm.woundType,
         woundLocation: input.woundLabel ?? null,
         woundManagement: treatment?.orderDefaults?.woundManagement ?? null,
+        specialInstructions: selections.specialInstructions || [],
         schedule: {
           frequency: treatment?.orderDefaults?.frequency ??
             (input.algorithm.steps || []).map(step => step.frequency).find(value => !!value) ?? null,
