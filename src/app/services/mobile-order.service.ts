@@ -98,6 +98,21 @@ export interface MobileWoundOption {
   guidanceInput: MobileWoundGuidanceInput;
 }
 
+export interface MobileTreatmentRoutine {
+  woundManagement: string | null;
+  specialInstructions: string[];
+  cleanse: string[];
+  prep: string[];
+  fillApply: string[];
+  cover: string[];
+  secureWith: string[];
+  frequency: string | null;
+  startDate: string | null;
+  duration: string | null;
+  changePrn: string[];
+  comments: string | null;
+}
+
 export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
 
 @Injectable({ providedIn: 'root' })
@@ -221,7 +236,7 @@ export class MobileOrderService {
     readBackConfirmed?: boolean;
     guidance?: MobileAlgorithmGuidance | null;
     selectedTypeMatchedGuidance?: boolean;
-    treatmentSelections?: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>>;
+    routine: MobileTreatmentRoutine;
     visitLink?: ClinicalVisitLink | null;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
@@ -273,17 +288,24 @@ export class MobileOrderService {
       };
     }
 
-    const selections = input.treatmentSelections || {};
+    const routine = input.routine;
+    const startAt = routine.startDate
+      ? Timestamp.fromDate(new Date(`${routine.startDate}T00:00:00`))
+      : null;
     const treatmentLines = [
       `Treatment protocol: ${treatment.name} (v${treatment.version || 1})`,
-      selections.specialInstructions?.length ? `Special instructions: ${selections.specialInstructions.join(', ')}` : null,
-      selections.cleanse?.length ? `Cleanse: ${selections.cleanse.join(', ')}` : null,
-      selections.prep?.length ? `Prep/periwound: ${selections.prep.join(', ')}` : null,
-      selections.fillApply?.length ? `Fill/apply: ${selections.fillApply.join(', ')}` : null,
-      selections.cover?.length ? `Cover: ${selections.cover.join(', ')}` : null,
-      selections.secureWith?.length ? `Secure: ${selections.secureWith.join(', ')}` : null,
-      selections.changePrn?.length ? `Change/PRN: ${selections.changePrn.join(', ')}` : null,
-      treatment.orderDefaults?.frequency ? `Frequency: ${treatment.orderDefaults.frequency}` : null,
+      routine.woundManagement ? `Wound management: ${routine.woundManagement}` : null,
+      routine.specialInstructions.length ? `Special instructions: ${routine.specialInstructions.join(', ')}` : null,
+      routine.cleanse.length ? `Cleanse: ${routine.cleanse.join(', ')}` : null,
+      routine.prep.length ? `Prep/periwound: ${routine.prep.join(', ')}` : null,
+      routine.fillApply.length ? `Fill/apply: ${routine.fillApply.join(', ')}` : null,
+      routine.cover.length ? `Cover: ${routine.cover.join(', ')}` : null,
+      routine.secureWith.length ? `Secure: ${routine.secureWith.join(', ')}` : null,
+      routine.frequency ? `Frequency: ${routine.frequency}` : null,
+      routine.startDate ? `Start date: ${routine.startDate}` : null,
+      routine.duration ? `Duration: ${routine.duration}` : null,
+      routine.changePrn.length ? `Change/PRN: ${routine.changePrn.join(', ')}` : null,
+      routine.comments ? `Provider comments: ${routine.comments}` : null,
     ].filter((line): line is string => !!line);
 
     const description = [
@@ -326,17 +348,20 @@ export class MobileOrderService {
       clinical: {
         woundType: treatment.category,
         woundLocation: input.woundLabel ?? null,
-        woundManagement: treatment.orderDefaults?.woundManagement ?? null,
-        specialInstructions: selections.specialInstructions || [],
+        woundManagement: routine.woundManagement,
+        specialInstructions: routine.specialInstructions,
         schedule: {
-          frequency: treatment.orderDefaults?.frequency ?? null,
-          prn: selections.changePrn || [],
+          frequency: routine.frequency,
+          startAt,
+          duration: routine.duration,
+          prn: routine.changePrn,
         },
-        cleanse: selections.cleanse || [],
-        prep: selections.prep || [],
-        apply: selections.fillApply || [],
-        cover: selections.cover || [],
-        secure: selections.secureWith || [],
+        cleanse: routine.cleanse,
+        prep: routine.prep,
+        apply: routine.fillApply,
+        cover: routine.cover,
+        secure: routine.secureWith,
+        comments: routine.comments,
         contingencies: [],
       },
       workflow: {
