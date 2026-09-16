@@ -36,6 +36,9 @@ for (const required of [
   'startAt',
   'duration: routine.duration',
   'comments: routine.comments',
+  'resolveOrderVisitLink',
+  'fieldEncounterVisitId',
+  'listOrders(',
 ]) {
   if (!orderService.includes(required)) throw new Error(`Shared order contract invariant missing: ${required}`);
 }
@@ -64,6 +67,9 @@ for (const required of [
   'routineStartDate',
   'routineDuration',
   'routineComments',
+  'CURRENT ORDERS',
+  'refreshOrders()',
+  'Order saved and added to Current Orders',
 ]) {
   if (!page.includes(required)) throw new Error(`Mobile provider guidance UI invariant missing: ${required}`);
 }
