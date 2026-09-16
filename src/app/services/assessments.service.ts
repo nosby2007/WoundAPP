@@ -106,7 +106,7 @@ export class AssessmentsService {
     const snapshot = await getDocs(colRef);
 
     const candidates = snapshot.docs
-      .map((snap) => ({ ...snap.data() as any, id: snap.id }))
+      .map((snap) => ({ ...(snap.data() as any), id: snap.id }))
       .filter((data: any) => String(data?.woundId || data.id) === woundId)
       .sort((a: any, b: any) => this.assessmentTimeMs(b) - this.assessmentTimeMs(a));
 
