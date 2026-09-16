@@ -27,7 +27,7 @@ for (const required of [
   'schemaVersion: 3',
   "mode: 'treatment_protocol'",
   'createTreatmentProtocolOrder',
-  'orderType: 'wound_care_protocol'",
+  "orderType: 'wound_care_protocol'",
   'listPublishedTreatmentProtocols',
   'snapshotTreatmentProtocol',
   'treatmentProtocol:',
