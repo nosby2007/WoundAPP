@@ -10,7 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { documentTextOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import {
-  MobileOrderReceiptMethod, MobileOrderService,
+  MobileClinicalOrderRow, MobileOrderReceiptMethod, MobileOrderService,
   MobilePrescriber, MobileTreatmentProtocolSections, MobileTreatmentProtocolTemplate, MobileWoundOption,
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
@@ -37,6 +37,24 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
       <ion-card *ngIf="!loading && error"><ion-card-content class="error">{{ error }}</ion-card-content></ion-card>
 
       <ng-container *ngIf="!loading && !error">
+        <ion-card>
+          <ion-card-content>
+            <p class="eyebrow dark">CURRENT ORDERS</p>
+            <div class="current-orders" *ngIf="orders.length; else noCurrentOrders">
+              <div class="order-row" *ngFor="let order of orders">
+                <div>
+                  <strong>{{ order.treatmentProtocol?.templateName || order.orderType }}</strong>
+                  <span>{{ order.description }}</span>
+                </div>
+                <ion-badge>{{ order.workflow?.state || 'created' }}</ion-badge>
+              </div>
+            </div>
+            <ng-template #noCurrentOrders>
+              <div class="empty">No current orders are linked to this encounter yet.</div>
+            </ng-template>
+          </ion-card-content>
+        </ion-card>
+
         <ion-card>
           <ion-card-content>
             <p class="eyebrow dark">1 · TARGET</p>
@@ -214,7 +232,7 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
     </div>
   </ion-content>`,
   styles: [`
-    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.template-preview{margin-top:14px;border:1px solid #dce8e3;border-radius:16px;padding:12px}.template-section{margin-top:12px}.template-section h3{font-size:13px;color:#173f60;margin:8px 4px}.template-section ion-item{--padding-start:0;font-size:13px}.template-default{font-size:12px;color:#52687c}.routine-preview{margin-top:16px;padding:14px;border-radius:14px;background:#eef7f3;color:#244c3c}.routine-preview strong{display:block;margin-bottom:6px}.routine-preview p{margin:0;white-space:pre-wrap;line-height:1.45;font-size:13px}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
+    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.template-preview{margin-top:14px;border:1px solid #dce8e3;border-radius:16px;padding:12px}.template-section{margin-top:12px}.template-section h3{font-size:13px;color:#173f60;margin:8px 4px}.template-section ion-item{--padding-start:0;font-size:13px}.template-default{font-size:12px;color:#52687c}.routine-preview{margin-top:16px;padding:14px;border-radius:14px;background:#eef7f3;color:#244c3c}.routine-preview strong{display:block;margin-bottom:6px}.routine-preview p{margin:0;white-space:pre-wrap;line-height:1.45;font-size:13px}.current-orders{display:grid;gap:8px}.order-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 12px;border:1px solid #e2e8ee;border-radius:14px;background:#fff}.order-row strong{display:block;color:#173f60;font-size:13px}.order-row span{display:block;color:#64748b;font-size:11px;line-height:1.4;margin-top:3px;white-space:pre-wrap}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
   `],
 })
 export class ClinicalOrderPage implements OnInit {
@@ -226,7 +244,7 @@ export class ClinicalOrderPage implements OnInit {
   woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
   episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
   loading = true; saving = false; error = '';
-  treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = [];
+  treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = []; orders: MobileClinicalOrderRow[] = [];
   identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
@@ -295,6 +313,7 @@ export class ClinicalOrderPage implements OnInit {
         this.orderService.listPrescribers(),
         this.orderService.listWounds(this.patientId)
       ]);
+      await this.refreshOrders();
     } catch(e:any){ this.error = e?.message || 'Clinical ordering workspace could not be loaded.'; }
     finally { this.loading = false; }
   }
@@ -366,6 +385,16 @@ export class ClinicalOrderPage implements OnInit {
     this.routineComments = '';
   }
 
+  private async refreshOrders(): Promise<void> {
+    this.orders = await this.orderService.listOrders(this.patientId, {
+      visitId: this.woundVisitId || null,
+      fieldEncounterVisitId: this.woundVisitId || null,
+      appointmentId: this.appointmentId || null,
+      woundId: this.woundId || null,
+      episodeId: this.episodeId || null,
+    });
+  }
+
   async save(){
     if(!this.selectedTreatmentTemplate || !this.selectedWoundType || this.saving) return; this.saving = true;
     try {
@@ -401,15 +430,12 @@ export class ClinicalOrderPage implements OnInit {
           fieldEncounterVisitId: this.woundVisitId || null,
         },
       });
-      const t = await this.toast.create({ message:'Order saved to patient chart', duration:2200, color:'success' }); await t.present();
-      await this.router.navigate(['/tabs','skin-wound',this.patientId,'assessments'], {
-        queryParams: clinicalVisitQueryParams({
-          visitId: this.woundVisitId || null,
-          appointmentId: this.appointmentId || null,
-          woundId: this.woundId || null,
-          episodeId: this.episodeId || null,
-        }),
-      });
+      await this.refreshOrders();
+      const t = await this.toast.create({ message:'Order saved and added to Current Orders', duration:2200, color:'success' }); await t.present();
+      this.treatmentTemplateId = '';
+      this.selectedTreatmentTemplate = null;
+      this.treatmentSelections = {};
+      this.resetRoutine();
     } catch(e:any){ const t = await this.toast.create({message:e?.message || 'Order could not be saved', duration:3200, color:'danger'}); await t.present(); }
     finally { this.saving = false; }
   }
