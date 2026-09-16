@@ -31,6 +31,59 @@ export interface MobileCareAlgorithm {
   version?: number;
 }
 
+export interface MobileTreatmentProtocolOption {
+  id: string;
+  label: string;
+  required?: boolean;
+  selectedByDefault?: boolean;
+  requiresComment?: boolean;
+  order?: number;
+}
+
+export interface MobileTreatmentProtocolSections {
+  specialInstructions?: MobileTreatmentProtocolOption[];
+  cleanse: MobileTreatmentProtocolOption[];
+  prep: MobileTreatmentProtocolOption[];
+  fillApply: MobileTreatmentProtocolOption[];
+  cover: MobileTreatmentProtocolOption[];
+  secureWith: MobileTreatmentProtocolOption[];
+  changePrn: MobileTreatmentProtocolOption[];
+}
+
+export interface MobileTreatmentProtocolTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  active: boolean;
+  version: number;
+  orderDefaults: {
+    priority?: string | null;
+    frequency?: string | null;
+    durationMode?: string | null;
+    durationValue?: number | null;
+    woundManagement?: string | null;
+  };
+  sections: MobileTreatmentProtocolSections;
+}
+
+export interface MobileAppliedTreatmentProtocol {
+  templateId: string;
+  templateName: string;
+  templateCategory: string;
+  templateVersion: number;
+  snapshot: {
+    templateId: string;
+    name: string;
+    category: string;
+    version: number;
+    description?: string | null;
+    orderDefaults: MobileTreatmentProtocolTemplate['orderDefaults'];
+    sections: MobileTreatmentProtocolSections;
+  };
+}
+
 export interface MobilePrescriber {
   uid: string;
   displayName: string;
@@ -61,6 +114,40 @@ export class MobileOrderService {
       .map(d => ({ id: d.id, ...(d.data() as any) } as MobileCareAlgorithm))
       .filter(a => a.orgId === orgId && a.active === true && Array.isArray(a.steps) && a.steps.some(step => !!step?.instruction?.trim()))
       .sort((a, b) => (a.woundType || '').localeCompare(b.woundType || '') || a.name.localeCompare(b.name));
+  }
+
+  async listPublishedTreatmentProtocols(): Promise<MobileTreatmentProtocolTemplate[]> {
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) return [];
+    const snap = await getDocs(collection(db, `organizations/${orgId}/treatmentProtocolTemplates`));
+    return snap.docs
+      .map(d => ({ id: d.id, ...(d.data() as any) } as MobileTreatmentProtocolTemplate))
+      .filter(t => t.orgId === orgId && t.active === true && !((t as any).archivedAt))
+      .sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  }
+
+  treatmentCategoryForWoundType(woundType: string): string | null {
+    if (['arterial', 'neuropathic', 'arterial_neuropathic'].includes(woundType)) return 'arterial_neuropathic';
+    if (['wet', 'dry', 'wet_necrotic', 'dry_necrotic', 'venous', 'skin_tear', 'compression'].includes(woundType)) return woundType;
+    return null;
+  }
+
+  snapshotTreatmentProtocol(template: MobileTreatmentProtocolTemplate): MobileAppliedTreatmentProtocol {
+    return {
+      templateId: template.id,
+      templateName: template.name,
+      templateCategory: template.category,
+      templateVersion: template.version || 1,
+      snapshot: {
+        templateId: template.id,
+        name: template.name,
+        category: template.category,
+        version: template.version || 1,
+        description: template.description ?? null,
+        orderDefaults: JSON.parse(JSON.stringify(template.orderDefaults || {})),
+        sections: JSON.parse(JSON.stringify(template.sections || {})),
+      },
+    };
   }
 
   async listPrescribers(): Promise<MobilePrescriber[]> {
@@ -133,6 +220,8 @@ export class MobileOrderService {
     readBackConfirmed?: boolean;
     guidance?: MobileAlgorithmGuidance | null;
     selectedTypeMatchedGuidance?: boolean;
+    treatmentProtocol?: MobileTreatmentProtocolTemplate | null;
+    treatmentSelections?: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>>;
     visitLink?: ClinicalVisitLink | null;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
@@ -169,7 +258,26 @@ export class MobileOrderService {
 
     const ref = doc(collection(db, `patients/${patientId}/orders`));
     const now = serverTimestamp();
-    const descriptionWithWound = input.woundLabel ? `Wound: ${input.woundLabel}\n${description}` : description;
+    const treatment = input.treatmentProtocol || null;
+    if (treatment && (treatment.orgId !== orgId || treatment.active !== true)) {
+      throw new Error('This treatment protocol is not published for your organization.');
+    }
+    const selections = input.treatmentSelections || {};
+    const treatmentLines = treatment ? [
+      `Treatment template: ${treatment.name} (v${treatment.version || 1})`,
+      selections.cleanse?.length ? `Cleanse: ${selections.cleanse.join(', ')}` : null,
+      selections.prep?.length ? `Prep/periwound: ${selections.prep.join(', ')}` : null,
+      selections.fillApply?.length ? `Fill/apply: ${selections.fillApply.join(', ')}` : null,
+      selections.cover?.length ? `Cover: ${selections.cover.join(', ')}` : null,
+      selections.secureWith?.length ? `Secure: ${selections.secureWith.join(', ')}` : null,
+      selections.changePrn?.length ? `Change/PRN: ${selections.changePrn.join(', ')}` : null,
+      treatment.orderDefaults?.frequency ? `Frequency: ${treatment.orderDefaults.frequency}` : null,
+    ].filter((line): line is string => !!line) : [];
+    const descriptionWithWound = [
+      input.woundLabel ? `Wound: ${input.woundLabel}` : null,
+      description,
+      ...treatmentLines,
+    ].filter((line): line is string => !!line).join('\n');
     await setDoc(ref, {
       orgId,
       patientId,
@@ -191,7 +299,9 @@ export class MobileOrderService {
       algorithmName: input.algorithm.name,
       algorithmWoundType: input.algorithm.woundType,
       algorithmVersion: input.algorithm.version ?? 1,
-      schemaVersion: 2,
+      schemaVersion: treatment ? 3 : 2,
+      generatedOrderText: treatmentLines.join(' '),
+      treatmentProtocol: treatment ? this.snapshotTreatmentProtocol(treatment) : null,
       source: {
         mode: 'algorithm',
         algorithmId: input.algorithm.id,
@@ -207,12 +317,24 @@ export class MobileOrderService {
       clinical: {
         woundType: input.algorithm.woundType,
         woundLocation: input.woundLabel ?? null,
+        woundManagement: treatment?.orderDefaults?.woundManagement ?? null,
+        specialInstructions: selections.specialInstructions || [],
         schedule: {
-          frequency: (input.algorithm.steps || []).map(step => step.frequency).find(value => !!value) ?? null,
+          frequency: treatment?.orderDefaults?.frequency ??
+            (input.algorithm.steps || []).map(step => step.frequency).find(value => !!value) ?? null,
+          prn: selections.changePrn || [],
         },
-        cleanse: (input.algorithm.steps || []).map(step => step.woundCleanser).filter((value): value is string => !!value),
-        apply: (input.algorithm.steps || []).map(step => step.applyToWoundProduct).filter((value): value is string => !!value),
-        cover: (input.algorithm.steps || []).map(step => step.coverMethod).filter((value): value is string => !!value),
+        cleanse: selections.cleanse?.length
+          ? selections.cleanse
+          : (input.algorithm.steps || []).map(step => step.woundCleanser).filter((value): value is string => !!value),
+        prep: selections.prep || [],
+        apply: selections.fillApply?.length
+          ? selections.fillApply
+          : (input.algorithm.steps || []).map(step => step.applyToWoundProduct).filter((value): value is string => !!value),
+        cover: selections.cover?.length
+          ? selections.cover
+          : (input.algorithm.steps || []).map(step => step.coverMethod).filter((value): value is string => !!value),
+        secure: selections.secureWith || [],
         contingencies: (input.algorithm.contingencies || []).map(entry => ({
           trigger: entry.trigger,
           action: entry.action,
@@ -224,7 +346,12 @@ export class MobileOrderService {
       createdBy: actor,
       updatedBy: actor,
     });
-    await this.audit.record({ action: 'order_created', patientId, entityType: 'order', entityId: ref.id, metadata: { receiptMethod, algorithmVersion: input.algorithm.version ?? 1 } });
+    await this.audit.record({ action: 'order_created', patientId, entityType: 'order', entityId: ref.id, metadata: {
+      receiptMethod,
+      algorithmVersion: input.algorithm.version ?? 1,
+      treatmentTemplateId: treatment?.id ?? null,
+      treatmentTemplateVersion: treatment?.version ?? null,
+    } });
     return ref.id;
   }
 
