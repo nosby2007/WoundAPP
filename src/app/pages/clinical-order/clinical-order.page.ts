@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonBackButton, IonBadge, IonButton, IonButtons, IonCard, IonCardContent,
-  IonCheckbox, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonNote, IonSelect,
-  IonSelectOption, IonSpinner, IonTitle, IonToggle, IonToolbar, ToastController,
+  IonCheckbox, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonLabel, IonNote, IonSelect,
+  IonSelectOption, IonSpinner, IonTextarea, IonTitle, IonToggle, IonToolbar, ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { documentTextOutline, shieldCheckmarkOutline } from 'ionicons/icons';
@@ -21,8 +21,8 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
   selector: 'app-clinical-order',
   standalone: true,
   imports: [CommonModule, FormsModule, IonBackButton, IonBadge, IonButton, IonButtons,
-    IonCard, IonCardContent, IonCheckbox, IonContent, IonHeader, IonIcon, IonItem, IonLabel,
-    IonNote, IonSelect, IonSelectOption, IonSpinner, IonTitle, IonToggle, IonToolbar],
+    IonCard, IonCardContent, IonCheckbox, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonLabel,
+    IonNote, IonSelect, IonSelectOption, IonSpinner, IonTextarea, IonTitle, IonToggle, IonToolbar],
   template: `
   <ion-header class="ion-no-border"><ion-toolbar>
     <ion-buttons slot="start"><ion-back-button defaultHref="/tabs/patients"></ion-back-button></ion-buttons>
@@ -87,64 +87,107 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
             <div class="template-preview" *ngIf="selectedTreatmentTemplate as template">
               <div class="preview-head"><ion-icon [icon]="documentTextOutline"></ion-icon><strong>{{ template.name }}</strong><ion-badge>v{{ template.version || 1 }}</ion-badge></div>
+              <p>{{ template.description || 'Admin-published treatment protocol.' }}</p>
               <p class="template-default" *ngIf="template.orderDefaults?.frequency">Default frequency: <strong>{{ template.orderDefaults.frequency }}</strong></p>
+              <p class="template-default">The protocol supplies the approved choices. Build and review the executable routine below.</p>
+            </div>
+            </div>
+          </ion-card-content>
+        </ion-card>
 
-              <div class="template-section" *ngIf="protocolOptions('specialInstructions').length">
-                <h3>Special instructions</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('specialInstructions')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('specialInstructions', option.label)" (ionChange)="toggleProtocolOption('specialInstructions', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('cleanse').length">
-                <h3>Cleanse</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('cleanse')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('cleanse', option.label)" (ionChange)="toggleProtocolOption('cleanse', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('prep').length">
-                <h3>Prep / periwound</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('prep')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('prep', option.label)" (ionChange)="toggleProtocolOption('prep', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('fillApply').length">
-                <h3>Fill / Apply</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('fillApply')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('fillApply', option.label)" (ionChange)="toggleProtocolOption('fillApply', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('cover').length">
-                <h3>Cover</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('cover')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('cover', option.label)" (ionChange)="toggleProtocolOption('cover', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('secureWith').length">
-                <h3>Secure with</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('secureWith')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('secureWith', option.label)" (ionChange)="toggleProtocolOption('secureWith', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
-              <div class="template-section" *ngIf="protocolOptions('changePrn').length">
-                <h3>Change / PRN</h3>
-                <ion-item lines="none" *ngFor="let option of protocolOptions('changePrn')">
-                  <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('changePrn', option.label)" (ionChange)="toggleProtocolOption('changePrn', option.label, $event.detail.checked)"></ion-checkbox>
-                  <ion-label>{{ option.label }}</ion-label>
-                </ion-item>
-              </div>
+        <ion-card *ngIf="selectedTreatmentTemplate">
+          <ion-card-content>
+            <p class="eyebrow dark">4 · BUILD ROUTINE</p>
+            <div class="notice">Confirm the execution details for this order. The selected treatment protocol provides the available choices; the final routine is provider-reviewed.</div>
+
+            <ion-item lines="full">
+              <ion-select label="Wound management" labelPlacement="stacked" [(ngModel)]="routineWoundManagement">
+                <ion-select-option *ngFor="let option of woundManagementOptions" [value]="option">{{ option }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <div class="template-section" *ngIf="protocolOptions('specialInstructions').length">
+              <h3>Special instructions</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('specialInstructions')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('specialInstructions', option.label)" (ionChange)="toggleProtocolOption('specialInstructions', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <div class="template-section" *ngIf="protocolOptions('cleanse').length">
+              <h3>Cleanse</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('cleanse')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('cleanse', option.label)" (ionChange)="toggleProtocolOption('cleanse', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <div class="template-section" *ngIf="protocolOptions('prep').length">
+              <h3>Prep / periwound</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('prep')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('prep', option.label)" (ionChange)="toggleProtocolOption('prep', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <div class="template-section" *ngIf="protocolOptions('fillApply').length">
+              <h3>Fill / Apply</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('fillApply')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('fillApply', option.label)" (ionChange)="toggleProtocolOption('fillApply', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <div class="template-section" *ngIf="protocolOptions('cover').length">
+              <h3>Cover</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('cover')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('cover', option.label)" (ionChange)="toggleProtocolOption('cover', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <div class="template-section" *ngIf="protocolOptions('secureWith').length">
+              <h3>Secure</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('secureWith')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('secureWith', option.label)" (ionChange)="toggleProtocolOption('secureWith', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <ion-item lines="full">
+              <ion-select label="Frequency" labelPlacement="stacked" [(ngModel)]="routineFrequency">
+                <ion-select-option *ngFor="let option of frequencyOptions" [value]="option">{{ option }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item lines="full">
+              <ion-input label="Start date" labelPlacement="stacked" type="date" [(ngModel)]="routineStartDate"></ion-input>
+            </ion-item>
+            <ion-item lines="full">
+              <ion-input label="Duration" labelPlacement="stacked" [(ngModel)]="routineDuration" placeholder="Until discontinued"></ion-input>
+            </ion-item>
+
+            <div class="template-section" *ngIf="protocolOptions('changePrn').length">
+              <h3>Change / PRN</h3>
+              <ion-item lines="none" *ngFor="let option of protocolOptions('changePrn')">
+                <ion-checkbox slot="start" [checked]="isProtocolOptionSelected('changePrn', option.label)" (ionChange)="toggleProtocolOption('changePrn', option.label, $event.detail.checked)"></ion-checkbox>
+                <ion-label>{{ option.label }}</ion-label>
+              </ion-item>
+            </div>
+
+            <ion-item lines="full">
+              <ion-textarea label="Provider comments / parameters" labelPlacement="stacked" autoGrow="true" [(ngModel)]="routineComments"></ion-textarea>
+            </ion-item>
+
+            <div class="routine-preview">
+              <strong>Generated routine</strong>
+              <p>{{ routinePreview }}</p>
             </div>
           </ion-card-content>
         </ion-card>
 
         <ion-card>
           <ion-card-content>
-            <p class="eyebrow dark">4 · ORDER PROVENANCE</p>
+            <p class="eyebrow dark">5 · ORDER PROVENANCE</p>
             <div class="identity"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon><div><strong>{{ identity?.displayName }}</strong><small>{{ identity?.credentials || identity?.role }}</small></div></div>
             <div *ngIf="isPrescriber" class="notice">You are documenting this order directly as the prescriber.</div>
             <ng-container *ngIf="!isPrescriber">
@@ -172,7 +215,7 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
     </div>
   </ion-content>`,
   styles: [`
-    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.template-preview{margin-top:14px;border:1px solid #dce8e3;border-radius:16px;padding:12px}.template-section{margin-top:12px}.template-section h3{font-size:13px;color:#173f60;margin:8px 4px}.template-section ion-item{--padding-start:0;font-size:13px}.template-default{font-size:12px;color:#52687c}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
+    .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.template-preview{margin-top:14px;border:1px solid #dce8e3;border-radius:16px;padding:12px}.template-section{margin-top:12px}.template-section h3{font-size:13px;color:#173f60;margin:8px 4px}.template-section ion-item{--padding-start:0;font-size:13px}.template-default{font-size:12px;color:#52687c}.routine-preview{margin-top:16px;padding:14px;border-radius:14px;background:#eef7f3;color:#244c3c}.routine-preview strong{display:block;margin-bottom:6px}.routine-preview p{margin:0;white-space:pre-wrap;line-height:1.45;font-size:13px}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
   `],
 })
 export class ClinicalOrderPage implements OnInit {
@@ -188,6 +231,31 @@ export class ClinicalOrderPage implements OnInit {
   identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
+  routineWoundManagement = 'Wound care per specified algorithm/order';
+  routineFrequency = 'Daily';
+  routineStartDate = new Date().toISOString().slice(0, 10);
+  routineDuration = 'Until discontinued';
+  routineComments = '';
+  readonly woundManagementOptions = [
+    'NPWT',
+    'Wound care per algorithm',
+    'Wound care per specified algorithm/order',
+    'Wound care per provider',
+    'Wound prevention',
+  ];
+  readonly frequencyOptions = [
+    'Once',
+    'Daily',
+    'BID',
+    'Every Mon, Thu',
+    'Every M, W, F',
+    'Every T, Fri',
+    'Every Tues, Thurs, Sat',
+    'Every 2 days',
+    'Every 3 days',
+    'Q 21 Days',
+    'Per algorithm',
+  ];
   guidance: MobileAlgorithmGuidance | null = null; selectedWoundType = '';
   receiptMethod: MobileOrderReceiptMethod = 'telephone'; prescriberUid = ''; readBackConfirmed = false;
   readonly documentTextOutline = documentTextOutline; readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
@@ -202,6 +270,23 @@ export class ClinicalOrderPage implements OnInit {
     return category ? this.treatmentTemplates.filter(t => t.category === category) : [];
   }
   get selectedTypeMatchedGuidance(){ return !!this.selectedWoundType && (this.guidance?.suggestedTypes.includes(this.selectedWoundType) ?? false); }
+  get routinePreview(){
+    const line = (label: string, values: string[] | undefined) => values?.length ? `${label}: ${values.join(', ')}.` : '';
+    return [
+      this.routineWoundManagement ? `Wound management: ${this.routineWoundManagement}.` : '',
+      line('Special instructions', this.treatmentSelections.specialInstructions),
+      line('Cleanse', this.treatmentSelections.cleanse),
+      line('Prep / periwound', this.treatmentSelections.prep),
+      line('Fill / apply', this.treatmentSelections.fillApply),
+      line('Cover', this.treatmentSelections.cover),
+      line('Secure', this.treatmentSelections.secureWith),
+      this.routineFrequency ? `Frequency: ${this.routineFrequency}.` : '',
+      this.routineStartDate ? `Start: ${this.routineStartDate}.` : '',
+      this.routineDuration ? `Duration: ${this.routineDuration}.` : '',
+      line('Change / PRN', this.treatmentSelections.changePrn),
+      this.routineComments.trim() ? `Provider comments: ${this.routineComments.trim()}.` : '',
+    ].filter(Boolean).join(' ');
+  }
 
   async ngOnInit(){
     try {
@@ -218,6 +303,11 @@ export class ClinicalOrderPage implements OnInit {
     this.selectedTreatmentTemplate = this.filteredTreatmentTemplates.find(t => t.id === this.treatmentTemplateId) || null;
     this.treatmentSelections = {};
     if (!this.selectedTreatmentTemplate) return;
+    this.routineWoundManagement = this.selectedTreatmentTemplate.orderDefaults?.woundManagement || 'Wound care per specified algorithm/order';
+    this.routineFrequency = this.selectedTreatmentTemplate.orderDefaults?.frequency || 'Daily';
+    this.routineStartDate = new Date().toISOString().slice(0, 10);
+    this.routineDuration = 'Until discontinued';
+    this.routineComments = '';
     const sections = this.selectedTreatmentTemplate.sections;
     (Object.keys(sections) as Array<keyof MobileTreatmentProtocolSections>).forEach((section) => {
       this.treatmentSelections[section] = (sections[section] || []).filter(o => o.selectedByDefault).map(o => o.label);
@@ -245,6 +335,7 @@ export class ClinicalOrderPage implements OnInit {
     this.treatmentTemplateId = '';
     this.selectedTreatmentTemplate = null;
     this.treatmentSelections = {};
+    this.resetRoutine();
     this.selectedWoundType = '';
   }
   chooseWoundType(type: string){
@@ -252,7 +343,17 @@ export class ClinicalOrderPage implements OnInit {
     this.treatmentTemplateId = '';
     this.selectedTreatmentTemplate = null;
     this.treatmentSelections = {};
+    this.resetRoutine();
   }
+
+  private resetRoutine(): void {
+    this.routineWoundManagement = 'Wound care per specified algorithm/order';
+    this.routineFrequency = 'Daily';
+    this.routineStartDate = new Date().toISOString().slice(0, 10);
+    this.routineDuration = 'Until discontinued';
+    this.routineComments = '';
+  }
+
   async save(){
     if(!this.selectedTreatmentTemplate || !this.selectedWoundType || this.saving) return; this.saving = true;
     try {
@@ -266,7 +367,20 @@ export class ClinicalOrderPage implements OnInit {
         readBackConfirmed: this.readBackConfirmed,
         guidance: this.guidance,
         selectedTypeMatchedGuidance: this.selectedTypeMatchedGuidance,
-        treatmentSelections: this.treatmentSelections,
+        routine: {
+          woundManagement: this.routineWoundManagement || null,
+          specialInstructions: this.treatmentSelections.specialInstructions || [],
+          cleanse: this.treatmentSelections.cleanse || [],
+          prep: this.treatmentSelections.prep || [],
+          fillApply: this.treatmentSelections.fillApply || [],
+          cover: this.treatmentSelections.cover || [],
+          secureWith: this.treatmentSelections.secureWith || [],
+          frequency: this.routineFrequency || null,
+          startDate: this.routineStartDate || null,
+          duration: this.routineDuration || null,
+          changePrn: this.treatmentSelections.changePrn || [],
+          comments: this.routineComments.trim() || null,
+        },
         visitLink: {
           visitId: this.woundVisitId || null,
           appointmentId: this.appointmentId || null,
