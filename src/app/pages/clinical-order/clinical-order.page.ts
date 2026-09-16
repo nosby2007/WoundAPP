@@ -91,7 +91,6 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
               <p class="template-default" *ngIf="template.orderDefaults?.frequency">Default frequency: <strong>{{ template.orderDefaults.frequency }}</strong></p>
               <p class="template-default">The protocol supplies the approved choices. Build and review the executable routine below.</p>
             </div>
-            </div>
           </ion-card-content>
         </ion-card>
 
