@@ -24,8 +24,12 @@ for (const forbidden of ['setDoc(', 'createAlgorithmOrder(', 'MobileOrderService
 for (const required of [
   'guidance: input.guidance ?',
   'selectedTypeMatchedGuidance',
-  'schemaVersion: 2',
+  'schemaVersion: treatment ? 3 : 2',
   "mode: 'algorithm'",
+  'listPublishedTreatmentProtocols',
+  'snapshotTreatmentProtocol',
+  'treatmentProtocol:',
+  'specialInstructions:',
 ]) {
   if (!orderService.includes(required)) throw new Error(`Shared order contract invariant missing: ${required}`);
 }
@@ -35,6 +39,11 @@ for (const required of [
   'chooseWoundType(',
   'filteredAlgorithms',
   'selectedTypeMatchedGuidance',
+  'TREATMENT TEMPLATE',
+  'onTreatmentTemplateChanged(',
+  'protocolOptions(',
+  'toggleProtocolOption(',
+  'selectedTreatmentTemplate',
 ]) {
   if (!page.includes(required)) throw new Error(`Mobile provider guidance UI invariant missing: ${required}`);
 }
@@ -43,4 +52,4 @@ if (!fieldWork.includes('.filter(visit => !visit.archivedAt)')) {
   throw new Error('Archived scheduler appointments must not appear in WoundAPP Today.');
 }
 
-console.log('PASS WoundAPP P2 order guidance: shared structured orders, explicit provider confirmation, archived visits hidden.');
+console.log('PASS WoundAPP P2 order guidance: shared structured orders, admin treatment templates, immutable snapshots, explicit provider confirmation, archived visits hidden.');
