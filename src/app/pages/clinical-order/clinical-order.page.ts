@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import {
   IonBackButton, IonBadge, IonButton, IonButtons, IonCard, IonCardContent,
   IonCheckbox, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonLabel, IonNote, IonSelect,
@@ -15,7 +15,6 @@ import {
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
 import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
-import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 @Component({
   selector: 'app-clinical-order',
@@ -236,7 +235,7 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
   `],
 })
 export class ClinicalOrderPage implements OnInit {
-  private route = inject(ActivatedRoute); private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private orderService = inject(MobileOrderService); private identityService = inject(ClinicalIdentityService);
   private toast = inject(ToastController);
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
