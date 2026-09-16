@@ -10,7 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { documentTextOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import {
-  MobileCareAlgorithm, MobileOrderReceiptMethod, MobileOrderService,
+  MobileOrderReceiptMethod, MobileOrderService,
   MobilePrescriber, MobileTreatmentProtocolSections, MobileTreatmentProtocolTemplate, MobileWoundOption,
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
@@ -30,8 +30,8 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
   </ion-toolbar></ion-header>
   <ion-content>
     <div class="page">
-      <section class="hero"><p class="eyebrow">ORG-GOVERNED ORDERING</p><h1>Place from a published care algorithm</h1>
-        <p>Clinical content comes from algorithms published by your organization admin. Mobile does not invent treatment instructions.</p></section>
+      <section class="hero"><p class="eyebrow">ORG-GOVERNED ORDERING</p><h1>Place from a published treatment protocol</h1>
+        <p>Clinical content comes from treatment protocol templates published by your organization admin. WoundAPP uses assessment data only to guide the category.</p></section>
 
       <ion-card *ngIf="loading"><ion-card-content class="center"><ion-spinner></ion-spinner> Loading clinical catalog…</ion-card-content></ion-card>
       <ion-card *ngIf="!loading && error"><ion-card-content class="error">{{ error }}</ion-card-content></ion-card>
@@ -68,38 +68,22 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
             <ion-item lines="full">
               <ion-select label="Protocol category" labelPlacement="stacked" [(ngModel)]="selectedWoundType" (ionChange)="chooseWoundType($event.detail.value)" placeholder="Provider selects category">
                 <ion-select-option value="">All published categories</ion-select-option>
-                <ion-select-option *ngFor="let algorithm of filteredAlgorithms" [value]="algorithm.woundType">{{ algorithm.woundType }}</ion-select-option>
+                <ion-select-option *ngFor="let category of treatmentCategories" [value]="category">{{ category }}</ion-select-option>
               </ion-select>
             </ion-item>
           </ion-card-content>
         </ion-card>
 
-        <ion-card>
+        <ion-card *ngIf="selectedWoundType">
           <ion-card-content>
-            <p class="eyebrow dark">3 · PUBLISHED ALGORITHM</p>
-            <ion-item lines="full">
-              <ion-select label="Algorithm" labelPlacement="stacked" [(ngModel)]="algorithmId" (ionChange)="onAlgorithmChanged()" placeholder="Select published protocol">
-                <ion-select-option *ngFor="let algorithm of algorithms" [value]="algorithm.id">{{ algorithm.name }} · {{ algorithm.woundType }}</ion-select-option>
-              </ion-select>
-            </ion-item>
-            <div class="empty" *ngIf="!algorithms.length">No published care algorithms are available for this organization. An org admin must publish one before it can be used here.</div>
-            <div class="preview" *ngIf="selectedAlgorithm">
-              <div class="preview-head"><ion-icon [icon]="documentTextOutline"></ion-icon><strong>{{ selectedAlgorithm.name }}</strong><ion-badge>{{ selectedAlgorithm.woundType }}</ion-badge></div>
-              <pre>{{ preview }}</pre>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <ion-card *ngIf="selectedAlgorithm">
-          <ion-card-content>
-            <p class="eyebrow dark">4 · TREATMENT TEMPLATE</p>
+            <p class="eyebrow dark">3 · TREATMENT PROTOCOL</p>
             <div class="notice">Select an admin-published treatment model. The template defines the approved choices; you still select the final treatment items.</div>
             <ion-item lines="full" *ngIf="filteredTreatmentTemplates.length">
               <ion-select label="Treatment protocol" labelPlacement="stacked" [(ngModel)]="treatmentTemplateId" (ionChange)="onTreatmentTemplateChanged()" placeholder="Select treatment model">
                 <ion-select-option *ngFor="let template of filteredTreatmentTemplates" [value]="template.id">{{ template.name }} · v{{ template.version || 1 }}</ion-select-option>
               </ion-select>
             </ion-item>
-            <div class="empty" *ngIf="!filteredTreatmentTemplates.length">No published treatment template for this algorithm category. An administrator can publish one in JADE Admin → Treatment protocols.</div>
+            <div class="empty" *ngIf="!filteredTreatmentTemplates.length">No published treatment protocol for this selected category. An administrator can publish one in JADE Admin → Treatment protocols.</div>
 
             <div class="template-preview" *ngIf="selectedTreatmentTemplate as template">
               <div class="preview-head"><ion-icon [icon]="documentTextOutline"></ion-icon><strong>{{ template.name }}</strong><ion-badge>v{{ template.version || 1 }}</ion-badge></div>
@@ -160,7 +144,7 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
         <ion-card>
           <ion-card-content>
-            <p class="eyebrow dark">5 · ORDER PROVENANCE</p>
+            <p class="eyebrow dark">4 · ORDER PROVENANCE</p>
             <div class="identity"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon><div><strong>{{ identity?.displayName }}</strong><small>{{ identity?.credentials || identity?.role }}</small></div></div>
             <div *ngIf="isPrescriber" class="notice">You are documenting this order directly as the prescriber.</div>
             <ng-container *ngIf="!isPrescriber">
@@ -181,7 +165,7 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
           </ion-card-content>
         </ion-card>
 
-        <ion-button expand="block" size="large" [disabled]="saving || !selectedAlgorithm || (filteredTreatmentTemplates.length > 0 && !selectedTreatmentTemplate) || (!isPrescriber && (!prescriberUid || !readBackConfirmed))" (click)="save()">
+        <ion-button expand="block" size="large" [disabled]="saving || !selectedWoundType || !selectedTreatmentTemplate || (!isPrescriber && (!prescriberUid || !readBackConfirmed))" (click)="save()">
           <ion-spinner *ngIf="saving" name="crescent"></ion-spinner><span *ngIf="!saving">Place order</span>
         </ion-button>
       </ng-container>
@@ -200,8 +184,8 @@ export class ClinicalOrderPage implements OnInit {
   woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
   episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
   loading = true; saving = false; error = '';
-  algorithms: MobileCareAlgorithm[] = []; treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = [];
-  identity: ClinicalIdentitySnapshot | null = null; algorithmId = ''; woundId = ''; selectedAlgorithm: MobileCareAlgorithm | null = null; woundLabel = '';
+  treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = [];
+  identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
   guidance: MobileAlgorithmGuidance | null = null; selectedWoundType = '';
@@ -210,11 +194,11 @@ export class ClinicalOrderPage implements OnInit {
 
   constructor(){ addIcons({ documentTextOutline, shieldCheckmarkOutline }); }
   get isPrescriber(){ return ['provider','np'].includes(String(this.identity?.role || '').toLowerCase()); }
-  get preview(){ return this.selectedAlgorithm ? this.orderService.renderAlgorithm(this.selectedAlgorithm) : ''; }
-  get filteredAlgorithms(){ return this.selectedWoundType ? this.algorithms.filter(a => a.woundType === this.selectedWoundType) : this.algorithms; }
+  get treatmentCategories(){
+    return Array.from(new Set(this.treatmentTemplates.map(t => t.category).filter(Boolean))).sort();
+  }
   get filteredTreatmentTemplates(){
-    const woundType = this.selectedAlgorithm?.woundType || this.selectedWoundType;
-    const category = this.orderService.treatmentCategoryForWoundType(woundType || '');
+    const category = this.orderService.treatmentCategoryForWoundType(this.selectedWoundType || '') || this.selectedWoundType;
     return category ? this.treatmentTemplates.filter(t => t.category === category) : [];
   }
   get selectedTypeMatchedGuidance(){ return !!this.selectedWoundType && (this.guidance?.suggestedTypes.includes(this.selectedWoundType) ?? false); }
@@ -222,8 +206,7 @@ export class ClinicalOrderPage implements OnInit {
   async ngOnInit(){
     try {
       this.identity = await this.identityService.requireCurrentIdentity();
-      [this.algorithms, this.treatmentTemplates, this.prescribers, this.wounds] = await Promise.all([
-        this.orderService.listPublishedAlgorithms(),
+      [this.treatmentTemplates, this.prescribers, this.wounds] = await Promise.all([
         this.orderService.listPublishedTreatmentProtocols(),
         this.orderService.listPrescribers(),
         this.orderService.listWounds(this.patientId)
@@ -231,13 +214,6 @@ export class ClinicalOrderPage implements OnInit {
     } catch(e:any){ this.error = e?.message || 'Clinical ordering workspace could not be loaded.'; }
     finally { this.loading = false; }
   }
-  onAlgorithmChanged(){
-    this.selectedAlgorithm = this.filteredAlgorithms.find(a => a.id === this.algorithmId) || null;
-    this.treatmentTemplateId = '';
-    this.selectedTreatmentTemplate = null;
-    this.treatmentSelections = {};
-  }
-
   onTreatmentTemplateChanged(){
     this.selectedTreatmentTemplate = this.filteredTreatmentTemplates.find(t => t.id === this.treatmentTemplateId) || null;
     this.treatmentSelections = {};
@@ -266,8 +242,6 @@ export class ClinicalOrderPage implements OnInit {
     const wound = this.wounds.find(w => w.woundId === this.woundId) || null;
     this.woundLabel = wound?.label || '';
     this.guidance = deriveMobileAlgorithmGuidance(wound?.guidanceInput);
-    this.algorithmId = '';
-    this.selectedAlgorithm = null;
     this.treatmentTemplateId = '';
     this.selectedTreatmentTemplate = null;
     this.treatmentSelections = {};
@@ -275,17 +249,16 @@ export class ClinicalOrderPage implements OnInit {
   }
   chooseWoundType(type: string){
     this.selectedWoundType = type;
-    this.algorithmId = '';
-    this.selectedAlgorithm = null;
     this.treatmentTemplateId = '';
     this.selectedTreatmentTemplate = null;
     this.treatmentSelections = {};
   }
   async save(){
-    if(!this.selectedAlgorithm || this.saving) return; this.saving = true;
+    if(!this.selectedTreatmentTemplate || !this.selectedWoundType || this.saving) return; this.saving = true;
     try {
-      await this.orderService.createAlgorithmOrder(this.patientId, {
-        algorithm: this.selectedAlgorithm,
+      await this.orderService.createTreatmentProtocolOrder(this.patientId, {
+        treatmentProtocol: this.selectedTreatmentTemplate,
+        selectedCategory: this.selectedWoundType,
         woundId: this.woundId || null,
         woundLabel: this.woundLabel || null,
         receiptMethod: this.isPrescriber ? 'direct' : this.receiptMethod,
@@ -293,7 +266,6 @@ export class ClinicalOrderPage implements OnInit {
         readBackConfirmed: this.readBackConfirmed,
         guidance: this.guidance,
         selectedTypeMatchedGuidance: this.selectedTypeMatchedGuidance,
-        treatmentProtocol: this.selectedTreatmentTemplate,
         treatmentSelections: this.treatmentSelections,
         visitLink: {
           visitId: this.woundVisitId || null,
