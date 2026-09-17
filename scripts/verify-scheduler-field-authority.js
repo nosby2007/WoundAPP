@@ -18,30 +18,21 @@ function forbid(src, value, label) {
 }
 
 for (const value of [
-  "if (linked.woundVisitId)",
-  "if (linked.appointmentId)",
-  "repairAssignedAppointmentShell(",
-  "assignedToUid",
-  "const deterministicVisitId = appointmentId;",
+  "const scheduleId = String(linked.appointmentId ?? '').trim();",
+  "const scheduleRef = doc(db, 'appointments', scheduleId);",
+  "const visitRef = doc(db, `patients/${patientId}/woundVisits/${scheduleId}`);",
   "visitScope: 'field_encounter'",
   "executionAuthority: 'woundapp'",
-  "operation: 'visit_check_in'",
-]) need(visit, value, 'VisitService');
-
-for (const value of [
-  "if (!visitSnap.exists()) {\n        if (!linked.appointmentId)",
-  "const repairedVisitId = existingPointer || deterministicVisitId;",
-  "woundVisits/${repairedVisitId}",
   "woundId: null",
   "episodeId: null",
-  "if (!existingPointer) {",
-  "return repairedVisitId;",
-]) need(visit, value, 'VisitService deterministic scheduled-visit repair');
+  "woundVisitId: scheduleId",
+  "status: 'in_progress'",
+]) need(visit, value, 'Schedule-native VisitService');
 
-forbid(visit, "operation: 'visit_check_in_legacy_create'", 'VisitService');
-forbid(visit, "addDoc(collection(db, `patients/${patientId}/woundVisits`", 'VisitService');
-forbid(visit, "if (existingPointer) return existingPointer;", 'VisitService deterministic scheduled-visit repair');
-need(visit, "This visit has no Scheduler / Frontdesk appointment link and cannot be checked in.", 'VisitService unscheduled guard');
+forbid(visit, "repairAssignedAppointmentShell(", 'Schedule-native VisitService');
+forbid(visit, "if (linked.woundVisitId)", 'Schedule-native VisitService');
+forbid(visit, "operation: 'visit_check_in'", 'Schedule-native VisitService check-in queue');
+forbid(visit, "This visit has no Scheduler / Frontdesk appointment link", 'Schedule-native terminology');
 
 for (const value of [
   'Next visits are created by Scheduler / Frontdesk.',
@@ -54,11 +45,13 @@ need(fieldPage, 'Scheduler / Frontdesk is the only authority that creates the ne
 for (const value of [
   "this.withTimeout(",
   "30_000",
+  "woundVisitId: null",
   "woundId: null",
   "episodeId: null",
-  "appointment visit linkage will retry",
-  "post-check-in status refresh deferred",
+  "Schedule completion reconciliation deferred",
 ]) need(fieldPage, value, 'Field visit EVV responsiveness');
+forbid(fieldPage, "await this.durable.whenReady();", 'Field visit EVV durable-storage dependency');
+forbid(fieldPage, "appointment visit linkage will retry", 'Field visit EVV pointer repair');
 
 for (const value of [
   "sourceOfTruth: 'woundapp'",
@@ -73,4 +66,4 @@ for (const value of [
   'newWound: !this.woundId',
 ]) need(form, value, 'Assessment form');
 
-console.log('PASS scheduler-field authority: mobile consumes scheduled appointments, repairs missing linked encounter shells at the existing pointer, keeps the physical field encounter wound-neutral, creates no future appointment, and WoundAPP establishes wound-specific child records from the field assessment.');
+console.log('PASS Schedule-native EVV: Schedule id is the deterministic physical encounter, check-in does not depend on stale woundVisit pointers or durable browser storage, the field encounter remains wound-neutral, and WoundAPP keeps wound-specific child records downstream.');
