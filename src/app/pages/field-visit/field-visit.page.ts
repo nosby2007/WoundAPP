@@ -340,30 +340,49 @@ export class FieldVisitPage implements OnInit {
     const patientId = this.visit.patientId;
     this.busy = true; this.message = ''; this.isError = false;
     try {
-      const result = await this.visits.checkIn(
-        patientId,
-        this.visit.visitType || 'routine',
-        {
-          appointmentId: this.visit.id,
-          woundVisitId: this.visit.woundVisitId ?? null,
-          woundId: this.visit.woundId ?? null,
-          episodeId: this.visit.episodeId ?? null,
-          clinicianRole: this.visit.assignedToRole ?? null,
-        }
+      const result = await this.withTimeout(
+        this.visits.checkIn(
+          patientId,
+          this.visit.visitType || 'routine',
+          {
+            appointmentId: this.visit.id,
+            woundVisitId: this.visit.woundVisitId ?? null,
+            // EVV belongs to the physical scheduled encounter, not to
+            // one wound. Wound identity is established on child clinical
+            // records from the bedside assessment.
+            woundId: null,
+            episodeId: null,
+            clinicianRole: this.visit.assignedToRole ?? null,
+          }
+        ),
+        30_000,
+        'Check-in did not finish in time. The controls were released; refresh visit status before retrying.'
       );
       this.visit = { ...this.visit, woundVisitId: result.visitId };
-      await this.work.linkWoundVisit(this.visit.id, patientId, result.visitId);
+
+      // The shared visit is already the source of truth. Repairing the
+      // Schedule pointer must never hold the bedside UI in a spinner.
+      void this.work.linkWoundVisit(this.visit.id, patientId, result.visitId).catch((error) => {
+        console.warn('[FieldVisit] appointment visit linkage will retry', error);
+      });
+
+      this.pendingArrivalQueued = result.syncStatus === 'queued';
+      this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
 
       if (result.syncStatus === 'queued') {
-        this.pendingArrivalQueued = true;
-        this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
         this.message = 'Checked in. Arrival evidence is encrypted on this device and queued for sync.';
       } else {
-        this.pendingArrivalQueued = false;
-        this.activeEvv = await this.visits.openVisit(patientId);
         this.message = result.location.status === 'captured'
           ? 'Checked in. Arrival time and device location were captured.'
           : `Checked in, but location was not captured: ${describeEvvLocation(result.location)}.`;
+
+        // Reconcile with server state without keeping the Check-in button
+        // spinning. If the read is slow, the local checkpoint remains visible.
+        void this.visits.openVisit(patientId).then((serverVisit) => {
+          if (serverVisit?.id === result.visitId) this.activeEvv = serverVisit;
+        }).catch((error) => {
+          console.warn('[FieldVisit] post-check-in status refresh deferred', error);
+        });
       }
     } catch (error: any) {
       this.isError = true;
@@ -421,6 +440,20 @@ export class FieldVisitPage implements OnInit {
       this.isError = true;
       this.message = error?.message || 'Unable to check out.';
     } finally { this.busy = false; }
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private localQueuedEvv(visitId: string, checkpoint: any): EvvVisit {

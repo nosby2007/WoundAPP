@@ -32,7 +32,8 @@ for (const value of [
   "if (!visitSnap.exists()) {\n        if (!linked.appointmentId)",
   "const repairedVisitId = existingPointer || deterministicVisitId;",
   "woundVisits/${repairedVisitId}",
-  "woundId: linked.woundId ?? appointment['woundId'] ?? null",
+  "woundId: null",
+  "episodeId: null",
   "if (!existingPointer) {",
   "return repairedVisitId;",
 ]) need(visit, value, 'VisitService deterministic scheduled-visit repair');
@@ -50,6 +51,14 @@ for (const value of [
 forbid(fieldWork, "transaction.set(nextRef", 'FieldWorkService');
 forbid(fieldPage, 'Create my next visit', 'Field visit UI');
 need(fieldPage, 'Scheduler / Frontdesk is the only authority that creates the next appointment.', 'Field visit UI');
+for (const value of [
+  "this.withTimeout(",
+  "30_000",
+  "woundId: null",
+  "episodeId: null",
+  "appointment visit linkage will retry",
+  "post-check-in status refresh deferred",
+]) need(fieldPage, value, 'Field visit EVV responsiveness');
 
 for (const value of [
   "sourceOfTruth: 'woundapp'",
@@ -64,4 +73,4 @@ for (const value of [
   'newWound: !this.woundId',
 ]) need(form, value, 'Assessment form');
 
-console.log('PASS scheduler-field authority: mobile consumes scheduled appointments, repairs missing linked encounter shells without replacing their pointer or woundId, creates no future appointment, and WoundAPP establishes new wound/episode source data from the field assessment.');
+console.log('PASS scheduler-field authority: mobile consumes scheduled appointments, repairs missing linked encounter shells at the existing pointer, keeps the physical field encounter wound-neutral, creates no future appointment, and WoundAPP establishes wound-specific child records from the field assessment.');
