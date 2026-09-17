@@ -207,7 +207,19 @@ export class VisitService {
       const visitRef = doc(db, `patients/${patientId}/woundVisits/${linked.woundVisitId}`);
       const visitSnap = await getDoc(visitRef);
       if (!visitSnap.exists()) {
-        throw new Error('The linked wound visit no longer exists. Refresh the appointment before checking in.');
+        if (!linked.appointmentId) {
+          throw new Error('The linked wound visit no longer exists. Refresh the appointment before checking in.');
+        }
+        const repairedVisitId = await this.repairAssignedAppointmentShell(
+          linked.appointmentId,
+          patientId,
+          visitType,
+          linked
+        );
+        return this.checkIn(patientId, visitType, {
+          ...linked,
+          woundVisitId: repairedVisitId,
+        });
       }
       const existing = visitSnap.data() as Record<string, unknown>;
       if ((existing['patientId'] as string | undefined) !== patientId) {
@@ -296,7 +308,6 @@ export class VisitService {
 
     const appointmentRef = doc(db, 'appointments', appointmentId);
     const deterministicVisitId = appointmentId;
-    const visitRef = doc(db, `patients/${patientId}/woundVisits/${deterministicVisitId}`);
 
     return runTransaction(db, async transaction => {
       const appointmentSnap = await transaction.get(appointmentRef);
@@ -311,7 +322,10 @@ export class VisitService {
       }
 
       const existingPointer = String(appointment['woundVisitId'] ?? '').trim();
-      if (existingPointer) return existingPointer;
+      // Never replace a Scheduler-published pointer. Only fall back to the
+      // appointment id when the legacy appointment has no pointer at all.
+      const repairedVisitId = existingPointer || deterministicVisitId;
+      const visitRef = doc(db, `patients/${patientId}/woundVisits/${repairedVisitId}`);
 
       const visitSnap = await transaction.get(visitRef);
       if (!visitSnap.exists()) {
@@ -330,8 +344,8 @@ export class VisitService {
           clinicianUid: user.uid,
           clinicianName: user.displayName ?? (appointment['assignedToName'] as string | null | undefined) ?? null,
           clinicianRole: linked.clinicianRole ?? (appointment['assignedToRole'] as string | null | undefined) ?? null,
-          woundId: linked.woundId ?? null,
-          episodeId: linked.episodeId ?? null,
+          woundId: linked.woundId ?? appointment['woundId'] ?? null,
+          episodeId: linked.episodeId ?? appointment['episodeId'] ?? null,
           checkIn: null,
           checkOut: null,
           patientAttestation: null,
@@ -342,12 +356,14 @@ export class VisitService {
         });
       }
 
-      transaction.update(appointmentRef, {
-        woundVisitId: deterministicVisitId,
-        updatedAt: serverTimestamp(),
-      });
+      if (!existingPointer) {
+        transaction.update(appointmentRef, {
+          woundVisitId: deterministicVisitId,
+          updatedAt: serverTimestamp(),
+        });
+      }
 
-      return deterministicVisitId;
+      return repairedVisitId;
     });
   }
 
