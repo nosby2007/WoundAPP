@@ -344,8 +344,12 @@ export class VisitService {
           clinicianUid: user.uid,
           clinicianName: user.displayName ?? (appointment['assignedToName'] as string | null | undefined) ?? null,
           clinicianRole: linked.clinicianRole ?? (appointment['assignedToRole'] as string | null | undefined) ?? null,
-          woundId: linked.woundId ?? appointment['woundId'] ?? null,
-          episodeId: linked.episodeId ?? appointment['episodeId'] ?? null,
+          // The Schedule owns the physical field encounter. Keep the EVV
+          // parent wound-neutral; wound-specific identity belongs on the
+          // deterministic child visit created from the bedside assessment.
+          // This also matches the Firestore field_encounter create contract.
+          woundId: null,
+          episodeId: null,
           checkIn: null,
           checkOut: null,
           patientAttestation: null,
