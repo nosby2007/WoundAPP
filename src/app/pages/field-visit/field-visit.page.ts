@@ -347,8 +347,11 @@ export class FieldVisitPage implements OnInit {
           {
             appointmentId: this.visit.id,
             woundVisitId: this.visit.woundVisitId ?? null,
-            woundId: this.visit.woundId ?? null,
-            episodeId: this.visit.episodeId ?? null,
+            // EVV belongs to the physical scheduled encounter, not to
+            // one wound. Wound identity is established on child clinical
+            // records from the bedside assessment.
+            woundId: null,
+            episodeId: null,
             clinicianRole: this.visit.assignedToRole ?? null,
           }
         ),
