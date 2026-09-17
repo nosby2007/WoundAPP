@@ -28,8 +28,18 @@ for (const value of [
   "operation: 'visit_check_in'",
 ]) need(visit, value, 'VisitService');
 
+for (const value of [
+  "if (!visitSnap.exists()) {\n        if (!linked.appointmentId)",
+  "const repairedVisitId = existingPointer || deterministicVisitId;",
+  "woundVisits/${repairedVisitId}",
+  "woundId: linked.woundId ?? appointment['woundId'] ?? null",
+  "if (!existingPointer) {",
+  "return repairedVisitId;",
+]) need(visit, value, 'VisitService deterministic scheduled-visit repair');
+
 forbid(visit, "operation: 'visit_check_in_legacy_create'", 'VisitService');
 forbid(visit, "addDoc(collection(db, `patients/${patientId}/woundVisits`", 'VisitService');
+forbid(visit, "if (existingPointer) return existingPointer;", 'VisitService deterministic scheduled-visit repair');
 need(visit, "This visit has no Scheduler / Frontdesk appointment link and cannot be checked in.", 'VisitService unscheduled guard');
 
 for (const value of [
@@ -54,4 +64,4 @@ for (const value of [
   'newWound: !this.woundId',
 ]) need(form, value, 'Assessment form');
 
-console.log('PASS scheduler-field authority: mobile consumes scheduled appointments, creates no future appointment, and WoundAPP establishes new wound/episode source data from the field assessment.');
+console.log('PASS scheduler-field authority: mobile consumes scheduled appointments, repairs missing linked encounter shells without replacing their pointer or woundId, creates no future appointment, and WoundAPP establishes new wound/episode source data from the field assessment.');
