@@ -54,6 +54,8 @@ need(fieldPage, 'Scheduler / Frontdesk is the only authority that creates the ne
 for (const value of [
   "this.withTimeout(",
   "30_000",
+  "woundId: null",
+  "episodeId: null",
   "appointment visit linkage will retry",
   "post-check-in status refresh deferred",
 ]) need(fieldPage, value, 'Field visit EVV responsiveness');
