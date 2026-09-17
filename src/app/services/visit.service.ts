@@ -10,6 +10,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -131,6 +132,14 @@ export class VisitService {
    * an arrival happens once, and a second one would be a second visit
    * for the same presence.
    */
+  /**
+   * Schedule-native EVV.
+   *
+   * The Schedule id is the canonical physical encounter id. Check-in never
+   * depends on a pre-existing woundVisit pointer and never depends on the
+   * encrypted offline queue. The clinical wound records remain children of
+   * this physical encounter.
+   */
   async checkIn(
     patientId: string,
     visitType = 'routine',
@@ -139,220 +148,80 @@ export class VisitService {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking in.');
 
-    // A scheduled/linked visit can still be checked in when connectivity
-    // drops after the clinician opened the workspace. Conflict guards on
-    // replay protect against a second device having already checked in.
-    if (linked.woundVisitId && !this.isOnline()) {
-      const location = await this.location.capture();
-      const checkpoint = this.buildCheckpoint(location);
-      const mutation = await this.durableMutations.enqueueUpdate({
-        operation: 'visit_check_in',
-        patientId,
-        entityType: 'woundVisit',
-        entityId: linked.woundVisitId,
-        firestorePath: `patients/${patientId}/woundVisits/${linked.woundVisitId}`,
-        conflict: { expectedAbsentFields: ['checkIn'] },
-        payload: {
-          appointmentId: (linked.appointmentId ?? null) as DurableJson,
-          woundId: (linked.woundId ?? null) as DurableJson,
-          episodeId: (linked.episodeId ?? null) as DurableJson,
-          visitType,
-          clinicianUid: user.uid,
-          clinicianName: (user.displayName ?? null) as DurableJson,
-          clinicianRole: (linked.clinicianRole ?? null) as DurableJson,
-          checkIn: this.buildDurableCheckpoint(location),
-          executionAuthority: 'woundapp',
-          fieldVisitState: 'on_site',
-          officeDocumentationState: 'field_in_progress',
-          performedByUid: user.uid,
-          performedByName: (user.displayName ?? null) as DurableJson,
-          performedByRole: (linked.clinicianRole ?? null) as DurableJson,
-          'mobileWorkflow.appointmentId': (linked.appointmentId ?? null) as DurableJson,
-          'mobileWorkflow.currentStep': 'check_in',
-          'mobileWorkflow.lastRoute': linked.appointmentId
-            ? '/tabs/today/visit/' + linked.appointmentId
-            : '/tabs/skin-wound/' + patientId + '/assessments',
-          'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
-          'mobileWorkflow.steps.check_in.enteredAt': DurableClinicalMutationService.serverTimestamp(),
-          'mobileWorkflow.steps.check_in.byUid': user.uid,
-          'mobileWorkflow.steps.check_in.byName': (user.displayName ?? null) as DurableJson,
-          updatedAt: DurableClinicalMutationService.serverTimestamp(),
-          updatedBy: user.uid,
-        },
-      });
-      return {
-        visitId: linked.woundVisitId,
-        location,
-        checkpoint,
-        syncStatus: mutation.status === 'synced' ? 'synced' : 'queued',
-      };
+    const scheduleId = String(linked.appointmentId ?? '').trim();
+    if (!scheduleId) {
+      throw new Error('Open this visit from Today / Schedule before checking in.');
     }
 
-    const already = await this.openVisit(patientId);
-    if (already) throw new Error('You are already checked in to this patient.');
+    const scheduleRef = doc(db, 'appointments', scheduleId);
+    const scheduleSnap = await getDoc(scheduleRef);
+    if (!scheduleSnap.exists()) throw new Error('This scheduled visit no longer exists.');
 
-    const patientSnap = await getDoc(doc(db, 'patients', patientId));
-    if (!patientSnap.exists()) throw new Error('Patient not found.');
-    const patient = patientSnap.data() as Record<string, unknown>;
-    const orgId = (patient['orgId'] as string) ?? (patient['orgID'] as string) ?? null;
-    if (!orgId) throw new Error('This patient record carries no organization; a visit cannot be scoped to it.');
+    const schedule = scheduleSnap.data() as Record<string, unknown>;
+    if ((schedule['patientId'] as string | undefined) !== patientId) {
+      throw new Error('This scheduled visit belongs to a different patient.');
+    }
+    if ((schedule['assignedToUid'] as string | undefined) !== user.uid) {
+      throw new Error('Only the clinician assigned to this scheduled visit can check in.');
+    }
 
     const location = await this.location.capture();
     const checkpoint = this.buildCheckpoint(location);
+    const visitRef = doc(db, `patients/${patientId}/woundVisits/${scheduleId}`);
 
-    // Preferred path: JADE Episode Control / scheduler already created the
-    // woundVisit and appointment atomically. WoundAPP checks into THAT SAME
-    // clinical visit instead of creating a duplicate shadow encounter.
-    if (linked.woundVisitId) {
-      const visitRef = doc(db, `patients/${patientId}/woundVisits/${linked.woundVisitId}`);
-      const visitSnap = await getDoc(visitRef);
-      if (!visitSnap.exists()) {
-        if (!linked.appointmentId) {
-          throw new Error('The linked wound visit no longer exists. Refresh the appointment before checking in.');
+    await runTransaction(db, async transaction => {
+      const currentSchedule = await transaction.get(scheduleRef);
+      if (!currentSchedule.exists()) throw new Error('This scheduled visit no longer exists.');
+      const scheduled = currentSchedule.data() as Record<string, unknown>;
+      if ((scheduled['patientId'] as string | undefined) !== patientId ||
+          (scheduled['assignedToUid'] as string | undefined) !== user.uid) {
+        throw new Error('This scheduled visit is no longer assigned to you.');
+      }
+
+      const currentVisit = await transaction.get(visitRef);
+      if (currentVisit.exists()) {
+        const visit = currentVisit.data() as Record<string, unknown>;
+        if (visit['checkIn']) {
+          // Idempotent retry: the Schedule already has an arrival. Do not
+          // manufacture another encounter or overwrite EVV evidence.
+          return;
         }
-        const repairedVisitId = await this.repairAssignedAppointmentShell(
-          linked.appointmentId,
-          patientId,
-          visitType,
-          linked
-        );
-        return this.checkIn(patientId, visitType, {
-          ...linked,
-          woundVisitId: repairedVisitId,
-        });
-      }
-      const existing = visitSnap.data() as Record<string, unknown>;
-      if ((existing['patientId'] as string | undefined) !== patientId) {
-        throw new Error('The linked wound visit belongs to a different patient.');
-      }
-      if (existing['checkIn']) {
-        throw new Error('This linked visit already has an arrival recorded.');
-      }
-
-      const durableCheckpoint = this.buildDurableCheckpoint(location);
-      const mutation = await this.durableMutations.queueUpdate({
-        operation: 'visit_check_in',
-        patientId,
-        entityType: 'woundVisit',
-        entityId: linked.woundVisitId,
-        firestorePath: `patients/${patientId}/woundVisits/${linked.woundVisitId}`,
-        conflict: { expectedAbsentFields: ['checkIn'] },
-        payload: {
-          appointmentId: (linked.appointmentId ?? existing['appointmentId'] ?? null) as DurableJson,
-          woundId: (linked.woundId ?? existing['woundId'] ?? null) as DurableJson,
-          episodeId: (linked.episodeId ?? existing['episodeId'] ?? null) as DurableJson,
-          visitType: ((existing['visitType'] as string | undefined) ?? visitType) as DurableJson,
-          clinicianUid: user.uid,
-          clinicianName: (user.displayName ?? (existing['clinicianName'] as string | null | undefined) ?? null) as DurableJson,
-          clinicianRole: (linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null) as DurableJson,
-          checkIn: durableCheckpoint,
+        transaction.update(visitRef, {
+          appointmentId: scheduleId,
+          checkIn: checkpoint,
           executionAuthority: 'woundapp',
           fieldVisitState: 'on_site',
           officeDocumentationState: 'field_in_progress',
           performedByUid: user.uid,
-          performedByName: (user.displayName ?? null) as DurableJson,
-          performedByRole: (linked.clinicianRole ?? (existing['clinicianRole'] as string | null | undefined) ?? null) as DurableJson,
-          'mobileWorkflow.appointmentId': (linked.appointmentId ?? existing['appointmentId'] ?? null) as DurableJson,
-          'mobileWorkflow.currentStep': 'check_in',
-          'mobileWorkflow.lastRoute': linked.appointmentId ? '/tabs/today/visit/' + linked.appointmentId : '/tabs/skin-wound/' + patientId + '/assessments',
-          'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
-          'mobileWorkflow.steps.check_in.enteredAt': DurableClinicalMutationService.serverTimestamp(),
-          'mobileWorkflow.steps.check_in.byUid': user.uid,
-          'mobileWorkflow.steps.check_in.byName': (user.displayName ?? null) as DurableJson,
-          updatedAt: DurableClinicalMutationService.serverTimestamp(),
+          performedByName: user.displayName ?? null,
+          performedByRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
+          updatedAt: serverTimestamp(),
           updatedBy: user.uid,
-        },
-      });
-
-      if (mutation.status === 'needs_review') {
-        throw new Error('Arrival could not be applied because newer visit evidence exists. Open Sync Review before continuing.');
-      }
-
-      if (mutation.status === 'synced') {
-        await this.audit.record({ action: 'visit_check_in', patientId, entityType: 'woundVisit', entityId: linked.woundVisitId, metadata: { appointmentId: linked.appointmentId ?? null } });
-      }
-      return { visitId: linked.woundVisitId, location, checkpoint, syncStatus: mutation.status };
-    }
-
-    // Legacy/recent appointments may exist without the shared woundVisit
-    // pointer because older Scheduler builds wrote woundVisitId: null.
-    // Repair ONLY the already-existing, caller-assigned appointment using a
-    // deterministic shell id equal to appointmentId. This is idempotent and
-    // cannot manufacture an unscheduled visit.
-    if (linked.appointmentId) {
-      const repairedVisitId = await this.repairAssignedAppointmentShell(
-        linked.appointmentId,
-        patientId,
-        visitType,
-        linked
-      );
-      return this.checkIn(patientId, visitType, {
-        ...linked,
-        woundVisitId: repairedVisitId,
-      });
-    }
-
-    throw new Error(
-      'This visit has no Scheduler / Frontdesk appointment link and cannot be checked in.'
-    );
-  }
-
-  private async repairAssignedAppointmentShell(
-    appointmentId: string,
-    patientId: string,
-    visitType: string,
-    linked: LinkedVisitContext
-  ): Promise<string> {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Sign in before repairing this visit.');
-
-    const appointmentRef = doc(db, 'appointments', appointmentId);
-    const deterministicVisitId = appointmentId;
-
-    return runTransaction(db, async transaction => {
-      const appointmentSnap = await transaction.get(appointmentRef);
-      if (!appointmentSnap.exists()) throw new Error('The scheduled appointment no longer exists.');
-
-      const appointment = appointmentSnap.data() as Record<string, unknown>;
-      if ((appointment['patientId'] as string | undefined) !== patientId) {
-        throw new Error('The scheduled appointment belongs to a different patient.');
-      }
-      if ((appointment['assignedToUid'] as string | undefined) !== user.uid) {
-        throw new Error('Only the clinician assigned to this appointment can repair its clinical visit shell.');
-      }
-
-      const existingPointer = String(appointment['woundVisitId'] ?? '').trim();
-      // Never replace a Scheduler-published pointer. Only fall back to the
-      // appointment id when the legacy appointment has no pointer at all.
-      const repairedVisitId = existingPointer || deterministicVisitId;
-      const visitRef = doc(db, `patients/${patientId}/woundVisits/${repairedVisitId}`);
-
-      const visitSnap = await transaction.get(visitRef);
-      if (!visitSnap.exists()) {
+        });
+      } else {
         transaction.set(visitRef, {
-          orgId: appointment['orgId'] ?? null,
-          facilityId: appointment['facilityId'] ?? null,
+          orgId: scheduled['orgId'] ?? null,
+          facilityId: scheduled['facilityId'] ?? null,
           patientId,
-          appointmentId,
+          appointmentId: scheduleId,
           visitScope: 'field_encounter',
           executionAuthority: 'woundapp',
-          visitType: (appointment['visitType'] as string | undefined) ?? visitType,
+          visitType: (scheduled['visitType'] as string | undefined) ?? visitType,
           status: 'planned',
           appointmentStatus: 'scheduled',
-          fieldVisitState: 'scheduled',
-          officeDocumentationState: 'not_started',
+          fieldVisitState: 'on_site',
+          officeDocumentationState: 'field_in_progress',
           clinicianUid: user.uid,
-          clinicianName: user.displayName ?? (appointment['assignedToName'] as string | null | undefined) ?? null,
-          clinicianRole: linked.clinicianRole ?? (appointment['assignedToRole'] as string | null | undefined) ?? null,
-          // The Schedule owns the physical field encounter. Keep the EVV
-          // parent wound-neutral; wound-specific identity belongs on the
-          // deterministic child visit created from the bedside assessment.
-          // This also matches the Firestore field_encounter create contract.
+          clinicianName: user.displayName ?? scheduled['assignedToName'] ?? null,
+          clinicianRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
           woundId: null,
           episodeId: null,
-          checkIn: null,
+          checkIn: checkpoint,
           checkOut: null,
           patientAttestation: null,
+          performedByUid: user.uid,
+          performedByName: user.displayName ?? null,
+          performedByRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
           createdAt: serverTimestamp(),
           createdBy: user.uid,
           updatedAt: serverTimestamp(),
@@ -360,15 +229,24 @@ export class VisitService {
         });
       }
 
-      if (!existingPointer) {
-        transaction.update(appointmentRef, {
-          woundVisitId: deterministicVisitId,
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      return repairedVisitId;
+      // Schedule and physical encounter share the same deterministic id.
+      // The old woundVisitId field is retained only as a compatibility alias.
+      transaction.update(scheduleRef, {
+        woundVisitId: scheduleId,
+        status: 'in_progress',
+        updatedAt: serverTimestamp(),
+      });
     });
+
+    void this.audit.record({
+      action: 'visit_check_in',
+      patientId,
+      entityType: 'woundVisit',
+      entityId: scheduleId,
+      metadata: { scheduleId },
+    }).catch(() => undefined);
+
+    return { visitId: scheduleId, location, checkpoint, syncStatus: 'synced' };
   }
 
   /**
