@@ -276,7 +276,6 @@ export class FieldVisitPage implements OnInit {
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
         const patientId = this.visit.patientId;
-        await this.durable.whenReady();
         try {
           this.activeEvv = await this.visits.openVisit(patientId);
         } catch {
@@ -345,8 +344,10 @@ export class FieldVisitPage implements OnInit {
           patientId,
           this.visit.visitType || 'routine',
           {
+            // Schedule id is the canonical EVV encounter id. Ignore stale
+            // woundVisit pointers left by older builds.
             appointmentId: this.visit.id,
-            woundVisitId: this.visit.woundVisitId ?? null,
+            woundVisitId: null,
             // EVV belongs to the physical scheduled encounter, not to
             // one wound. Wound identity is established on child clinical
             // records from the bedside assessment.
@@ -359,12 +360,6 @@ export class FieldVisitPage implements OnInit {
         'Check-in did not finish in time. The controls were released; refresh visit status before retrying.'
       );
       this.visit = { ...this.visit, woundVisitId: result.visitId };
-
-      // The shared visit is already the source of truth. Repairing the
-      // Schedule pointer must never hold the bedside UI in a spinner.
-      void this.work.linkWoundVisit(this.visit.id, patientId, result.visitId).catch((error) => {
-        console.warn('[FieldVisit] appointment visit linkage will retry', error);
-      });
 
       this.pendingArrivalQueued = result.syncStatus === 'queued';
       this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
@@ -416,12 +411,16 @@ export class FieldVisitPage implements OnInit {
       } : null;
 
       const result = await this.visits.checkOut(patientId, this.activeEvv.id, attestation);
-      const appointmentSyncStatus = await this.work.completeVisit(this.visit.id);
+      // Checkout evidence is the primary clinical transition. Schedule
+      // completion is secondary and must not keep the clinician on a spinner.
+      void this.work.completeVisit(this.visit.id).catch((error) => {
+        console.warn('[FieldVisit] Schedule completion reconciliation deferred', error);
+      });
       this.visit = { ...this.visit, status: 'completed' };
       this.activeEvv = null;
       this.signatureDataUrl = null;
-      this.message = result.syncStatus === 'queued' || appointmentSyncStatus === 'queued'
-        ? 'Checkout captured securely on this device and queued for sync. Keep WoundAPP available until Sync Center confirms delivery.'
+      this.message = result.syncStatus === 'queued'
+        ? 'Checkout captured and queued for sync.'
         : result.location.status === 'captured'
           ? 'Visit completed. Departure time, location and attestation were captured.'
           : `Visit completed. Departure location was not captured: ${describeEvvLocation(result.location)}.`;
