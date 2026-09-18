@@ -26,11 +26,10 @@ for (const required of [
   }
 }
 
-// Check-out and downstream clinical mutations remain durable/queued. Check-in
-// is intentionally Schedule-native and transactional: browser durable storage
-// is not a prerequisite for recording arrival.
+// Arrival and departure are Schedule-native Firestore transactions. Browser
+// durable storage is not a prerequisite for EVV. Downstream clinical
+// reconciliation remains queued/reviewable.
 for (const operation of [
-  "operation: 'visit_check_out'",
   "operation: 'visit_journey_step'",
   "operation: 'wound_visit_field_complete'",
 ]) {
@@ -52,8 +51,19 @@ for (const required of [
 if (visit.includes("woundVisitId: scheduleId")) {
   throw new Error('Schedule-native check-in must not rewrite the legacy woundVisitId pointer.');
 }
-if (visit.includes("operation: 'visit_check_in'")) {
-  throw new Error('Check-in must not depend on the browser durable mutation queue.');
+for (const operation of ["operation: 'visit_check_in'", "operation: 'visit_check_out'"]) {
+  if (visit.includes(operation)) {
+    throw new Error(`EVV ${operation} must not depend on the browser durable mutation queue.`);
+  }
+}
+for (const required of [
+  "if (!visit['checkIn']) throw new Error('Check in before checking out.');",
+  "if (visit['checkOut']) return;",
+  "transaction.update(visitRef, patch);",
+  "fieldCompletionSnapshot",
+  "immutable: true",
+]) {
+  if (!visit.includes(required)) throw new Error(`Schedule-native checkout invariant missing: ${required}`);
 }
 
 if (visit.includes("operation: 'visit_check_in_legacy_create'")) {
@@ -72,4 +82,4 @@ for (const required of [
   }
 }
 
-console.log('PASS clinical sync contract: Schedule-native transactional check-in; checkout and downstream clinical writes retain durable sync/review semantics.');
+console.log('PASS clinical sync contract: Schedule-native transactional check-in/check-out; downstream clinical reconciliation retains durable sync/review semantics.');
