@@ -230,9 +230,10 @@ export class VisitService {
       }
 
       // Schedule and physical encounter share the same deterministic id.
-      // The old woundVisitId field is retained only as a compatibility alias.
+      // Do NOT rewrite legacy woundVisitId here. Older Schedules may retain a
+      // stale non-null pointer, and Firestore intentionally makes that pointer
+      // immutable for field clinicians. The Schedule id itself is canonical.
       transaction.update(scheduleRef, {
-        woundVisitId: scheduleId,
         status: 'in_progress',
         updatedAt: serverTimestamp(),
       });

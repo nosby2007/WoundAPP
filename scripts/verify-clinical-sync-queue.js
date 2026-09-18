@@ -44,11 +44,13 @@ for (const required of [
   "const scheduleRef = doc(db, 'appointments', scheduleId);",
   "const visitRef = doc(db, \`patients/\${patientId}/woundVisits/\${scheduleId}\`);",
   "await runTransaction(db, async transaction =>",
-  "woundVisitId: scheduleId",
 ]) {
   if (!visit.includes(required)) {
     throw new Error(`Schedule-native check-in invariant missing: ${required}`);
   }
+}
+if (visit.includes("woundVisitId: scheduleId")) {
+  throw new Error('Schedule-native check-in must not rewrite the legacy woundVisitId pointer.');
 }
 if (visit.includes("operation: 'visit_check_in'")) {
   throw new Error('Check-in must not depend on the browser durable mutation queue.');
