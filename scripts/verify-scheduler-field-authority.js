@@ -25,10 +25,10 @@ for (const value of [
   "executionAuthority: 'woundapp'",
   "woundId: null",
   "episodeId: null",
-  "woundVisitId: scheduleId",
   "status: 'in_progress'",
 ]) need(visit, value, 'Schedule-native VisitService');
 
+forbid(visit, "woundVisitId: scheduleId", 'Schedule-native legacy pointer mutation');
 forbid(visit, "repairAssignedAppointmentShell(", 'Schedule-native VisitService');
 forbid(visit, "if (linked.woundVisitId)", 'Schedule-native VisitService');
 forbid(visit, "operation: 'visit_check_in'", 'Schedule-native VisitService check-in queue');
