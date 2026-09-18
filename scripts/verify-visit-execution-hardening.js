@@ -48,15 +48,15 @@ for (const required of [
   "const scheduleId = String(linked.appointmentId ?? '').trim();",
   "await runTransaction(db, async transaction =>",
   "if (visit['checkIn'])",
-  "conflict: { expectedAbsentFields: ['checkOut'] }",
+  "if (visit['checkOut']) return;",
   "fieldCompletionSnapshot",
   "immutable: true",
   "DurableClinicalMutationService.serverTimestamp()",
 ]) {
   if (!visit.includes(required)) violations.push('Visit hardening missing: ' + required);
 }
-if (visit.includes("conflict: { expectedAbsentFields: ['checkIn'] }")) {
-  violations.push('Schedule-native check-in must not be routed through the durable mutation conflict path.');
+for (const operation of ["operation: 'visit_check_in'", "operation: 'visit_check_out'"]) {
+  if (visit.includes(operation)) violations.push('Schedule-native EVV must not be routed through the durable mutation path: ' + operation);
 }
 
 for (const required of [
@@ -147,4 +147,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log('PASS visit execution hardening: transactional Schedule-native arrival, durable checkout/conflicts, signature, immutable completion snapshot, voice review.');
+console.log('PASS visit execution hardening: transactional Schedule-native arrival/departure, idempotent EVV, signature, immutable completion snapshot, voice review.');

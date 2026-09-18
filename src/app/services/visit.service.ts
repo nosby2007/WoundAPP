@@ -271,9 +271,6 @@ export class VisitService {
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in before checking out.');
 
-    // Refused rather than stored half-formed: a verbal attestation with
-    // nobody named is not an attestation, and an "unable to attest" with
-    // no reason says nothing an auditor could use.
     if (attestation) {
       const problem = describeAttestationProblem(
         attestation.method,
@@ -285,89 +282,102 @@ export class VisitService {
     }
 
     const location = await this.location.capture();
-    const durablePatch: Record<string, DurableJson> = {
-      checkOut: this.buildDurableCheckpoint(location),
-      status: 'completed',
-      completedAt: DurableClinicalMutationService.serverTimestamp(),
-      executionAuthority: 'woundapp',
-      fieldVisitState: 'completed',
-      fieldCompletedAt: DurableClinicalMutationService.serverTimestamp(),
-      officeDocumentationState: 'pending_office_documentation',
-      performedByUid: user.uid,
-      performedByName: (user.displayName ?? null) as DurableJson,
-      'mobileWorkflow.currentStep': 'check_out',
-      'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
-      'mobileWorkflow.steps.check_out.enteredAt': DurableClinicalMutationService.serverTimestamp(),
-      'mobileWorkflow.steps.check_out.byUid': user.uid,
-      'mobileWorkflow.steps.check_out.byName': (user.displayName ?? null) as DurableJson,
-      updatedAt: DurableClinicalMutationService.serverTimestamp(),
-      updatedBy: user.uid,
-      fieldCompletionSnapshot: {
-        version: 1,
-        immutable: true,
-        source: 'woundapp',
-        patientId,
-        woundVisitId: visitId,
-        completedByUid: user.uid,
-        completedByName: user.displayName ?? null,
-        deviceCompletedAtIso: new Date().toISOString(),
-        checkOutLocationStatus: location.status,
-        checkOutLatitude: location.latitude ?? null,
-        checkOutLongitude: location.longitude ?? null,
-        checkOutAccuracyMeters: location.accuracyMeters ?? null,
-        attestationMethod: attestation?.method ?? null,
-        attestedByName: attestation?.attestedByName?.trim() || null,
-        relationship: attestation?.relationship?.trim() || null,
-        signatureSha256: attestation?.electronicSignature?.sha256 ?? null,
-        signatureStoragePath: attestation?.electronicSignature?.storagePath ?? null,
-        sealedAt: DurableClinicalMutationService.serverTimestamp(),
-      },
-    };
+    const checkpoint = this.buildCheckpoint(location);
+    const visitRef = doc(db, `patients/${patientId}/woundVisits/${visitId}`);
 
-    if (attestation) {
-      durablePatch['patientAttestation'] = {
-        method: attestation.method,
-        attestedByName: (attestation.attestedByName ?? '').trim() || null,
-        relationship: (attestation.relationship ?? '').trim() || null,
-        attestedAtIso: new Date().toISOString(),
-        reason: (attestation.reason ?? '').trim() || null,
-        recordedByUid: user.uid,
-        recordedByName: user.displayName ?? null,
-        recordedAt: DurableClinicalMutationService.serverTimestamp(),
-        electronicSignature: attestation.electronicSignature
-          ? {
-              storagePath: attestation.electronicSignature.storagePath,
-              downloadUrl: attestation.electronicSignature.downloadUrl,
-              sha256: attestation.electronicSignature.sha256,
-              capturedAtIso: attestation.electronicSignature.capturedAtIso,
-            }
-          : null,
+    // Checkout follows the same model as check-in: the EVV evidence is
+    // committed directly to the canonical physical encounter. Browser
+    // IndexedDB/durable queue availability is not a prerequisite.
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(visitRef);
+      if (!snap.exists()) throw new Error('The checked-in visit could not be found.');
+
+      const visit = snap.data() as Record<string, any>;
+      if (visit['patientId'] !== patientId) throw new Error('This visit belongs to a different patient.');
+      if (!visit['checkIn']) throw new Error('Check in before checking out.');
+
+      // Idempotent retry: never overwrite immutable EVV evidence.
+      if (visit['checkOut']) return;
+
+      const patch: Record<string, unknown> = {
+        checkOut: checkpoint,
+        status: 'completed',
+        completedAt: serverTimestamp(),
+        executionAuthority: 'woundapp',
+        fieldVisitState: 'completed',
+        fieldCompletedAt: serverTimestamp(),
+        officeDocumentationState: 'pending_office_documentation',
+        performedByUid: user.uid,
+        performedByName: user.displayName ?? null,
+        mobileWorkflow: {
+          ...(visit['mobileWorkflow'] ?? {}),
+          currentStep: 'check_out',
+          lastUpdatedAt: serverTimestamp(),
+          steps: {
+            ...(visit['mobileWorkflow']?.steps ?? {}),
+            check_out: {
+              enteredAt: serverTimestamp(),
+              byUid: user.uid,
+              byName: user.displayName ?? null,
+            },
+          },
+        },
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        fieldCompletionSnapshot: {
+          version: 1,
+          immutable: true,
+          source: 'woundapp',
+          patientId,
+          woundVisitId: visitId,
+          completedByUid: user.uid,
+          completedByName: user.displayName ?? null,
+          deviceCompletedAtIso: new Date().toISOString(),
+          checkOutLocationStatus: location.status,
+          checkOutLatitude: location.latitude ?? null,
+          checkOutLongitude: location.longitude ?? null,
+          checkOutAccuracyMeters: location.accuracyMeters ?? null,
+          attestationMethod: attestation?.method ?? null,
+          attestedByName: attestation?.attestedByName?.trim() || null,
+          relationship: attestation?.relationship?.trim() || null,
+          signatureSha256: attestation?.electronicSignature?.sha256 ?? null,
+          signatureStoragePath: attestation?.electronicSignature?.storagePath ?? null,
+          sealedAt: serverTimestamp(),
+        },
       };
-    }
 
-    const mutation = await this.durableMutations.queueUpdate({
-      operation: 'visit_check_out',
-      patientId,
-      entityType: 'woundVisit',
-      entityId: visitId,
-      firestorePath: `patients/${patientId}/woundVisits/${visitId}`,
-      conflict: { expectedAbsentFields: ['checkOut'] },
-      payload: durablePatch,
+      if (attestation) {
+        patch['patientAttestation'] = {
+          method: attestation.method,
+          attestedByName: attestation.attestedByName?.trim() || null,
+          relationship: attestation.relationship?.trim() || null,
+          attestedAtIso: new Date().toISOString(),
+          reason: attestation.reason?.trim() || null,
+          recordedByUid: user.uid,
+          recordedByName: user.displayName ?? null,
+          recordedAt: serverTimestamp(),
+          electronicSignature: attestation.electronicSignature
+            ? {
+                storagePath: attestation.electronicSignature.storagePath,
+                downloadUrl: attestation.electronicSignature.downloadUrl,
+                sha256: attestation.electronicSignature.sha256,
+                capturedAtIso: attestation.electronicSignature.capturedAtIso,
+              }
+            : null,
+        };
+      }
+
+      transaction.update(visitRef, patch);
     });
 
-    // One physical appointment may contain several wound-specific clinical
-    // records. EVV stays on the physical/source visit, while child wound
-    // records reference that source. Propagate only completion metadata so
-    // JADE can continue office documentation for every wound without
-    // duplicating or fabricating check-in/check-out evidence.
-    try {
-      const sourceSnap = await getDoc(doc(db, `patients/${patientId}/woundVisits/${visitId}`));
+    // Child wound records are downstream clinical projections. Their
+    // reconciliation must never keep the bedside Checkout control spinning.
+    void getDoc(visitRef).then((sourceSnap) => {
       const source = sourceSnap.exists() ? sourceSnap.data() as any : null;
       const childIds: string[] = Array.isArray(source?.fieldWoundVisitIds)
         ? source.fieldWoundVisitIds.filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== visitId)
         : [];
-
-      await Promise.all(childIds.map((childId) =>
+      return Promise.all(childIds.map((childId) =>
         this.durableMutations.queueUpdate({
           operation: 'wound_visit_field_complete',
           patientId,
@@ -385,20 +395,19 @@ export class VisitService {
           },
         })
       ));
-    } catch (error) {
-      // The source visit is the immutable EVV record and checkout must not be
-      // rolled back because one child record could not be marked complete.
-      console.warn('[VisitService] child wound visit completion will require sync/reconciliation', error);
-    }
+    }).catch((error) => {
+      console.warn('[VisitService] child wound visit completion reconciliation deferred', error);
+    });
 
-    if (mutation.status === 'needs_review') {
-      throw new Error('Departure could not be applied because newer checkout evidence exists. Open Sync Review before leaving the visit.');
-    }
+    void this.audit.record({
+      action: 'visit_check_out',
+      patientId,
+      entityType: 'woundVisit',
+      entityId: visitId,
+      metadata: { attestation: !!attestation },
+    }).catch(() => undefined);
 
-    if (mutation.status === 'synced') {
-      await this.audit.record({ action: 'visit_check_out', patientId, entityType: 'woundVisit', entityId: visitId, metadata: { attestation: !!attestation } });
-    }
-    return { location, syncStatus: mutation.status === 'synced' ? 'synced' : 'queued' };
+    return { location, syncStatus: 'synced' };
   }
 
   hasPendingCheckIn(visitId: string): boolean {
