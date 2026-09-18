@@ -299,29 +299,17 @@ export class VisitService {
       // Idempotent retry: never overwrite immutable EVV evidence.
       if (visit['checkOut']) return;
 
+      // Keep the atomic EVV transition deliberately small. Firestore's
+      // woundVisit rule has a dedicated field-clinician path; unrelated
+      // workflow/provenance fields increase rule cost and can turn a valid
+      // checkout into permission-denied. Those projections are reconciled
+      // after the source EVV evidence is committed.
       const patch: Record<string, unknown> = {
         checkOut: checkpoint,
         status: 'completed',
-        completedAt: serverTimestamp(),
-        executionAuthority: 'woundapp',
         fieldVisitState: 'completed',
         fieldCompletedAt: serverTimestamp(),
         officeDocumentationState: 'pending_office_documentation',
-        performedByUid: user.uid,
-        performedByName: user.displayName ?? null,
-        mobileWorkflow: {
-          ...(visit['mobileWorkflow'] ?? {}),
-          currentStep: 'check_out',
-          lastUpdatedAt: serverTimestamp(),
-          steps: {
-            ...(visit['mobileWorkflow']?.steps ?? {}),
-            check_out: {
-              enteredAt: serverTimestamp(),
-              byUid: user.uid,
-              byName: user.displayName ?? null,
-            },
-          },
-        },
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
         fieldCompletionSnapshot: {
