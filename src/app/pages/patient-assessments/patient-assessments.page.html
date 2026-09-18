@@ -22,15 +22,17 @@
       <div class="evv-row">
         <ion-icon name="location-outline"></ion-icon>
         <div class="evv-text">
-          <strong *ngIf="!openVisit()">Not checked in</strong>
-          <strong *ngIf="openVisit()">On site</strong>
-          <ion-note *ngIf="openVisit()">{{ locationText() }}</ion-note>
-          <ion-note *ngIf="!openVisit()">Record your arrival so the visit can be verified.</ion-note>
+          <strong *ngIf="evvCompleted()">Visit completed</strong>
+          <strong *ngIf="!evvCompleted() && !openVisit()">Not checked in</strong>
+          <strong *ngIf="!evvCompleted() && openVisit()">On site</strong>
+          <ion-note *ngIf="!evvCompleted() && openVisit()">{{ locationText() }}</ion-note>
+          <ion-note *ngIf="evvCompleted()">Checked out. EVV arrival and departure recorded.</ion-note>
+          <ion-note *ngIf="!evvCompleted() && !openVisit()">Record your arrival so the visit can be verified.</ion-note>
         </div>
-        <ion-button *ngIf="!openVisit()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
+        <ion-button *ngIf="!openVisit() && !evvCompleted()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
           <ion-icon slot="start" name="log-in-outline"></ion-icon>Check in
         </ion-button>
-        <ion-button *ngIf="openVisit()" size="small" color="success" [disabled]="evvBusy() && !!evvBusySince" (click)="beginCheckOut()">
+        <ion-button *ngIf="openVisit() && !evvCompleted()" size="small" color="success" [disabled]="evvBusy() && !!evvBusySince" (click)="beginCheckOut()">
           <ion-icon slot="start" name="log-out-outline"></ion-icon>Check out
         </ion-button>
       </div>
