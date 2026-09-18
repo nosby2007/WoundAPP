@@ -154,6 +154,7 @@ export class PatientAssessmentsPage implements OnInit {
   openVisit = signal<FieldVisit | null>(null);
   evvBusy = signal(false);
   evvMessage = signal<string>('');
+  evvCompleted = signal(false);
   evvBusySince = 0;
 
   private readonly visits = inject(VisitService);
@@ -174,6 +175,7 @@ export class PatientAssessmentsPage implements OnInit {
         'Visit status refresh timed out.'
       );
       this.openVisit.set(visit);
+      if (visit) this.evvCompleted.set(false);
       if (visit?.id && !this.woundVisitId) {
         this.woundVisitId = visit.id;
         if (this.appointmentId) {
@@ -208,6 +210,7 @@ export class PatientAssessmentsPage implements OnInit {
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
       this.woundVisitId = result.visitId;
+      this.evvCompleted.set(false);
       const { location } = result;
       if (result.syncStatus === 'queued') {
         // Keep the bedside workflow usable immediately. The encrypted durable
@@ -349,6 +352,7 @@ export class PatientAssessmentsPage implements OnInit {
 
       this.attesting.set(false);
       this.openVisit.set(null);
+      this.evvCompleted.set(true);
       this.evvMessage.set(
         syncStatus === 'queued'
           ? 'Checked out. Departure is saved securely on this device and syncing in the background.'
