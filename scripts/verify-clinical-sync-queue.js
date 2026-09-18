@@ -26,8 +26,10 @@ for (const required of [
   }
 }
 
+// Check-out and downstream clinical mutations remain durable/queued. Check-in
+// is intentionally Schedule-native and transactional: browser durable storage
+// is not a prerequisite for recording arrival.
 for (const operation of [
-  "operation: 'visit_check_in'",
   "operation: 'visit_check_out'",
   "operation: 'visit_journey_step'",
   "operation: 'wound_visit_field_complete'",
@@ -37,8 +39,19 @@ for (const operation of [
   }
 }
 
-if (!visit.includes("const mutation = await this.durableMutations.queueUpdate({\n        operation: 'visit_check_in'")) {
-  throw new Error('Point-of-care check-in must persist locally before attempting network sync.');
+for (const required of [
+  "const scheduleId = String(linked.appointmentId ?? '').trim();",
+  "const scheduleRef = doc(db, 'appointments', scheduleId);",
+  "const visitRef = doc(db, \`patients/\${patientId}/woundVisits/\${scheduleId}\`);",
+  "await runTransaction(db, async transaction =>",
+  "woundVisitId: scheduleId",
+]) {
+  if (!visit.includes(required)) {
+    throw new Error(`Schedule-native check-in invariant missing: ${required}`);
+  }
+}
+if (visit.includes("operation: 'visit_check_in'")) {
+  throw new Error('Check-in must not depend on the browser durable mutation queue.');
 }
 
 if (visit.includes("operation: 'visit_check_in_legacy_create'")) {
@@ -57,4 +70,4 @@ for (const required of [
   }
 }
 
-console.log('PASS clinical sync queue: in-session retry with no durable browser PHI payload storage.');
+console.log('PASS clinical sync contract: Schedule-native transactional check-in; checkout and downstream clinical writes retain durable sync/review semantics.');

@@ -201,19 +201,13 @@ export class PatientAssessmentsPage implements OnInit {
           'routine',
           {
             appointmentId: this.appointmentId || null,
-            woundVisitId: this.woundVisitId || null,
+            woundVisitId: null,
           }
         ),
         30_000,
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
       this.woundVisitId = result.visitId;
-      if (this.appointmentId) {
-        void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, result.visitId).catch((error) => {
-          console.warn('[ClinicalCommand] appointment visit linkage will retry', error);
-        });
-      }
-
       const { location } = result;
       if (result.syncStatus === 'queued') {
         // Keep the bedside workflow usable immediately. The encrypted durable
@@ -441,7 +435,9 @@ export class PatientAssessmentsPage implements OnInit {
     this.route.queryParamMap.subscribe(params => {
       this.roundId = params.get('roundId') || '';
       this.appointmentId = params.get('appointmentId') || '';
-      this.woundVisitId = params.get('woundVisitId') || '';
+      // Schedule is the canonical physical encounter. A woundVisitId query
+      // parameter is only a compatibility alias from older links.
+      this.woundVisitId = this.appointmentId || params.get('woundVisitId') || '';
       if (this.patientId && this.woundVisitId) {
         void this.trackVisitStep('clinical_command', `/tabs/skin-wound/${this.patientId}/assessments`);
       }

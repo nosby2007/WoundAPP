@@ -42,14 +42,21 @@ if (
   violations.push('Durable clinical mutation payloads must not use localStorage/sessionStorage APIs.');
 }
 
+// Arrival is now a Schedule-native Firestore transaction. Checkout and the
+// immutable completion snapshot retain durable conflict protection.
 for (const required of [
-  "conflict: { expectedAbsentFields: ['checkIn'] }",
+  "const scheduleId = String(linked.appointmentId ?? '').trim();",
+  "await runTransaction(db, async transaction =>",
+  "if (visit['checkIn'])",
   "conflict: { expectedAbsentFields: ['checkOut'] }",
   "fieldCompletionSnapshot",
   "immutable: true",
   "DurableClinicalMutationService.serverTimestamp()",
 ]) {
   if (!visit.includes(required)) violations.push('Visit hardening missing: ' + required);
+}
+if (visit.includes("conflict: { expectedAbsentFields: ['checkIn'] }")) {
+  violations.push('Schedule-native check-in must not be routed through the durable mutation conflict path.');
 }
 
 for (const required of [
@@ -140,4 +147,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log('PASS visit execution hardening: durable encrypted queue, conflicts, signature, completion snapshot, voice review.');
+console.log('PASS visit execution hardening: transactional Schedule-native arrival, durable checkout/conflicts, signature, immutable completion snapshot, voice review.');
