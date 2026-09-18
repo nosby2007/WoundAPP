@@ -309,7 +309,6 @@ export class VisitService {
         status: 'completed',
         fieldVisitState: 'completed',
         fieldCompletedAt: serverTimestamp(),
-        officeDocumentationState: 'pending_office_documentation',
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
         fieldCompletionSnapshot: {
