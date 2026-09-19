@@ -139,8 +139,15 @@ export class AssessmentFormPage implements OnInit {
   roundId = this.route.snapshot.queryParamMap.get('roundId');
   /** Scheduler/Frontdesk appointment context carried through the mobile field workflow. */
   appointmentId = this.route.snapshot.queryParamMap.get('appointmentId');
-  /** Pre-wound field execution envelope opened by WoundAPP check-in. */
-  fieldEncounterVisitId = this.route.snapshot.queryParamMap.get('woundVisitId');
+  /**
+   * Schedule is the canonical physical encounter. Older routes used
+   * woundVisitId for the same value; keep that only as a compatibility alias.
+   * Never let a missing legacy alias strip the visit linkage from a bedside
+   * assessment.
+   */
+  fieldEncounterVisitId =
+    this.route.snapshot.queryParamMap.get('appointmentId') ||
+    this.route.snapshot.queryParamMap.get('woundVisitId');
 
   /**
    * WHICH WOUND THIS ASSESSMENT IS OF.
