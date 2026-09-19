@@ -62,7 +62,8 @@ for (const value of [
 
 for (const value of [
   "appointmentId = this.route.snapshot.queryParamMap.get('appointmentId')",
-  "fieldEncounterVisitId = this.route.snapshot.queryParamMap.get('woundVisitId')",
+  "this.route.snapshot.queryParamMap.get('appointmentId') ||",
+  "this.route.snapshot.queryParamMap.get('woundVisitId')",
   'newWound: !this.woundId',
 ]) need(form, value, 'Assessment form');
 
