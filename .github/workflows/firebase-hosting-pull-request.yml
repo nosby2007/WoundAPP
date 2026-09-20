@@ -48,9 +48,27 @@ jobs:
         run: node scripts/verify-mobile-checkout-recovery.js
       - name: Verify professional visit packet
         run: node scripts/verify-professional-visit-packet.js
-      - run: npm run build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Build actual Ionic WoundAPP against DEV Firebase
+        run: npm run build -- --configuration development
+      # A separate Hosting site is REQUIRED: the DEV project's default site
+      # is used by JADE and must not be overwritten by WoundAPP previews.
+      - name: Verify dedicated DEV mobile Hosting site
+        if: ${{ vars.WOUNDAPP_DEV_HOSTING_SITE != '' }}
+        env:
+          MOBILE_SITE: ${{ vars.WOUNDAPP_DEV_HOSTING_SITE }}
+        run: |
+          test "$MOBILE_SITE" != "jade-dev-5b0e3"
+          test "$MOBILE_SITE" != "innovacare-mobile"
+          test "$MOBILE_SITE" != "woundapp-261e6"
+          node -e 'const fs=require("fs");const f=JSON.parse(fs.readFileSync("firebase.json"));f.hosting.site=process.env.MOBILE_SITE;delete f.hosting.target;fs.writeFileSync("firebase.json",JSON.stringify(f,null,2)+"\\n")'
+      - name: Deploy DEV mobile preview only to dedicated site
+        if: ${{ vars.WOUNDAPP_DEV_HOSTING_SITE != '' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WOUNDAPP_261E6 }}
-          projectId: woundapp-261e6
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_DEV_5B0E3 }}
+          projectId: jade-dev-5b0e3
+          channelId: pr-${{ github.event.pull_request.number }}
+      - name: Dedicated DEV Hosting site not configured
+        if: ${{ vars.WOUNDAPP_DEV_HOSTING_SITE == '' }}
+        run: echo "::warning::Mobile DEV Hosting preview skipped until WOUNDAPP_DEV_HOSTING_SITE is configured. Build/tests still run."
