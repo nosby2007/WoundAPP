@@ -54,7 +54,7 @@ jobs:
       # Never deploy to JADE's default site or production innovacare-mobile.
       - name: Pin dedicated mobile DEV Hosting site
         run: |
-          node -e 'const fs=require("fs");const f=JSON.parse(fs.readFileSync("firebase.json","utf8"));f.hosting.site="phwc-mobile-dev";delete f.hosting.target;fs.writeFileSync("firebase.json",JSON.stringify(f,null,2)+"\\n")'
+          node -e 'const fs=require("fs");const f=JSON.parse(fs.readFileSync("firebase.json","utf8"));f.hosting.site="phwc-mobile-dev";delete f.hosting.target;fs.writeFileSync("firebase.json",JSON.stringify(f,null,2)+String.fromCharCode(10))'
       - name: Deploy mobile DEV preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
