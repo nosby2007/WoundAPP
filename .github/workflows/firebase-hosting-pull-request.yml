@@ -26,10 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: (npm ci && npm run build)
+      - name: Install dependencies
+        run: npm ci
+      - name: Build WoundAPP against isolated DEV Firebase
+        run: npm run build -- --configuration development
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WOUNDAPP_261E6 }}
-          projectId: woundapp-261e6
-          target: innovacare-mobile
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_DEV_5B0E3 }}
+          projectId: jade-dev-5b0e3
+          channelId: pr-${{ github.event.pull_request.number }}
