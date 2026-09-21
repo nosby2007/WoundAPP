@@ -48,9 +48,17 @@ jobs:
         run: node scripts/verify-mobile-checkout-recovery.js
       - name: Verify professional visit packet
         run: node scripts/verify-professional-visit-packet.js
-      - run: npm run build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Build actual Ionic WoundAPP against DEV Firebase
+        run: npm run build -- --configuration development
+      # Dedicated mobile DEV site confirmed in Firebase Hosting.
+      # Never deploy to JADE's default site or production innovacare-mobile.
+      - name: Pin dedicated mobile DEV Hosting site
+        run: |
+          node -e 'const fs=require("fs");const f=JSON.parse(fs.readFileSync("firebase.json","utf8"));f.hosting.site="phwc-mobile-dev";delete f.hosting.target;fs.writeFileSync("firebase.json",JSON.stringify(f,null,2)+String.fromCharCode(10))'
+      - name: Deploy mobile DEV preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WOUNDAPP_261E6 }}
-          projectId: woundapp-261e6
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_DEV_5B0E3 }}
+          projectId: jade-dev-5b0e3
+          channelId: pr-${{ github.event.pull_request.number }}
