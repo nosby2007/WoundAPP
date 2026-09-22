@@ -785,9 +785,23 @@ export class AssessmentFormPage implements OnInit {
       this.loading = false;
       await savingToast.dismiss();
 
+      // Keep the form intact and show a safe, actionable failure category.
+      // Do not render raw Firebase messages: they can contain resource paths.
+      const code = typeof err === 'object' && err !== null && 'code' in err
+        ? String((err as { code?: unknown }).code || '')
+        : '';
+      const message = err instanceof Error ? err.message : '';
+      const failure = code === 'permission-denied' || code === 'storage/unauthorized'
+        ? 'Permission denied. Assessment not confirmed saved.'
+        : code === 'unavailable' || code === 'deadline-exceeded'
+          ? 'Connection unavailable. Assessment not confirmed saved.'
+          : message.startsWith('The active field encounter is missing.')
+            ? 'Scheduled visit missing. Return to the visit before saving.'
+            : 'Could not confirm assessment save. Keep this form open and contact support.';
+      console.error('[AssessmentForm] Save failed', { code, hasFieldEncounter: !!this.fieldEncounterVisitId, isNew: !this.assessmentId });
       const toast = await this.toastCtrl.create({
-        message: 'Error saving assessment',
-        duration: 2500,
+        message: failure,
+        duration: 5500,
         color: 'danger',
       });
       await toast.present();
