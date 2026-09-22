@@ -374,18 +374,24 @@ export class AssessmentsService {
 
     batch.set(assessmentRef, payload);
     await batch.commit();
-    await this.audit.record({
-      action: 'wound_assessment_created',
-      patientId,
-      entityType: 'woundAssessment',
-      entityId: id,
-      metadata: {
-        appointmentId: fieldContext.appointmentId || null,
-        fieldEncounterVisitId: fieldContext.fieldEncounterVisitId || null,
-        visitId: payload.visitId || null,
-        woundId,
-      },
-    });
+    // The clinical batch has committed. A separate audit transport failure must
+    // not tell the clinician that the assessment itself was not saved.
+    try {
+      await this.audit.record({
+        action: 'wound_assessment_created',
+        patientId,
+        entityType: 'woundAssessment',
+        entityId: id,
+        metadata: {
+          appointmentId: fieldContext.appointmentId || null,
+          fieldEncounterVisitId: fieldContext.fieldEncounterVisitId || null,
+          visitId: payload.visitId || null,
+          woundId,
+        },
+      });
+    } catch (auditError) {
+      console.error('[AssessmentsService] Assessment committed; audit recording failed', auditError);
+    }
   }
 
   async update(patientId: string, id: string, data: any): Promise<void> {
