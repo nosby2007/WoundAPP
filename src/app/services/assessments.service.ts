@@ -221,7 +221,8 @@ export class AssessmentsService {
           history: [{
             toState: 'created',
             fromState: null,
-            occurredAt: now,
+            // Firestore does not support serverTimestamp() inside arrays.
+            occurredAt: new Date(),
             actor,
             comment: 'Wound established from WoundAPP field assessment.',
           }],
