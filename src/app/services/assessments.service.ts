@@ -290,29 +290,42 @@ export class AssessmentsService {
       const fieldVisit = fieldVisitSnap.data() as any;
       const appointmentId = fieldContext.appointmentId || fieldVisit.appointmentId || null;
       const existingWoundId = String(fieldVisit.woundId || '').trim();
+      const legacySingleWound =
+        fieldVisit.visitScope === 'single_wound' && !!existingWoundId;
 
       let clinicalVisitId = fieldVisitId;
 
-      if (!existingWoundId || existingWoundId === woundId) {
-        // First wound discovered in this physical appointment: promote the
-        // pre-wound field envelope into the wound-specific clinical visit.
-        // This preserves the original EVV/check-in identity and avoids a
-        // shadow visit.
+      if (!legacySingleWound) {
+        // Contract v1: one Scheduler appointment == one physical patient visit.
+        // Every wound assessment in this encounter links back to the same
+        // deterministic Schedule/EVV visit. Wounds and episodes remain
+        // wound-specific; the physical visit itself stays wound-neutral.
         batch.update(fieldVisitRef, {
-          woundId,
-          visitScope: 'single_wound',
-          episodeId: episodeId || fieldVisit.episodeId || null,
+          visitScope: 'patient_visit',
+          woundId: null,
+          episodeId: null,
+          assessmentIds: arrayUnion(id),
+          woundIds: arrayUnion(woundId),
+          fieldWoundIds: arrayUnion(woundId),
+          ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+      } else if (existingWoundId === woundId) {
+        // Transitional compatibility only. Visits already promoted to the
+        // historical single_wound shape stay readable and are never rewritten
+        // into the new patient_visit contract.
+        batch.update(fieldVisitRef, {
           assessmentIds: arrayUnion(id),
           fieldWoundIds: arrayUnion(woundId),
-          fieldWoundVisitIds: arrayUnion(fieldVisitId),
           ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
           updatedAt: now,
           updatedBy: identity.uid,
         });
       } else {
-        // A single physical appointment can include several wounds. Each
-        // additional wound gets a deterministic wound-specific clinical
-        // record while sharing the physical appointment/EVV source.
+        // Transitional compatibility for an already-started legacy encounter.
+        // New patient_visit encounters never enter this branch and therefore
+        // never generate per-wound child visits.
         clinicalVisitId = `${fieldVisitId}__${woundId}`;
         const childRef = doc(this.firestore, `patients/${patientId}/woundVisits/${clinicalVisitId}`);
         const childSnap = await getDoc(childRef);
