@@ -703,11 +703,20 @@ export class AssessmentFormPage implements OnInit {
         // so it points at itself.
         id = this.assessments.newId(this.patientId);
         basePayload.woundId = woundIdForCreate(this.woundId, id);
-        await this.assessments.createWithId(this.patientId, id, basePayload, {
+        const linkResult = await this.assessments.createWithId(this.patientId, id, basePayload, {
           appointmentId: this.appointmentId,
           fieldEncounterVisitId: this.fieldEncounterVisitId,
           newWound: !this.woundId,
         });
+        // The service resolves the canonical wound/episode/visit linkage in
+        // the same batch as the assessment. Keep that exact identity in this
+        // page so downstream Care Plan / Education / Orders / Progress Note
+        // do not fall back to a wound-neutral physical encounter.
+        this.woundId = linkResult.woundId;
+        this.appointmentId = linkResult.appointmentId || this.appointmentId;
+        this.fieldEncounterVisitId = linkResult.fieldEncounterVisitId || this.fieldEncounterVisitId;
+        basePayload.woundId = linkResult.woundId;
+        basePayload.episodeId = linkResult.episodeId;
       } else {
         basePayload.updatedAt = now;
         // Never on an update. The stored value is the wound's identity and
