@@ -55,7 +55,7 @@ import { VisitHistoryItem, VisitHistoryService } from '../../services/visit-hist
             <h2>Workflow & documentation</h2>
             <div class="rows">
               <div><ion-icon [icon]="documentTextOutline"></ion-icon><span>Field state</span><strong>{{ visit.fieldVisitState || visit.status || '—' }}</strong></div>
-              <div><ion-icon [icon]="documentTextOutline"></ion-icon><span>Office documentation</span><strong>{{ visit.officeDocumentationState || '—' }}</strong></div>
+              <div><ion-icon [icon]="documentTextOutline"></ion-icon><span>Office documentation</span><strong>{{ officeDocumentationLabel }}</strong></div>
               <div><ion-icon [icon]="folderOpenOutline"></ion-icon><span>Last mobile step</span><strong>{{ visit.mobileWorkflow?.currentStep || '—' }}</strong></div>
               <div><ion-icon [icon]="folderOpenOutline"></ion-icon><span>Last mobile route</span><strong>{{ visit.mobileWorkflow?.lastRoute || '—' }}</strong></div>
             </div>
@@ -72,8 +72,9 @@ import { VisitHistoryItem, VisitHistoryService } from '../../services/visit-hist
             <div class="rows compact">
               <div><span>Visit ID</span><strong>{{ visit.id }}</strong></div>
               <div><span>Appointment ID</span><strong>{{ visit.appointmentId || '—' }}</strong></div>
-              <div><span>Episode ID</span><strong>{{ visit.episodeId || '—' }}</strong></div>
-              <div><span>Wound ID</span><strong>{{ visit.woundId || '—' }}</strong></div>
+              <div><span>Wound links</span><strong>{{ woundLinksLabel }}</strong></div>
+              <div><span>Episode links</span><strong>{{ episodeLinksLabel }}</strong></div>
+              <div><span>Assessment links</span><strong>{{ visit.assessmentIds?.length || 0 }}</strong></div>
             </div>
           </ion-card-content>
         </ion-card>
@@ -141,6 +142,35 @@ export class VisitHistoryDetailPage implements OnInit {
     return this.statusLabel === 'Not done' ? 'danger' : this.statusLabel === 'Completed' ? 'success' : this.statusLabel === 'On site' ? 'warning' : 'primary';
   }
 
+  get officeDocumentationLabel(): string {
+    const visit = this.visit;
+    if (!visit) return '—';
+    return visit.clinicalWorkflow?.officeDocumentationEvidenceComplete === true
+      ? 'complete'
+      : (visit.officeDocumentationState || '—');
+  }
+
+  get woundLinksLabel(): string {
+    const visit = this.visit;
+    if (!visit) return '—';
+    const ids = Array.from(new Set([
+      ...(visit.woundIds || []),
+      ...(visit.fieldWoundIds || []),
+      ...(visit.woundId ? [visit.woundId] : []),
+    ].map((value) => String(value || '').trim()).filter(Boolean)));
+    return ids.length ? `${ids.length} linked · ${ids.join(', ')}` : 'None linked';
+  }
+
+  get episodeLinksLabel(): string {
+    const visit = this.visit;
+    if (!visit) return '—';
+    const ids = Array.from(new Set([
+      ...(visit.fieldEpisodeIds || []),
+      ...(visit.episodeId ? [visit.episodeId] : []),
+    ].map((value) => String(value || '').trim()).filter(Boolean)));
+    return ids.length ? `${ids.length} linked · ${ids.join(', ')}` : 'None linked';
+  }
+
   checkpoint(value: any): string {
     const date = this.history.toDate(value?.at);
     const by = value?.byName ? ` · ${value.byName}` : '';
@@ -148,5 +178,13 @@ export class VisitHistoryDetailPage implements OnInit {
   }
 
   back(): void { void this.router.navigate(['/tabs/visit-history']); }
-  openChart(): void { void this.router.navigate(['/tabs/skin-wound', this.patientId, 'assessments']); }
+  openChart(): void {
+    const visit = this.visit;
+    void this.router.navigate(['/tabs/skin-wound', this.patientId, 'assessments'], {
+      queryParams: {
+        appointmentId: visit?.appointmentId || visit?.id || '',
+        woundVisitId: visit?.id || '',
+      },
+    });
+  }
 }
