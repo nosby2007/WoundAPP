@@ -48,6 +48,8 @@ jobs:
         run: node scripts/verify-mobile-checkout-recovery.js
       - name: Verify professional visit packet
         run: node scripts/verify-professional-visit-packet.js
+      - name: Verify full Scheduler to JADE clinical visit chain
+        run: node scripts/verify-full-visit-chain.js
       - name: Build actual Ionic WoundAPP against DEV Firebase
         run: npm run build -- --configuration development
       # Dedicated mobile DEV site confirmed in Firebase Hosting.
