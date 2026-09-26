@@ -3,11 +3,14 @@ import { Injectable } from '@angular/core';
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
@@ -101,7 +104,36 @@ export class ProgressNoteService {
     }
 
     const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
-    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound } });
+
+    // A human-reviewed progress note is the office-documentation evidence for
+    // this physical encounter. Keep this projection separate from the note
+    // write: if it fails, the chart note remains saved and retriable.
+    const visitId = String(visitLink.visitId || '').trim();
+    if (visitId) {
+      try {
+        const visitRef = doc(db, `patients/${patientId}/woundVisits/${visitId}`);
+        const visitSnap = await getDoc(visitRef);
+        if (visitSnap.exists()) {
+          const visit = visitSnap.data() as any;
+          const fieldComplete = !!visit.checkOut ||
+            visit.fieldVisitState === 'completed' ||
+            visit.status === 'completed';
+          if (fieldComplete && visit.officeDocumentationState !== 'complete') {
+            await updateDoc(visitRef, {
+              officeDocumentationState: 'complete',
+              officeDocumentationCompletedAt: serverTimestamp(),
+              officeDocumentationCompletedBy: identity.uid,
+              updatedAt: serverTimestamp(),
+              updatedBy: identity.uid,
+            });
+          }
+        }
+      } catch (projectionError) {
+        console.warn('[ProgressNoteService] note saved; office-documentation projection deferred', projectionError);
+      }
+    }
+
+    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound, visitId: visitId || null } });
     return ref.id;
   }
 
