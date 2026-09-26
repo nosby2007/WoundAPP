@@ -72,7 +72,6 @@ export class ProgressNoteFormPage {
   private toasts = inject(ToastController);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
-  visitLink: ClinicalVisitLink = this.readVisitLink();
   patient: any = null;
 
   /**
@@ -82,6 +81,7 @@ export class ProgressNoteFormPage {
    * the timestamp.
    */
   wound: ProgressNoteWoundContext | null = this.readWoundContext();
+  visitLink: ClinicalVisitLink = this.readVisitLink();
 
   details = '';
   saving = false;
@@ -164,6 +164,15 @@ export class ProgressNoteFormPage {
    * identical, and a second copy of this page would be a second place for
    * the permission handling below to drift.
    */
+  private readWoundContext(): ProgressNoteWoundContext | null {
+    const q = this.route.snapshot.queryParamMap;
+    const woundId = q.get('woundId');
+    const woundAssessmentId = q.get('assessmentId');
+    const label = q.get('woundLabel');
+    if (!woundId || !woundAssessmentId) return null;
+    return { woundId, woundAssessmentId, label: label || '' };
+  }
+
   private readVisitLink(): ClinicalVisitLink {
     const q = this.route.snapshot.queryParamMap;
     const appointmentId = q.get('appointmentId');
@@ -173,17 +182,8 @@ export class ProgressNoteFormPage {
       appointmentId,
       woundId: q.get('woundId'),
       episodeId: q.get('episodeId'),
-      fieldEncounterVisitId: visitId,
+      fieldEncounterVisitId: q.get('fieldEncounterVisitId') || visitId,
     };
-  }
-
-  private readWoundContext(): ProgressNoteWoundContext | null {
-    const q = this.route.snapshot.queryParamMap;
-    const woundId = q.get('woundId');
-    const woundAssessmentId = q.get('assessmentId');
-    const label = q.get('woundLabel');
-    if (!woundId || !woundAssessmentId) return null;
-    return { woundId, woundAssessmentId, label: label || '' };
   }
 
   backToPicker() {

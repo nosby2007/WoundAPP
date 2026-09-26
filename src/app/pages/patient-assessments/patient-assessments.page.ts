@@ -121,6 +121,8 @@ export class PatientAssessmentsPage implements OnInit {
   roundId = this.route.snapshot.queryParamMap.get('roundId') || '';
   appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
   woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  contextWoundId = this.route.snapshot.queryParamMap.get('woundId') || '';
+  contextEpisodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -442,6 +444,8 @@ export class PatientAssessmentsPage implements OnInit {
       // Schedule is the canonical physical encounter. A woundVisitId query
       // parameter is only a compatibility alias from older links.
       this.woundVisitId = this.appointmentId || params.get('woundVisitId') || '';
+      this.contextWoundId = params.get('woundId') || '';
+      this.contextEpisodeId = params.get('episodeId') || '';
       if (this.patientId && this.woundVisitId) {
         void this.trackVisitStep('clinical_command', `/tabs/skin-wound/${this.patientId}/assessments`);
       }
@@ -606,7 +610,9 @@ export class PatientAssessmentsPage implements OnInit {
     void this.trackVisitStep('wound_assessment', `/tabs/skin-wound/${this.patientId}/assessments/new`);
     this.router.navigate(
       ['/tabs', 'skin-wound', this.patientId, 'assessments', 'new'],
-      { queryParams: this.visitQueryParams() },
+      // A brand-new wound keeps only encounter identity. Carrying the last
+      // woundId here would silently turn "New wound" into a re-evaluation.
+      { queryParams: this.encounterQueryParams() },
     );
   }
 
@@ -639,14 +645,24 @@ export class PatientAssessmentsPage implements OnInit {
     );
   }
 
-  private visitQueryParams(): Record<string, string> | undefined {
+  private encounterQueryParams(): Record<string, string> | undefined {
     const params: Record<string, string> = {};
-    const active = this.openVisit();
     if (this.roundId) params['roundId'] = this.roundId;
     if (this.appointmentId) params['appointmentId'] = this.appointmentId;
     if (this.woundVisitId) params['woundVisitId'] = this.woundVisitId;
-    if (active?.woundId) params['woundId'] = active.woundId;
-    if (active?.episodeId) params['episodeId'] = active.episodeId;
+    return Object.keys(params).length ? params : undefined;
+  }
+
+  private visitQueryParams(): Record<string, string> | undefined {
+    const params = { ...(this.encounterQueryParams() || {}) };
+    // patient_visit is wound-neutral at the visit document level. Preserve
+    // the exact wound/episode returned by the assessment batch instead of
+    // reading singular woundId/episodeId from the physical visit.
+    const active = this.openVisit();
+    const woundId = this.contextWoundId || active?.woundId || '';
+    const episodeId = this.contextEpisodeId || active?.episodeId || '';
+    if (woundId) params['woundId'] = woundId;
+    if (episodeId) params['episodeId'] = episodeId;
     return Object.keys(params).length ? params : undefined;
   }
 

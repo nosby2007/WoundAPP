@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -105,21 +106,31 @@ export class ProgressNoteService {
     const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
 
     // The progress note is the field clinician's explicit office-documentation
-    // completion evidence for this physical encounter. Update only workflow
-    // metadata on the canonical physical visit; failure here never means the
-    // note itself was not saved.
+    // evidence for this physical encounter. Only project completion when the
+    // field visit is already complete; checkout separately reconciles notes
+    // authored before departure.
     const physicalVisitId = String(
       visitLink.fieldEncounterVisitId || visitLink.appointmentId || visitLink.visitId || ''
     ).trim();
     if (physicalVisitId) {
       try {
-        await updateDoc(doc(db, `patients/${patientId}/woundVisits/${physicalVisitId}`), {
-          officeDocumentationState: 'complete',
-          officeDocumentationCompletedAt: serverTimestamp(),
-          officeDocumentationCompletedBy: identity.uid,
-          updatedAt: serverTimestamp(),
-          updatedBy: identity.uid,
-        });
+        const visitRef = doc(db, `patients/${patientId}/woundVisits/${physicalVisitId}`);
+        const visitSnap = await getDoc(visitRef);
+        if (visitSnap.exists()) {
+          const visit = visitSnap.data() as any;
+          const fieldComplete = !!visit.checkOut ||
+            visit.fieldVisitState === 'completed' ||
+            visit.status === 'completed';
+          if (fieldComplete && visit.officeDocumentationState !== 'complete') {
+            await updateDoc(visitRef, {
+              officeDocumentationState: 'complete',
+              officeDocumentationCompletedAt: serverTimestamp(),
+              officeDocumentationCompletedBy: identity.uid,
+              updatedAt: serverTimestamp(),
+              updatedBy: identity.uid,
+            });
+          }
+        }
       } catch (workflowError) {
         console.warn('[ProgressNoteService] note saved; visit office-documentation projection deferred', {
           patientId,

@@ -30,6 +30,15 @@ export interface FieldAssessmentContext {
   newWound?: boolean;
 }
 
+export interface AssessmentVisitLinkResult {
+  assessmentId: string;
+  visitId: string | null;
+  appointmentId: string | null;
+  fieldEncounterVisitId: string | null;
+  woundId: string;
+  episodeId: string | null;
+}
+
 export interface MobileAssessment {
   id: string;
   woundId?: string;
@@ -165,7 +174,7 @@ export class AssessmentsService {
     id: string,
     data: any,
     fieldContext: FieldAssessmentContext = {}
-  ): Promise<void> {
+  ): Promise<AssessmentVisitLinkResult> {
     const payload = await this.withCanonicalAuthor({
       ...data,
       appointmentId: fieldContext.appointmentId || null,
@@ -406,6 +415,15 @@ export class AssessmentsService {
     } catch (auditError) {
       console.error('[AssessmentsService] Assessment committed; audit recording failed', auditError);
     }
+
+    return {
+      assessmentId: id,
+      visitId: (payload.visitId as string | null | undefined) ?? null,
+      appointmentId: (payload.appointmentId as string | null | undefined) ?? fieldContext.appointmentId ?? null,
+      fieldEncounterVisitId: (payload.fieldEncounterVisitId as string | null | undefined) ?? fieldContext.fieldEncounterVisitId ?? null,
+      woundId,
+      episodeId: (payload.episodeId as string | null | undefined) ?? episodeId ?? null,
+    };
   }
 
   async update(patientId: string, id: string, data: any): Promise<void> {
