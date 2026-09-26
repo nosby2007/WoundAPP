@@ -70,6 +70,14 @@ export class WoundCarePlanPage implements OnInit {
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId')!;
+  appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
+  woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
+  episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
+  fieldEncounterVisitId =
+    this.route.snapshot.queryParamMap.get('fieldEncounterVisitId') ||
+    this.appointmentId ||
+    this.woundVisitId ||
+    '';
 
   categories = CARE_PLAN_PROBLEM_CATEGORIES;
 
@@ -167,11 +175,28 @@ export class WoundCarePlanPage implements OnInit {
         category: this.form.value.category as CarePlanProblemCategory,
         goalCatalogRefs,
         customGoals,
+      }, {
+        visitId: this.woundVisitId || this.appointmentId || null,
+        appointmentId: this.appointmentId || null,
+        woundId: this.woundId,
+        episodeId: this.episodeId || null,
+        fieldEncounterVisitId: this.fieldEncounterVisitId || null,
       });
 
       const toast = await this.toastCtrl.create({ message: 'Care plan saved', duration: 2000 });
       await toast.present();
-      this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'assessments', this.assessmentId]);
+      this.router.navigate(
+        ['/tabs', 'skin-wound', this.patientId, 'assessments', this.assessmentId],
+        {
+          queryParams: {
+            ...(this.appointmentId ? { appointmentId: this.appointmentId } : {}),
+            ...((this.woundVisitId || this.appointmentId) ? { woundVisitId: this.woundVisitId || this.appointmentId } : {}),
+            ...(this.episodeId ? { episodeId: this.episodeId } : {}),
+            ...(this.fieldEncounterVisitId ? { fieldEncounterVisitId: this.fieldEncounterVisitId } : {}),
+            ...(this.woundId ? { woundId: this.woundId } : {}),
+          },
+        }
+      );
     } catch (err: any) {
       console.error('[WoundCarePlanPage] save failed', err);
       this.errorMsg = err?.message || 'Could not save the care plan.';
