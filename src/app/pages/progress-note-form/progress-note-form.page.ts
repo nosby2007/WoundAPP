@@ -31,6 +31,7 @@ import {
   ProgressNoteWoundContext,
 } from 'src/app/services/progress-note.service';
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
+import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
 
 /**
  * Write a progress note on one patient.
@@ -71,6 +72,7 @@ export class ProgressNoteFormPage {
   private toasts = inject(ToastController);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
+  visitLink: ClinicalVisitLink = this.readVisitLink();
   patient: any = null;
 
   /**
@@ -133,7 +135,7 @@ export class ProgressNoteFormPage {
     this.errorMsg = '';
 
     try {
-      await this.notes.create(this.patientId, this.details, this.wound);
+      await this.notes.create(this.patientId, this.details, this.wound, null, this.visitLink);
       this.details = '';
       await this.loadHistory();
 
@@ -162,6 +164,19 @@ export class ProgressNoteFormPage {
    * identical, and a second copy of this page would be a second place for
    * the permission handling below to drift.
    */
+  private readVisitLink(): ClinicalVisitLink {
+    const q = this.route.snapshot.queryParamMap;
+    const appointmentId = q.get('appointmentId');
+    const visitId = q.get('woundVisitId') || appointmentId;
+    return {
+      visitId,
+      appointmentId,
+      woundId: q.get('woundId'),
+      episodeId: q.get('episodeId'),
+      fieldEncounterVisitId: visitId,
+    };
+  }
+
   private readWoundContext(): ProgressNoteWoundContext | null {
     const q = this.route.snapshot.queryParamMap;
     const woundId = q.get('woundId');

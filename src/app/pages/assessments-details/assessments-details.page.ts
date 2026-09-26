@@ -164,15 +164,54 @@ editAssessment() {
     'assessments',
     this.assessmentId,
     'edit',
-  ]);
+  ], { queryParams: this.visitQueryParams() });
 }
+
+  private visitQueryParams(): Record<string, string> {
+    const current = this.route.snapshot.queryParamMap;
+    const visitId = String(
+      this.assessment?.visitId ||
+      this.assessment?.woundVisitId ||
+      current.get('woundVisitId') ||
+      current.get('appointmentId') ||
+      ''
+    ).trim();
+    const appointmentId = String(
+      this.assessment?.appointmentId ||
+      current.get('appointmentId') ||
+      ''
+    ).trim();
+    const episodeId = String(
+      this.assessment?.episodeId ||
+      current.get('episodeId') ||
+      ''
+    ).trim();
+    const fieldEncounterVisitId = String(
+      this.assessment?.fieldEncounterVisitId ||
+      current.get('fieldEncounterVisitId') ||
+      appointmentId ||
+      visitId ||
+      ''
+    ).trim();
+
+    const params: Record<string, string> = {
+      woundId: this.woundId,
+      woundLabel: this.woundLabel,
+      assessmentId: this.assessmentId,
+    };
+    if (appointmentId) params['appointmentId'] = appointmentId;
+    if (visitId) params['woundVisitId'] = visitId;
+    if (episodeId) params['episodeId'] = episodeId;
+    if (fieldEncounterVisitId) params['fieldEncounterVisitId'] = fieldEncounterVisitId;
+    return params;
+  }
 
   /** The plan for this wound, decided while looking at it. */
   openCarePlan() {
     if (!this.patientId || !this.assessmentId) return;
     this.router.navigate([
       '/tabs', 'skin-wound', this.patientId, 'assessments', this.assessmentId, 'care-plan',
-    ]);
+    ], { queryParams: this.visitQueryParams() });
   }
 
   /**
@@ -184,18 +223,14 @@ editAssessment() {
   openEducation() {
     if (!this.patientId || !this.assessmentId) return;
     this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'education'], {
-      queryParams: { woundId: this.woundId, woundLabel: this.woundLabel },
+      queryParams: this.visitQueryParams(),
     });
   }
 
   openNote() {
     if (!this.patientId || !this.assessmentId) return;
     this.router.navigate(['/tabs', 'progress-note', this.patientId], {
-      queryParams: {
-        woundId: this.woundId,
-        assessmentId: this.assessmentId,
-        woundLabel: this.woundLabel,
-      },
+      queryParams: this.visitQueryParams(),
     });
   }
 

@@ -9,6 +9,10 @@ export interface VisitHistoryItem {
   appointmentId?: string | null;
   woundId?: string | null;
   episodeId?: string | null;
+  visitScope?: string | null;
+  woundIds?: string[] | null;
+  fieldWoundIds?: string[] | null;
+  fieldEpisodeIds?: string[] | null;
   visitType?: string | null;
   status?: string | null;
   appointmentStatus?: string | null;

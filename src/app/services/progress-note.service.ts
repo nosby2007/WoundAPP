@@ -3,11 +3,13 @@ import { Injectable } from '@angular/core';
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   limit,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
@@ -101,7 +103,33 @@ export class ProgressNoteService {
     }
 
     const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
-    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound } });
+
+    // The progress note is the field clinician's explicit office-documentation
+    // completion evidence for this physical encounter. Update only workflow
+    // metadata on the canonical physical visit; failure here never means the
+    // note itself was not saved.
+    const physicalVisitId = String(
+      visitLink.fieldEncounterVisitId || visitLink.appointmentId || visitLink.visitId || ''
+    ).trim();
+    if (physicalVisitId) {
+      try {
+        await updateDoc(doc(db, `patients/${patientId}/woundVisits/${physicalVisitId}`), {
+          officeDocumentationState: 'complete',
+          officeDocumentationCompletedAt: serverTimestamp(),
+          officeDocumentationCompletedBy: identity.uid,
+          updatedAt: serverTimestamp(),
+          updatedBy: identity.uid,
+        });
+      } catch (workflowError) {
+        console.warn('[ProgressNoteService] note saved; visit office-documentation projection deferred', {
+          patientId,
+          physicalVisitId,
+          noteId: ref.id,
+        }, workflowError);
+      }
+    }
+
+    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound, physicalVisitId: physicalVisitId || null } });
     return ref.id;
   }
 

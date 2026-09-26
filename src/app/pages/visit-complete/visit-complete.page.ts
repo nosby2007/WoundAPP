@@ -163,7 +163,16 @@ export class VisitCompletePage implements OnInit {
 
     if (this.patientId) {
       try {
-        this.completeness = await this.visitCompleteness.evaluate(this.patientId, this.visitType);
+        this.completeness = await this.visitCompleteness.evaluate(
+          this.patientId,
+          this.visitType,
+          new Date(),
+          {
+            visitId: this.appointmentId || null,
+            appointmentId: this.appointmentId || null,
+            fieldEncounterVisitId: this.appointmentId || null,
+          }
+        );
       } finally {
         this.loading = false;
       }

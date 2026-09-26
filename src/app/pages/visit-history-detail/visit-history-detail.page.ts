@@ -72,8 +72,9 @@ import { VisitHistoryItem, VisitHistoryService } from '../../services/visit-hist
             <div class="rows compact">
               <div><span>Visit ID</span><strong>{{ visit.id }}</strong></div>
               <div><span>Appointment ID</span><strong>{{ visit.appointmentId || '—' }}</strong></div>
-              <div><span>Episode ID</span><strong>{{ visit.episodeId || '—' }}</strong></div>
-              <div><span>Wound ID</span><strong>{{ visit.woundId || '—' }}</strong></div>
+              <div><span>Visit scope</span><strong>{{ visit.visitScope || 'legacy / unspecified' }}</strong></div>
+              <div><span>Wound links</span><strong>{{ woundLinkLabel }}</strong></div>
+              <div><span>Episode links</span><strong>{{ episodeLinkLabel }}</strong></div>
             </div>
           </ion-card-content>
         </ion-card>
@@ -139,6 +140,30 @@ export class VisitHistoryDetailPage implements OnInit {
 
   get statusColor(): string {
     return this.statusLabel === 'Not done' ? 'danger' : this.statusLabel === 'Completed' ? 'success' : this.statusLabel === 'On site' ? 'warning' : 'primary';
+  }
+
+  get woundLinkLabel(): string {
+    const visit = this.visit;
+    if (!visit) return '—';
+    const ids = Array.from(new Set([
+      ...(visit.woundIds || []),
+      ...(visit.fieldWoundIds || []),
+      ...(visit.woundId ? [visit.woundId] : []),
+    ].filter(Boolean)));
+    if (!ids.length) return visit.visitScope === 'patient_visit'
+      ? 'No wound assessed on this physical visit'
+      : '—';
+    return ids.join(', ');
+  }
+
+  get episodeLinkLabel(): string {
+    const visit = this.visit;
+    if (!visit) return '—';
+    const ids = Array.from(new Set([
+      ...(visit.fieldEpisodeIds || []),
+      ...(visit.episodeId ? [visit.episodeId] : []),
+    ].filter(Boolean)));
+    return ids.length ? ids.join(', ') : '—';
   }
 
   checkpoint(value: any): string {
