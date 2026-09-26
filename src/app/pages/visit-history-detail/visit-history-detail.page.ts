@@ -72,6 +72,7 @@ import { VisitHistoryItem, VisitHistoryService } from '../../services/visit-hist
             <div class="rows compact">
               <div><span>Visit ID</span><strong>{{ visit.id }}</strong></div>
               <div><span>Appointment ID</span><strong>{{ visit.appointmentId || '—' }}</strong></div>
+              <div><span>Visit scope</span><strong>{{ visit.visitScope || 'legacy / unspecified' }}</strong></div>
               <div><span>Wound links</span><strong>{{ woundLinksLabel }}</strong></div>
               <div><span>Episode links</span><strong>{{ episodeLinksLabel }}</strong></div>
               <div><span>Assessment links</span><strong>{{ visit.assessmentIds?.length || 0 }}</strong></div>
@@ -158,7 +159,10 @@ export class VisitHistoryDetailPage implements OnInit {
       ...(visit.fieldWoundIds || []),
       ...(visit.woundId ? [visit.woundId] : []),
     ].map((value) => String(value || '').trim()).filter(Boolean)));
-    return ids.length ? `${ids.length} linked · ${ids.join(', ')}` : 'None linked';
+    if (!ids.length) return visit.visitScope === 'patient_visit'
+      ? 'No wound assessed on this physical visit'
+      : '—';
+    return `${ids.length} linked · ${ids.join(', ')}`;
   }
 
   get episodeLinksLabel(): string {
@@ -168,7 +172,7 @@ export class VisitHistoryDetailPage implements OnInit {
       ...(visit.fieldEpisodeIds || []),
       ...(visit.episodeId ? [visit.episodeId] : []),
     ].map((value) => String(value || '').trim()).filter(Boolean)));
-    return ids.length ? `${ids.length} linked · ${ids.join(', ')}` : 'None linked';
+    return ids.length ? `${ids.length} linked · ${ids.join(', ')}` : '—';
   }
 
   checkpoint(value: any): string {

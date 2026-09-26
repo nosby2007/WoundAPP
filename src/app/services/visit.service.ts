@@ -391,17 +391,18 @@ export class VisitService {
     // evidence is complete, promote already-filed human-reviewed note evidence
     // to office-documentation complete without mixing it into the EVV
     // transaction (which intentionally stays minimal).
-    void getDocs(query(
-      collection(db, `patients/${patientId}/providerNotes`),
-      where('visitId', '==', visitId),
-      limit(10),
-    )).then((notesSnap) => {
-      const hasHumanReviewedProgressNote = notesSnap.docs.some((noteDoc) => {
+    const providerNotes = collection(db, `patients/${patientId}/providerNotes`);
+    void Promise.all([
+      getDocs(query(providerNotes, where('visitId', '==', visitId), limit(10))),
+      getDocs(query(providerNotes, where('fieldEncounterVisitId', '==', visitId), limit(10))),
+      getDocs(query(providerNotes, where('appointmentId', '==', visitId), limit(10))),
+    ]).then((noteSnapshots) => {
+      const hasHumanReviewedProgressNote = noteSnapshots.some((notesSnap) => notesSnap.docs.some((noteDoc) => {
         const note = noteDoc.data() as any;
         const type = String(note.type || '').trim().toLowerCase();
         return note.humanReviewed !== false &&
           (!type || type === 'progress notes' || type === 'progress note');
-      });
+      }));
       if (!hasHumanReviewedProgressNote) return undefined;
       return this.durableMutations.enqueueUpdate({
         operation: 'visit_office_documentation_complete',

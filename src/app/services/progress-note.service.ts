@@ -105,13 +105,16 @@ export class ProgressNoteService {
 
     const ref = await addDoc(collection(db, `patients/${patientId}/providerNotes`), payload);
 
-    // A human-reviewed progress note is the office-documentation evidence for
-    // this physical encounter. Keep this projection separate from the note
-    // write: if it fails, the chart note remains saved and retriable.
-    const visitId = String(visitLink.visitId || '').trim();
-    if (visitId) {
+    // The progress note is the field clinician's explicit office-documentation
+    // evidence for this physical encounter. Only project completion when the
+    // field visit is already complete; checkout separately reconciles notes
+    // authored before departure.
+    const physicalVisitId = String(
+      visitLink.fieldEncounterVisitId || visitLink.appointmentId || visitLink.visitId || ''
+    ).trim();
+    if (physicalVisitId) {
       try {
-        const visitRef = doc(db, `patients/${patientId}/woundVisits/${visitId}`);
+        const visitRef = doc(db, `patients/${patientId}/woundVisits/${physicalVisitId}`);
         const visitSnap = await getDoc(visitRef);
         if (visitSnap.exists()) {
           const visit = visitSnap.data() as any;
@@ -128,12 +131,16 @@ export class ProgressNoteService {
             });
           }
         }
-      } catch (projectionError) {
-        console.warn('[ProgressNoteService] note saved; office-documentation projection deferred', projectionError);
+      } catch (workflowError) {
+        console.warn('[ProgressNoteService] note saved; visit office-documentation projection deferred', {
+          patientId,
+          physicalVisitId,
+          noteId: ref.id,
+        }, workflowError);
       }
     }
 
-    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound, visitId: visitId || null } });
+    await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound, physicalVisitId: physicalVisitId || null } });
     return ref.id;
   }
 

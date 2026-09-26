@@ -16,6 +16,7 @@ const carePlans = read('src/app/services/care-plan.service.ts');
 const education = read('src/app/services/education.service.ts');
 const orders = read('src/app/services/mobile-order.service.ts');
 const visitHistory = read('src/app/pages/visit-history-detail/visit-history-detail.page.ts');
+const visitService = read('src/app/services/visit.service.ts');
 
 for (const token of [
   "visitScope: 'patient_visit'",
@@ -38,6 +39,11 @@ assert(patientAssessments.includes('encounterQueryParams()'), 'New-wound flow mu
 assert(progressNotes.includes("officeDocumentationState: 'complete'"), 'Visit-scoped progress note must project office documentation complete after field completion.');
 assert(progressForm.includes('this.visitLink'), 'Generic progress note must preserve visit linkage.');
 assert(visitHistory.includes('woundLinksLabel') && visitHistory.includes('episodeLinksLabel'), 'Visit history must show multi-wound linkage, not singular null placeholders.');
+for (const token of [
+  "where('visitId', '==', visitId)",
+  "where('fieldEncounterVisitId', '==', visitId)",
+  "where('appointmentId', '==', visitId)",
+]) assert(visitService.includes(token), 'Checkout must reconcile pre-departure progress notes by every physical-visit alias: ' + token);
 
 assert(carePlans.includes('organizations/${orgId}/carePlanCatalog'), 'Mobile care plan must consume the org carePlanCatalog source of truth.');
 assert(!carePlans.includes('carePlanTemplates'), 'Mobile care plan must not use carePlanTemplates as a second source of truth.');

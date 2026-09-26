@@ -9,10 +9,11 @@ export interface VisitHistoryItem {
   appointmentId?: string | null;
   woundId?: string | null;
   episodeId?: string | null;
-  woundIds?: string[];
-  fieldWoundIds?: string[];
-  fieldEpisodeIds?: string[];
-  assessmentIds?: string[];
+  visitScope?: string | null;
+  woundIds?: string[] | null;
+  fieldWoundIds?: string[] | null;
+  fieldEpisodeIds?: string[] | null;
+  assessmentIds?: string[] | null;
   clinicalWorkflow?: { officeDocumentationEvidenceComplete?: boolean; progressNoteCount?: number } | null;
   visitType?: string | null;
   status?: string | null;
