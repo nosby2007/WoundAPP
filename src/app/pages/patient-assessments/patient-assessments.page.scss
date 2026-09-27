@@ -101,6 +101,7 @@ ion-list {
 }
 
 .btn-history,
+.btn-care-plan,
 .btn-reeval {
   --padding-start: var(--app-space-3);
   --padding-end: var(--app-space-3);
@@ -111,8 +112,12 @@ ion-list {
 
 .reeval-mobile {
   display: none;
-  margin-top: var(--app-space-2);
   width: fit-content;
+}
+
+.care-plan-mobile,
+.wound-mobile-actions {
+  display: none;
 }
 
 .actions {
@@ -281,6 +286,25 @@ ion-list {
 
   .reeval-mobile {
     display: inline-flex;
+  }
+
+  .care-plan-mobile,
+  .wound-mobile-actions {
+    display: inline-flex;
+  }
+
+  .wound-mobile-actions {
+    flex-wrap: wrap;
+    gap: var(--app-space-1);
+    margin-top: var(--app-space-2);
+  }
+
+  .wound-mobile-actions ion-button {
+    margin: 0;
+  }
+
+  .care-plan-desktop {
+    display: none;
   }
 
   .assessment-item {
