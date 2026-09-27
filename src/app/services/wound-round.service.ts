@@ -64,9 +64,20 @@ export class WoundRoundMobileService {
   rounds$(): Observable<MobileWoundRound[]> {
     return new Observable(subscriber => {
       let stop = () => {};
-      this.tenant.currentOrgId().then(orgId => {
+      Promise.all([this.tenant.currentOrgId(), this.clinicalIdentity.currentIdentity()]).then(([orgId, identity]) => {
         if (!orgId) { subscriber.next([]); return; }
-        stop = onSnapshot(query(collection(db, 'woundRounds'), where('orgId', '==', orgId)), snap => {
+        const roles = new Set([identity?.role, ...(identity?.roles || [])].map(role => String(role || '').toLowerCase()));
+        const isFacilityReviewer = roles.has('wound_nurse') || roles.has('don');
+        const facilityIds = identity?.facilityIds || [];
+        if (isFacilityReviewer && !facilityIds.length) { subscriber.next([]); return; }
+        const roundsQuery = isFacilityReviewer
+          ? query(
+              collection(db, 'woundRounds'),
+              where('orgId', '==', orgId),
+              where('facilityId', 'in', facilityIds.slice(0, 30)),
+            )
+          : query(collection(db, 'woundRounds'), where('orgId', '==', orgId));
+        stop = onSnapshot(roundsQuery, snap => {
           subscriber.next(snap.docs.map(d => ({ id:d.id, ...d.data() } as MobileWoundRound)).sort((a,b) => this.roundSort(b)-this.roundSort(a)));
         }, err => subscriber.error(err));
       }).catch(err => subscriber.error(err));

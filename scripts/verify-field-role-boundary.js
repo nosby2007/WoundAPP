@@ -26,6 +26,7 @@ const scheduler = setBlock(
 const routeConfig = read('src/app/tabs/tabs-routing.module.ts');
 const fieldGuard = read('src/app/guards/field-access.guard.ts');
 const morePage = read('src/app/pages/more/more.page.ts');
+const roundsService = read('src/app/services/wound-round.service.ts');
 
 for (const [name, block] of [['field policy', policy], ['mobile scheduler', scheduler]]) {
   for (const orgClinicianRole of ["'rn'", "'registered_nurse'", "'nurse'"]) {
@@ -37,6 +38,15 @@ for (const [name, block] of [['field policy', policy], ['mobile scheduler', sche
     if (block.includes(reportOnlyRole)) {
       violations.push(`${name} must not grant field execution to report-only role ${reportOnlyRole}.`);
     }
+  }
+}
+
+for (const marker of [
+  "roles.has('wound_nurse')",
+  "where('facilityId', 'in', facilityIds.slice(0, 30))",
+]) {
+  if (!roundsService.includes(marker)) {
+    violations.push(`Facility wound-round query must remain facility-scoped: ${marker}`);
   }
 }
 

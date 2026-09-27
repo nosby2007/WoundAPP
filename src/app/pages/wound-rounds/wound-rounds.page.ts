@@ -82,10 +82,14 @@ export class WoundRoundsPage implements OnInit, OnDestroy {
   constructor(private roundsService:WoundRoundMobileService,private router:Router,private toast:ToastController){}
   async ngOnInit():Promise<void>{
     this.canAuthor=await this.roundsService.canAuthor().catch(()=>false);
-    this.subs.add(this.roundsService.facilities$().subscribe({
-      next:v=>{this.facilities=v;this.facilitiesLoading=false;this.facilityError='';if(v.length===1&&!this.facilityId)this.facilityId=v[0].id},
-      error:async()=>{this.facilitiesLoading=false;this.facilityError='Could not read the organization facility catalog.';await this.message('Facility catalog is temporarily unavailable','danger')}
-    }));
+    if(this.canAuthor){
+      this.subs.add(this.roundsService.facilities$().subscribe({
+        next:v=>{this.facilities=v;this.facilitiesLoading=false;this.facilityError='';if(v.length===1&&!this.facilityId)this.facilityId=v[0].id},
+        error:async()=>{this.facilitiesLoading=false;this.facilityError='Could not read the organization facility catalog.';await this.message('Facility catalog is temporarily unavailable','danger')}
+      }));
+    }else{
+      this.facilitiesLoading=false;
+    }
     this.subs.add(this.roundsService.rounds$().subscribe({next:v=>{this.rounds=v;this.loading=false},error:async()=>{this.loading=false;await this.message('Wound rounds are temporarily unavailable','danger')}}));
   }
   ngOnDestroy():void{this.subs.unsubscribe()}
