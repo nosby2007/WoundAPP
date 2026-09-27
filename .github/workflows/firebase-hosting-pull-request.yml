@@ -44,6 +44,8 @@ jobs:
         run: node scripts/verify-visit-execution-hardening.js
       - name: Verify Scheduler → WoundAPP field authority
         run: node scripts/verify-scheduler-field-authority.js
+      - name: Verify field role and patient-visit boundary
+        run: node scripts/verify-field-role-boundary.js
       - name: Verify mobile checkout recovery
         run: node scripts/verify-mobile-checkout-recovery.js
       - name: Verify professional visit packet

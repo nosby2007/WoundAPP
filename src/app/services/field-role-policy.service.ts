@@ -6,10 +6,10 @@ export type FieldAccessLevel = 'clinical' | 'support' | 'administrative' | 'unkn
 const CLINICAL_ROLES = new Set([
   'rn', 'registered_nurse', 'registered nurse',
   'lpn', 'lvn', 'licensed_practical_nurse', 'licensed practical nurse',
-  'nurse', 'wound_nurse', 'wound_nurse_internal',
+  'nurse', 'wound_nurse_internal',
   'np', 'nurse_practitioner', 'nurse practitioner',
   'md', 'do', 'physician', 'provider',
-  'don', 'clinical_admin', 'org_admin', 'admin', 'super_admin',
+  'clinical_admin', 'org_admin', 'admin', 'super_admin',
 ]);
 
 const SUPPORT_ROLES = new Set([
@@ -22,6 +22,10 @@ const ADMIN_ROLES = new Set([
   'receptionist', 'reception', 'frontdesk', 'front_desk',
   'scheduler', 'hr', 'billing', 'finance', 'employer', 'employee',
 ]);
+
+// SNF wound nurses accompany the PHWC NP during a facility round. They may
+// review their facility-scoped round, but they are not PHWC clinical authors.
+const FACILITY_WOUND_ROUND_ROLES = new Set(['wound_nurse', 'don']);
 
 const SUPPORT_VISIT_TYPES = new Set([
   'adl', 'adl_visit', 'personal_care', 'personal care',
@@ -64,6 +68,11 @@ export class FieldRolePolicyService {
 
   canSeeVisitHistory(identity: ClinicalIdentitySnapshot | null): boolean {
     return this.canUseClinicalWorkspace(identity);
+  }
+
+  canUseWoundRoundWorkspace(identity: ClinicalIdentitySnapshot | null): boolean {
+    if (this.canUseClinicalWorkspace(identity)) return true;
+    return this.normalizedRoles(identity).some(role => FACILITY_WOUND_ROUND_ROLES.has(role));
   }
 
   canUseSchedulingWorkspace(identity: ClinicalIdentitySnapshot | null): boolean {

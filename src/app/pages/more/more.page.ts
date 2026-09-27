@@ -34,7 +34,7 @@ import { FieldRolePolicyService } from '../../services/field-role-policy.service
           <p class="eyebrow dark">CLINICAL WORKSPACE</p>
           <ion-list lines="none" class="menu">
             <ion-item button detail="false" *ngIf="canSeeField" (click)="mySchedule()"><div class="menu-icon"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>My Schedule</strong><p>Today, upcoming visits and self-planning for your own clinical workload.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeWoundRounds" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeField" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeClinical" (click)="visitHistory()"><div class="menu-icon featured"><ion-icon [icon]="documentTextOutline"></ion-icon></div><ion-label><strong>Visit History</strong><p>Review all saved patient visits, field outcomes, clinician, EVV checkpoints and documentation handoff.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
@@ -95,6 +95,7 @@ export class MorePage implements OnInit {
   online = navigator.onLine;
   signingOut = false;
   canSeeClinical = false;
+  canSeeWoundRounds = false;
   canSeeField = false;
   canUseScheduler = false;
   canCreatePatient = false;
@@ -120,6 +121,7 @@ export class MorePage implements OnInit {
     this.identityProblem = readiness.missing.length ? `Missing: ${readiness.missing.join(', ')}.` : '';
     if (readiness.identity) {
       this.canSeeClinical = this.rolePolicy.canUseClinicalWorkspace(readiness.identity);
+      this.canSeeWoundRounds = this.rolePolicy.canUseWoundRoundWorkspace(readiness.identity);
       this.canSeeField = this.rolePolicy.canUseFieldToday(readiness.identity);
       this.canUseScheduler = this.rolePolicy.canUseSchedulingWorkspace(readiness.identity);
       this.canCreatePatient = this.rolePolicy.canCreatePatient(readiness.identity);
