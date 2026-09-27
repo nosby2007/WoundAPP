@@ -44,6 +44,14 @@ export interface CarePlanCatalogEntry {
   category: string;
   kind: string;
   text: string;
+  /** Optional grouping metadata published by the admin template editor.
+   * Text still comes from this catalog document: templates are not a second
+   * clinical-content source in WoundAPP. */
+  sourceTemplateId?: string | null;
+  sourceTemplateName?: string | null;
+  sourceTemplateProblemId?: string | null;
+  sourceTemplateProblemLabel?: string | null;
+  sourceTemplateGoalId?: string | null;
 }
 
 /** `yyyy-mm-dd` in the device's own timezone, which is the visit's timezone. */
