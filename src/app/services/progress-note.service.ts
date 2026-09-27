@@ -43,6 +43,39 @@ export interface ProgressNoteVoiceProvenance {
   language?: string | null;
 }
 
+export interface NewProgressNoteLifecycle {
+  status: 'draft';
+  draft: true;
+  signed: false;
+  signedAt: null;
+  signedByUid: null;
+  signatureIdentity: null;
+  version: 1;
+  rootNoteId: null;
+  supersedesNoteId: null;
+  amendmentReason: null;
+}
+
+/**
+ * Mobile documentation enters the shared JADE review-and-sign lifecycle as a
+ * draft.  These fields are intentionally explicit: Firestore validates the
+ * state machine and will reject a legacy shape whose state is ambiguous.
+ */
+export function newProgressNoteLifecycle(): NewProgressNoteLifecycle {
+  return {
+    status: 'draft',
+    draft: true,
+    signed: false,
+    signedAt: null,
+    signedByUid: null,
+    signatureIdentity: null,
+    version: 1,
+    rootNoteId: null,
+    supersedesNoteId: null,
+    amendmentReason: null,
+  };
+}
+
 export class NotAuthenticatedError extends Error {
   constructor() {
     super('You are signed out. Sign in again to write a note.');
@@ -95,6 +128,7 @@ export class ProgressNoteService {
       contentOrigin: voiceProvenance ? 'human_modified_voice' : 'human',
       voiceProvenance: voiceProvenance ?? null,
       humanReviewed: true,
+      ...newProgressNoteLifecycle(),
     };
 
     if (wound) {
