@@ -585,7 +585,44 @@ export class PatientAssessmentsPage implements OnInit {
   }
 
   openCarePlan() {
-    this.navigateVisitStep('care_plan', ['/tabs', 'skin-wound', this.patientId, 'care-plan']);
+    const wounds = this.wounds();
+    const contextualWoundId = this.contextWoundId || this.openVisit()?.woundId || '';
+    const target = contextualWoundId
+      ? wounds.find((assessment) => resolveWoundId(assessment) === contextualWoundId)
+      : wounds.length === 1 ? wounds[0] : null;
+
+    if (!target) {
+      this.evvMessage.set(
+        wounds.length > 1
+          ? 'Choose the wound below, then open its care plan.'
+          : 'Complete a wound assessment before creating its care plan.'
+      );
+      return;
+    }
+
+    this.openWoundCarePlan(target);
+  }
+
+  /** Open the plan for one explicit wound assessment, never a generic patient plan. */
+  openWoundCarePlan(assessment: MobileAssessment): void {
+    const woundId = resolveWoundId(assessment);
+    if (!this.patientId || !assessment?.id || !woundId) return;
+
+    const params: Record<string, string> = {
+      ...(this.encounterQueryParams() || {}),
+      woundId,
+    };
+    const episodeId = assessment.episodeId ||
+      (woundId === this.contextWoundId ? this.contextEpisodeId : '');
+    if (episodeId) params['episodeId'] = episodeId;
+
+    const commands = [
+      '/tabs', 'skin-wound', this.patientId,
+      'assessments', assessment.id, 'care-plan',
+    ];
+    const route = commands.join('/').replace(/\/+/g, '/');
+    void this.trackVisitStep('care_plan', route.startsWith('/') ? route : '/' + route);
+    void this.router.navigate(commands, { queryParams: params });
   }
 
   openOrders() {

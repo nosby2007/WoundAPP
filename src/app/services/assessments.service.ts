@@ -42,6 +42,7 @@ export interface AssessmentVisitLinkResult {
 export interface MobileAssessment {
   id: string;
   woundId?: string;
+  episodeId?: string;
   type?: string;
   stage?: string;
   location?: string;
@@ -65,6 +66,7 @@ export class AssessmentsService {
       map((docs: any[]) => docs.map((d) => ({
         id: d.id,
         woundId: d.woundId || null,
+        episodeId: d.episodeId || null,
         type: d.describe?.type || d.type || 'Unknown',
         stage: d.describe?.stage || d.stage,
         location: d.describe?.location || d.location || 'Unknown',
@@ -90,6 +92,7 @@ export class AssessmentsService {
       map((d: any) => d ? {
         id: assessmentId,
         woundId: d.woundId || null,
+        episodeId: d.episodeId || null,
         type: d.describe?.type || d.type || 'Unknown',
         stage: d.describe?.stage || d.stage,
         location: d.describe?.location || d.location || 'Unknown',
