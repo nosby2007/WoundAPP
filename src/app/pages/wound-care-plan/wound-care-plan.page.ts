@@ -41,12 +41,10 @@ import { take } from 'rxjs/operators';
  * means it is written from the assessment note instead of from the wound, and
  * usually a day later.
  *
- * The goals are the organization's own, read from
- * organizations/{orgId}/carePlanCatalog. This screen offers the ones an admin
- * authored for the chosen problem category, plus a free-text box for anything
- * not in the catalog yet -- stored as `customGoals`, so it is visibly custom
- * rather than passing for curated content. No clinical goal text ships in
- * this app.
+ * Organization templates provide a reusable problem + goal bundle, while the
+ * catalog provides atomic goals and interventions for the same category.
+ * Both are admin-authored; free text is stored separately so it cannot pass
+ * for governed content. No clinical goal text ships in this app.
  */
 @Component({
   selector: 'app-wound-care-plan',
@@ -88,6 +86,8 @@ export class WoundCarePlanPage implements OnInit {
   catalog: CarePlanCatalogEntry[] = [];
   catalogLoaded = false;
   selectedGoalIds = new Set<string>();
+  selectedInterventionIds = new Set<string>();
+  selectedTemplateProblem: CatalogTemplateProblemOption | null = null;
 
   saving = false;
   errorMsg = '';
@@ -98,6 +98,7 @@ export class WoundCarePlanPage implements OnInit {
     startDate: [todayIsoDate(), Validators.required],
     description: [''],
     customGoals: [''],
+    customInterventions: [''],
   });
 
   ngOnInit(): void {
@@ -112,6 +113,37 @@ export class WoundCarePlanPage implements OnInit {
     return this.catalog.filter((item) => item.kind === 'goal' && item.category === category);
   }
 
+  get interventionOptions(): CarePlanCatalogEntry[] {
+    const category = this.form.value.category;
+    if (!category) return [];
+    return this.catalog.filter((item) => item.kind === 'intervention' && item.category === category);
+  }
+
+  get templateProblemOptions(): CatalogTemplateProblemOption[] {
+    const grouped = new Map<string, CatalogTemplateProblemOption>();
+    for (const goal of this.catalog) {
+      if (goal.kind !== 'goal' || !goal.sourceTemplateId || !goal.sourceTemplateProblemId) continue;
+      const key = `${goal.sourceTemplateId}::${goal.sourceTemplateProblemId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.goals.push(goal);
+        continue;
+      }
+      grouped.set(key, {
+        key,
+        templateId: goal.sourceTemplateId,
+        templateName: goal.sourceTemplateName || 'Organization template',
+        problemId: goal.sourceTemplateProblemId,
+        problemLabel: goal.sourceTemplateProblemLabel || goal.category,
+        category: goal.category as CarePlanProblemCategory,
+        goals: [goal],
+      });
+    }
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.templateName.localeCompare(b.templateName) || a.problemLabel.localeCompare(b.problemLabel)
+    );
+  }
+
   toggleGoal(id: string, checked: boolean): void {
     if (checked) this.selectedGoalIds.add(id);
     else this.selectedGoalIds.delete(id);
@@ -119,6 +151,38 @@ export class WoundCarePlanPage implements OnInit {
 
   isGoalSelected(id: string): boolean {
     return this.selectedGoalIds.has(id);
+  }
+
+  toggleIntervention(id: string, checked: boolean): void {
+    if (checked) this.selectedInterventionIds.add(id);
+    else this.selectedInterventionIds.delete(id);
+  }
+
+  isInterventionSelected(id: string): boolean {
+    return this.selectedInterventionIds.has(id);
+  }
+
+  applyTemplateProblem(key: string): void {
+    const option = this.templateProblemOptions.find((item) => item.key === key);
+    this.selectedTemplateProblem = option || null;
+    this.selectedGoalIds.clear();
+    this.selectedInterventionIds.clear();
+    if (!option) return;
+    this.form.patchValue({
+      title: option.problemLabel,
+      category: option.category,
+    });
+  }
+
+  onCategoryChanged(category: CarePlanProblemCategory | ''): void {
+    // Catalog selections are category-specific. Keeping hidden selections
+    // after the clinician changes category would file the wrong governed
+    // text under the new problem.
+    this.selectedGoalIds.clear();
+    this.selectedInterventionIds.clear();
+    if (this.selectedTemplateProblem && this.selectedTemplateProblem.category !== category) {
+      this.selectedTemplateProblem = null;
+    }
   }
 
   private async loadCatalog(): Promise<void> {
@@ -155,9 +219,15 @@ export class WoundCarePlanPage implements OnInit {
     if (this.form.invalid || this.saving) return;
 
     const customGoals = splitLines(this.form.value.customGoals);
+    const customInterventions = splitLines(this.form.value.customInterventions);
     const goalCatalogRefs = Array.from(this.selectedGoalIds);
+    const interventionCatalogRefs = Array.from(this.selectedInterventionIds);
+    const templateGoals = (this.selectedTemplateProblem?.goals || []).map((goal) => ({
+      id: goal.sourceTemplateGoalId || goal.id,
+      text: goal.text,
+    }));
 
-    if (!goalCatalogRefs.length && !customGoals.length) {
+    if (!templateGoals.length && !goalCatalogRefs.length && !customGoals.length) {
       // A plan with no goal is a title. Saying so is more use than saving it.
       this.errorMsg = 'Pick at least one goal, or write one.';
       return;
@@ -174,7 +244,13 @@ export class WoundCarePlanPage implements OnInit {
         woundId: this.woundId,
         category: this.form.value.category as CarePlanProblemCategory,
         goalCatalogRefs,
+        interventionCatalogRefs,
         customGoals,
+        customInterventions,
+        sourceTemplateId: this.selectedTemplateProblem?.templateId || null,
+        sourceTemplateProblemId: this.selectedTemplateProblem?.problemId || null,
+        problemLabel: this.selectedTemplateProblem?.problemLabel || null,
+        templateGoals,
       }, {
         visitId: this.woundVisitId || this.appointmentId || null,
         appointmentId: this.appointmentId || null,
@@ -204,4 +280,14 @@ export class WoundCarePlanPage implements OnInit {
       this.saving = false;
     }
   }
+}
+
+interface CatalogTemplateProblemOption {
+  key: string;
+  templateId: string;
+  templateName: string;
+  problemId: string;
+  problemLabel: string;
+  category: CarePlanProblemCategory;
+  goals: CarePlanCatalogEntry[];
 }

@@ -12,6 +12,26 @@
   <ion-note class="wound" *ngIf="woundLabel">For {{ woundLabel }}</ion-note>
 
   <form [formGroup]="form" (ngSubmit)="save()">
+    <section class="templates">
+      <h2>Organization templates</h2>
+      <ion-item lines="full">
+        <ion-label position="stacked">Start from a published template problem</ion-label>
+        <ion-select interface="popover" placeholder="Optional" (ionChange)="applyTemplateProblem($event.detail.value)">
+          <ion-select-option value="">None — build from catalog</ion-select-option>
+          <ion-select-option *ngFor="let option of templateProblemOptions" [value]="option.key">
+            {{ option.templateName }} — {{ option.problemLabel }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+      <ion-note class="hint" *ngIf="catalogLoaded && !templateProblemOptions.length">
+        No active care plan template has been published by this organization.
+      </ion-note>
+      <div class="template-preview" *ngIf="selectedTemplateProblem as problem">
+        <strong>{{ problem.templateName }} · {{ problem.problemLabel }}</strong>
+        <span *ngFor="let goal of problem.goals">{{ goal.text }}</span>
+      </div>
+    </section>
+
     <ion-list lines="full">
       <ion-item>
         <ion-label position="stacked">Title</ion-label>
@@ -20,7 +40,7 @@
 
       <ion-item>
         <ion-label position="stacked">Problem</ion-label>
-        <ion-select formControlName="category" interface="popover" placeholder="Choose one">
+        <ion-select formControlName="category" interface="popover" placeholder="Choose one" (ionChange)="onCategoryChanged($event.detail.value)">
           <ion-select-option *ngFor="let c of categories" [value]="c.value">{{ c.label }}</ion-select-option>
         </ion-select>
       </ion-item>
@@ -51,9 +71,29 @@
         </ion-item>
       </ion-list>
 
+      <h2>Interventions</h2>
+      <ion-note class="hint" *ngIf="catalogLoaded && !interventionOptions.length">
+        No catalog interventions for this problem yet. Add one below, or ask an administrator to publish it.
+      </ion-note>
+      <ion-list lines="full" *ngIf="interventionOptions.length">
+        <ion-item *ngFor="let intervention of interventionOptions">
+          <ion-checkbox
+            labelPlacement="end"
+            [checked]="isInterventionSelected(intervention.id)"
+            (ionChange)="toggleIntervention(intervention.id, $event.detail.checked)">
+            {{ intervention.text }}
+          </ion-checkbox>
+        </ion-item>
+      </ion-list>
+
       <ion-item lines="full">
         <ion-label position="stacked">Other goals — one per line</ion-label>
         <ion-textarea formControlName="customGoals" [autoGrow]="true" [rows]="3"></ion-textarea>
+      </ion-item>
+
+      <ion-item lines="full">
+        <ion-label position="stacked">Other interventions — one per line</ion-label>
+        <ion-textarea formControlName="customInterventions" [autoGrow]="true" [rows]="3"></ion-textarea>
       </ion-item>
     </section>
 
