@@ -139,7 +139,13 @@ export interface WoundNoteInput {
 /** Whole years, or null when there is no usable date of birth. */
 export function ageInYears(dob: string | Date | null | undefined, on: Date): number | null {
   if (!dob) return null;
-  const born = dob instanceof Date ? dob : new Date(dob);
+  // A date-only clinical DOB is a calendar value, not a UTC instant. Parsing
+  // YYYY-MM-DD with `new Date(string)` shifts it to the previous day in US
+  // time zones and can make the documented age one year too high.
+  const dateOnly = typeof dob === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob);
+  const born = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : (dob instanceof Date ? dob : new Date(dob));
   if (Number.isNaN(born.getTime())) return null;
 
   let age = on.getFullYear() - born.getFullYear();

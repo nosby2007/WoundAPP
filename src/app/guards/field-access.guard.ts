@@ -10,6 +10,8 @@ export const fieldAccessGuard: CanActivateFn = async (route) => {
 
   const allowed = required === 'clinical'
     ? policy.canUseClinicalWorkspace(identity)
+    : required === 'wound-round-review'
+      ? policy.canUseWoundRoundWorkspace(identity)
     : required === 'support'
       ? policy.canUseSupportWorkspace(identity)
       : required === 'scheduling'

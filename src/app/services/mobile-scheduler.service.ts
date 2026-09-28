@@ -42,7 +42,7 @@ export class MobileSchedulerService {
     ));
 
     const allowed = new Set([
-      'rn', 'registered_nurse', 'nurse', 'wound_nurse', 'wound_nurse_internal',
+      'rn', 'registered_nurse', 'nurse', 'wound_nurse_internal',
       'lpn', 'lvn', 'np', 'provider', 'md', 'do', 'physician',
       'cna', 'caregiver', 'personal_care_aide', 'companion', 'sitter',
       'home_health_aide', 'hha',
