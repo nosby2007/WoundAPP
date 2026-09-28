@@ -35,35 +35,4 @@ describe('WoundCarePlanPage', () => {
     ].join('-');
     expect(component.form.value.startDate).toBe(expected);
   });
-
-  it('applies an admin template problem and keeps its provenance', () => {
-    component.catalog = [{
-      id: 'catalog-goal-1',
-      kind: 'goal',
-      category: 'potential_for_compromised_skin_integrity',
-      text: 'Organization-authored goal',
-      sourceTemplateId: 'template-1',
-      sourceTemplateName: 'Wound healing plan',
-      sourceTemplateProblemId: 'skin-integrity',
-      sourceTemplateProblemLabel: 'Wound healing',
-      sourceTemplateGoalId: 'goal-1',
-    }];
-
-    component.applyTemplateProblem('template-1::skin-integrity');
-
-    expect(component.form.value.title).toBe('Wound healing');
-    expect(component.form.value.category).toBe('potential_for_compromised_skin_integrity');
-    expect(component.selectedTemplateProblem?.templateId).toBe('template-1');
-    expect(component.selectedTemplateProblem?.goals[0].text).toBe('Organization-authored goal');
-  });
-
-  it('clears governed selections when the problem category changes', () => {
-    component.selectedGoalIds.add('goal-1');
-    component.selectedInterventionIds.add('intervention-1');
-
-    component.onCategoryChanged('infection');
-
-    expect(component.selectedGoalIds.size).toBe(0);
-    expect(component.selectedInterventionIds.size).toBe(0);
-  });
 });

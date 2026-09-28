@@ -11,10 +11,7 @@ import {
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
-import {
-  CarePlanCatalogEntry,
-  CarePlanProblemCategory,
-} from '../shared/care-plan';
+import { CarePlanCatalogEntry, CarePlanProblemCategory } from '../shared/care-plan';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
@@ -39,13 +36,7 @@ export interface CarePlanDraft {
   woundId?: string | null;
   category: CarePlanProblemCategory;
   goalCatalogRefs: string[];
-  interventionCatalogRefs?: string[];
   customGoals: string[];
-  customInterventions?: string[];
-  sourceTemplateId?: string | null;
-  sourceTemplateProblemId?: string | null;
-  problemLabel?: string | null;
-  templateGoals?: Array<{ id: string; text: string }>;
 }
 
 /**
@@ -79,11 +70,6 @@ export class CarePlanService {
         category: String(item.category ?? ''),
         kind: String(item.kind ?? ''),
         text: String(item.text).trim(),
-        sourceTemplateId: item.sourceTemplateId ? String(item.sourceTemplateId) : null,
-        sourceTemplateName: item.sourceTemplateName ? String(item.sourceTemplateName) : null,
-        sourceTemplateProblemId: item.sourceTemplateProblemId ? String(item.sourceTemplateProblemId) : null,
-        sourceTemplateProblemLabel: item.sourceTemplateProblemLabel ? String(item.sourceTemplateProblemLabel) : null,
-        sourceTemplateGoalId: item.sourceTemplateGoalId ? String(item.sourceTemplateGoalId) : null,
       }));
   }
 
@@ -135,14 +121,10 @@ export class CarePlanService {
       patientId,
       orgId,
       category: draft.category,
-      label: draft.problemLabel?.trim() || null,
       goalCatalogRefs: draft.goalCatalogRefs,
-      interventionCatalogRefs: draft.interventionCatalogRefs ?? [],
+      interventionCatalogRefs: [],
       customGoals: draft.customGoals,
-      customInterventions: draft.customInterventions ?? [],
-      goals: this.templateGoalsMap(draft),
-      sourceTemplateId: draft.sourceTemplateId || null,
-      sourceTemplateProblemId: draft.sourceTemplateProblemId || null,
+      customInterventions: [],
       status: 'active',
       authorIdentity: actor,
       createdAt: now,
@@ -151,20 +133,6 @@ export class CarePlanService {
 
     await this.audit.record({ action: 'care_plan_created', patientId, entityType: 'carePlan', entityId: planRef.id, metadata: { category: draft.category } });
     return planRef.id;
-  }
-
-  private templateGoalsMap(draft: CarePlanDraft): Record<string, any> {
-    if (!draft.sourceTemplateId || !draft.templateGoals?.length) return {};
-    const goals: Record<string, any> = {};
-    for (const goal of draft.templateGoals) {
-      goals[goal.id] = {
-        text: goal.text,
-        status: null,
-        sourceTemplateId: draft.sourceTemplateId,
-        sourceTemplateGoalId: goal.id,
-      };
-    }
-    return goals;
   }
 
   private assertClinicalAuthor(identity: ClinicalIdentitySnapshot): void {
