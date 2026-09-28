@@ -142,9 +142,9 @@ export function ageInYears(dob: string | Date | null | undefined, on: Date): num
   // A date-only clinical DOB is a calendar value, not a UTC instant. Parsing
   // YYYY-MM-DD with `new Date(string)` shifts it to the previous day in US
   // time zones and can make the documented age one year too high.
-  const dateOnly = typeof dob === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob);
-  const born = dateOnly
-    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+  const calendarDob = typeof dob === 'string' && /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.0{1,3})?Z)?$/.exec(dob);
+  const born = calendarDob
+    ? new Date(Number(calendarDob[1]), Number(calendarDob[2]) - 1, Number(calendarDob[3]))
     : (dob instanceof Date ? dob : new Date(dob));
   if (Number.isNaN(born.getTime())) return null;
 

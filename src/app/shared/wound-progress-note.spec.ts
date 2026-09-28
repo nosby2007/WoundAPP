@@ -71,6 +71,11 @@ describe('wound progress note', () => {
       expect(ageInYears('1972-04-18', new Date(2026, 3, 18))).toBe(54);
     });
 
+    it('treats an intake ISO-midnight DOB as the same calendar birthday', () => {
+      expect(ageInYears('1972-04-18T00:00:00.000Z', new Date(2026, 3, 17))).toBe(53);
+      expect(ageInYears('1972-04-18T00:00:00.000Z', new Date(2026, 3, 18))).toBe(54);
+    });
+
     it('returns null rather than a number it cannot support', () => {
       expect(ageInYears(null, new Date())).toBeNull();
       expect(ageInYears('not a date', new Date())).toBeNull();

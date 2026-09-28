@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
   onSnapshot,
@@ -15,6 +16,7 @@ import { Observable } from 'rxjs';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
+import { FieldRolePolicyService } from './field-role-policy.service';
 
 export type MobileRoundStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type MobileRoundPatientStatus = 'pending' | 'in_progress' | 'evaluated' | 'seen' | 'skipped';
@@ -40,13 +42,38 @@ export interface MobileWoundRound {
 
 @Injectable({ providedIn: 'root' })
 export class WoundRoundMobileService {
-  constructor(private tenant: TenantService, private clinicalIdentity: ClinicalIdentityService) {}
+  constructor(
+    private tenant: TenantService,
+    private clinicalIdentity: ClinicalIdentityService,
+    private rolePolicy: FieldRolePolicyService,
+  ) {}
 
   facilities$(): Observable<MobileFacility[]> {
     return new Observable(subscriber => {
       let stop = () => {};
-      this.tenant.currentOrgId().then(orgId => {
-        if (!orgId) { subscriber.next([]); return; }
+      Promise.all([this.tenant.currentOrgId(), this.clinicalIdentity.currentIdentity()]).then(([orgId, identity]) => {
+        if (!orgId || !identity) { subscriber.next([]); return; }
+        if (this.rolePolicy.isFacilityWoundRoundReviewer(identity)) {
+          const facilityIds = this.rolePolicy.assignedFacilityIds(identity);
+          if (!facilityIds.length) { subscriber.next([]); return; }
+          const facilities = new Map<string, MobileFacility>();
+          const stops = facilityIds.map(facilityId => onSnapshot(
+            doc(db, 'organizations', orgId, 'facilities', facilityId),
+            snap => {
+              if (snap.exists()) {
+                const facility = { id: snap.id, orgId, ...snap.data() } as MobileFacility;
+                if (facility.active !== false) facilities.set(facilityId, facility);
+                else facilities.delete(facilityId);
+              } else {
+                facilities.delete(facilityId);
+              }
+              subscriber.next(Array.from(facilities.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+            },
+            err => subscriber.error(err),
+          ));
+          stop = () => stops.forEach(unsubscribe => unsubscribe());
+          return;
+        }
         const facilityCollection = collection(db, 'organizations', orgId, 'facilities');
         stop = onSnapshot(facilityCollection, snap => {
           subscriber.next(
@@ -65,10 +92,9 @@ export class WoundRoundMobileService {
     return new Observable(subscriber => {
       let stop = () => {};
       Promise.all([this.tenant.currentOrgId(), this.clinicalIdentity.currentIdentity()]).then(([orgId, identity]) => {
-        if (!orgId) { subscriber.next([]); return; }
-        const roles = new Set([identity?.role, ...(identity?.roles || [])].map(role => String(role || '').toLowerCase()));
-        const isFacilityReviewer = roles.has('wound_nurse') || roles.has('don');
-        const facilityIds = identity?.facilityIds || [];
+        if (!orgId || !identity) { subscriber.next([]); return; }
+        const isFacilityReviewer = this.rolePolicy.isFacilityWoundRoundReviewer(identity);
+        const facilityIds = this.rolePolicy.assignedFacilityIds(identity);
         if (isFacilityReviewer && !facilityIds.length) { subscriber.next([]); return; }
         const roundsQuery = isFacilityReviewer
           ? query(
@@ -87,7 +113,21 @@ export class WoundRoundMobileService {
 
   round$(roundId: string): Observable<MobileWoundRound | null> {
     return new Observable(subscriber => {
-      const stop = onSnapshot(doc(db, 'woundRounds', roundId), snap => subscriber.next(snap.exists() ? ({ id:snap.id, ...snap.data() } as MobileWoundRound) : null), err => subscriber.error(err));
+      let stop = () => {};
+      Promise.all([this.tenant.currentOrgId(), this.clinicalIdentity.currentIdentity()]).then(([orgId, identity]) => {
+        if (!orgId || !identity || !roundId) { subscriber.next(null); return; }
+        const isFacilityReviewer = this.rolePolicy.isFacilityWoundRoundReviewer(identity);
+        const facilityIds = this.rolePolicy.assignedFacilityIds(identity);
+        if (isFacilityReviewer && !facilityIds.length) { subscriber.next(null); return; }
+        const constraints = [where(documentId(), '==', roundId), where('orgId', '==', orgId)];
+        if (isFacilityReviewer) constraints.push(where('facilityId', 'in', facilityIds.slice(0, 30)));
+        const scopedRoundQuery = query(collection(db, 'woundRounds'), ...constraints);
+        stop = onSnapshot(
+          scopedRoundQuery,
+          snap => subscriber.next(snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as MobileWoundRound)),
+          err => subscriber.error(err),
+        );
+      }).catch(err => subscriber.error(err));
       return () => stop();
     });
   }
