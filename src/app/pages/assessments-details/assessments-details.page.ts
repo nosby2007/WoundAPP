@@ -31,7 +31,9 @@ import {
   schoolOutline,
 } from 'ionicons/icons';
 import { AssessmentsService } from '../../services/assessments.service';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
+import { take } from 'rxjs/operators';
+import { WoundRoundMobileService } from '../../services/wound-round.service';
 
 @Component({
    selector: 'app-assessments-details',
@@ -77,6 +79,7 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessmentsService = inject(AssessmentsService);
+  private woundRounds = inject(WoundRoundMobileService);
 
   patientId!: string;
   assessmentId!: string;
@@ -84,6 +87,8 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   loading = true;
   errorMsg = '';
   assessment: any | null = null;
+  readOnly = false;
+  roundId = '';
 
   private sub?: Subscription;
 
@@ -105,6 +110,8 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.readOnly = this.route.snapshot.data['readOnly'] === true;
+    this.roundId = this.route.snapshot.paramMap.get('roundId') || '';
     this.sub = this.route.paramMap.subscribe(params => {
       this.patientId = params.get('patientId') || '';
       this.assessmentId = params.get('assessmentId') || '';
@@ -115,13 +122,19 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
         return;
       }
 
-      this.load();
+      void this.load();
     });
   }
 
-  private load() {
+  private async load() {
     this.loading = true;
     this.errorMsg = '';
+
+    if (this.readOnly && !(await this.isLinkedToAccessibleRound())) {
+      this.errorMsg = 'This assessment is not linked to an assigned-facility round.';
+      this.loading = false;
+      return;
+    }
 
     this.assessmentsService
       .getRaw(this.patientId, this.assessmentId)
@@ -146,12 +159,27 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   }
 
   backToList() {
+    if (this.readOnly && this.roundId) {
+      void this.router.navigate(['/tabs', 'wound-rounds', this.roundId], { queryParams: { patientId: this.patientId } });
+      return;
+    }
     this.router.navigate([
       '/tabs',
       'skin-wound',
       this.patientId,
       'assessments',
     ]);
+  }
+
+  private async isLinkedToAccessibleRound(): Promise<boolean> {
+    if (!this.roundId || !this.patientId || !this.assessmentId) return false;
+    try {
+      const round = await firstValueFrom(this.woundRounds.round$(this.roundId).pipe(take(1)));
+      const patient = round?.patients.find(entry => entry.patientId === this.patientId);
+      return !!patient?.assessmentIds?.includes(this.assessmentId);
+    } catch {
+      return false;
+    }
   }
   // src/app/pages/assessment-detail/assessment-detail.page.ts
 editAssessment() {

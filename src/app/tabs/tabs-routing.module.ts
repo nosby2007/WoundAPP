@@ -48,6 +48,7 @@ const routes: Routes = [
       { path: 'today/task/:taskId', component: FieldTaskPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'my-schedule', component: MySchedulePage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'wound-rounds', component: WoundRoundsPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review' } },
+      { path: 'wound-rounds/:roundId/patients/:patientId/assessments/:assessmentId', component: AssessmentDetailPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review', readOnly: true } },
       { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review' } },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },

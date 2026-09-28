@@ -72,7 +72,27 @@ export class FieldRolePolicyService {
 
   canUseWoundRoundWorkspace(identity: ClinicalIdentitySnapshot | null): boolean {
     if (this.canUseClinicalWorkspace(identity)) return true;
+    return this.isFacilityWoundRoundReviewer(identity) && this.assignedFacilityIds(identity).length > 0;
+  }
+
+  isFacilityWoundRoundReviewer(identity: ClinicalIdentitySnapshot | null): boolean {
     return this.normalizedRoles(identity).some(role => FACILITY_WOUND_ROUND_ROLES.has(role));
+  }
+
+  assignedFacilityIds(identity: ClinicalIdentitySnapshot | null): string[] {
+    return Array.from(new Set(
+      (identity?.facilityIds || [])
+        .map(facilityId => String(facilityId || '').trim())
+        .filter(Boolean)
+    ));
+  }
+
+  canReviewFacility(identity: ClinicalIdentitySnapshot | null, facilityId: string | null | undefined): boolean {
+    if (this.canUseClinicalWorkspace(identity)) return true;
+    const normalizedFacilityId = String(facilityId || '').trim();
+    return !!normalizedFacilityId &&
+      this.isFacilityWoundRoundReviewer(identity) &&
+      this.assignedFacilityIds(identity).includes(normalizedFacilityId);
   }
 
   canUseSchedulingWorkspace(identity: ClinicalIdentitySnapshot | null): boolean {
