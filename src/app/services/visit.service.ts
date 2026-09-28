@@ -61,6 +61,10 @@ export interface FieldVisit {
   clinicianUid?: string | null;
   clinicianName?: string | null;
   clinicianRole?: string | null;
+  /** Scheduler's billing identity, kept separate from the field clinician. */
+  billingProviderUid?: string | null;
+  billingProviderName?: string | null;
+  billingProviderNpi?: string | null;
   checkIn: EvvCheckpoint | null;
   checkOut: EvvCheckpoint | null;
 }
@@ -215,6 +219,12 @@ export class VisitService {
           clinicianUid: user.uid,
           clinicianName: user.displayName ?? scheduled['assignedToName'] ?? null,
           clinicianRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
+          // Scheduler's billing attribution is independent of who performs
+          // the visit. Copy the source values when WoundAPP has to create the
+          // canonical visit shell at check-in.
+          billingProviderUid: scheduled['billingProviderUid'] ?? null,
+          billingProviderName: scheduled['billingProviderName'] ?? null,
+          billingProviderNpi: scheduled['billingProviderNpi'] ?? null,
           woundId: null,
           episodeId: null,
           checkIn: checkpoint,
