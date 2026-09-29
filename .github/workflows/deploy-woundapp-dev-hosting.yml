@@ -1,0 +1,85 @@
+name: Deploy WoundAPP DEV Hosting
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/**'
+      - 'angular.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-woundapp-dev-hosting.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phwc-mobile-dev-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy_dev_hosting:
+    if: ${{ github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Verify DEV frontend is isolated
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const angular = JSON.parse(fs.readFileSync('angular.json', 'utf8'));
+          const replacement = angular.projects.app.architect.build.configurations.development.fileReplacements.find(x => x.replace === 'src/environments/environment.ts');
+          if (replacement?.with !== 'src/environments/environment.dev.ts') throw Error('DEV file replacement missing');
+          const env = fs.readFileSync(replacement.with, 'utf8');
+          if (!env.includes('projectId: "jade-dev-5b0e3"') || !env.includes('us-central1-jade-dev-5b0e3.cloudfunctions.net/apiV2') || env.includes('woundapp-261e6')) throw Error('Unsafe DEV Firebase environment');
+          NODE
+
+      - name: Test and build WoundAPP DEV
+        run: |
+          npm ci
+          npm run test:ci
+          npm run build -- --configuration development
+          test -f www/index.html
+
+      - name: Prepare pinned WoundAPP DEV Hosting config
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          fs.writeFileSync('firebase.woundapp-dev-hosting.generated.json', JSON.stringify({ hosting: { site: 'phwc-mobile-dev', public: 'www', ignore: ['firebase.json','**/.*','**/node_modules/**'], rewrites: [{source:'**',destination:'/index.html'}] } }, null, 2) + '\n');
+          NODE
+
+      - name: Verify DEV service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_DEV_5B0E3 }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/woundapp-dev-hosting-sa.json"
+          chmod 600 "$RUNNER_TEMP/woundapp-dev-hosting-sa.json"
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(j.project_id!=='jade-dev-5b0e3'||!j.client_email||!j.private_key)process.exit(1)" "$RUNNER_TEMP/woundapp-dev-hosting-sa.json"
+
+      - name: Deploy ONLY WoundAPP DEV Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/woundapp-dev-hosting-sa.json
+          GCLOUD_PROJECT: jade-dev-5b0e3
+          GOOGLE_CLOUD_PROJECT: jade-dev-5b0e3
+        run: |
+          npx --yes firebase-tools@15.30.0 deploy \
+            --only hosting \
+            --config firebase.woundapp-dev-hosting.generated.json \
+            --project jade-dev-5b0e3 \
+            --non-interactive
+
+      - name: Probe WoundAPP DEV Hosting
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 https://phwc-mobile-dev.web.app/ -o /dev/null
+
+      - name: Cleanup credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/woundapp-dev-hosting-sa.json"
