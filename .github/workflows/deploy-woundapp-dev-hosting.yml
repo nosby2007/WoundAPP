@@ -44,6 +44,7 @@ jobs:
       - name: Test and build WoundAPP DEV
         run: |
           npm ci
+          npm run verify:care-plan-runtime
           npm run test:ci
           npm run build -- --configuration development
           test -f www/index.html

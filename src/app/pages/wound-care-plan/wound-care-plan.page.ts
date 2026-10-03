@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -67,6 +68,7 @@ export class WoundCarePlanPage implements OnInit {
   private carePlans = inject(CarePlanService);
   private assessments = inject(AssessmentsService);
   private toastCtrl = inject(ToastController);
+  private destroyRef = inject(DestroyRef);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId')!;
@@ -86,6 +88,7 @@ export class WoundCarePlanPage implements OnInit {
   woundId: string | null = null;
 
   catalog: CarePlanCatalogEntry[] = [];
+  goalOptions: CarePlanCatalogEntry[] = [];
   catalogLoaded = false;
   selectedGoalIds = new Set<string>();
 
@@ -101,15 +104,25 @@ export class WoundCarePlanPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.form.controls.category.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        // A category change must not retain now-hidden goals. Keeping a stable
+        // array also prevents Ionic's select/list components from receiving a
+        // new collection during every change-detection pass on mobile Safari.
+        this.selectedGoalIds.clear();
+        this.refreshGoalOptions();
+      });
     void this.loadCatalog();
     this.loadWound();
   }
 
-  /** Catalog goals for the chosen category, which is how the web filters them. */
-  get goalOptions(): CarePlanCatalogEntry[] {
+  /** Keep one stable options array between actual catalog/category changes. */
+  private refreshGoalOptions(): void {
     const category = this.form.value.category;
-    if (!category) return [];
-    return this.catalog.filter((item) => item.kind === 'goal' && item.category === category);
+    this.goalOptions = category
+      ? this.catalog.filter((item) => item.kind === 'goal' && item.category === category)
+      : [];
   }
 
   toggleGoal(id: string, checked: boolean): void {
@@ -129,6 +142,7 @@ export class WoundCarePlanPage implements OnInit {
       this.catalog = [];
     } finally {
       this.catalogLoaded = true;
+      this.refreshGoalOptions();
     }
   }
 

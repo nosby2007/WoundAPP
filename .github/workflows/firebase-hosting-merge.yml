@@ -34,6 +34,7 @@ jobs:
       - run: |
           npm ci
           node scripts/verify-field-role-boundary.js
+          npm run verify:care-plan-runtime
           npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

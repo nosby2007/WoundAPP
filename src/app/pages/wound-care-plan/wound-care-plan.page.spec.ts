@@ -26,6 +26,32 @@ describe('WoundCarePlanPage', () => {
     expect(component.goalOptions).toEqual([]);
   });
 
+  it('keeps a stable goal list between change-detection passes', () => {
+    component.catalog = [{
+      id: 'infection-goal',
+      category: 'infection',
+      kind: 'goal',
+      text: 'Organization-authored goal',
+    }];
+
+    component.form.controls.category.setValue('infection', { emitEvent: false });
+    (component as any).refreshGoalOptions();
+    const options = component.goalOptions;
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(component.goalOptions).toBe(options);
+    expect(component.goalOptions.map((goal) => goal.id)).toEqual(['infection-goal']);
+  });
+
+  it('clears hidden goal selections when the problem category changes', () => {
+    component.selectedGoalIds.add('infection-goal');
+
+    component.form.controls.category.setValue('nutrition');
+
+    expect(component.selectedGoalIds.size).toBe(0);
+  });
+
   it('starts the plan today', () => {
     const today = new Date();
     const expected = [
