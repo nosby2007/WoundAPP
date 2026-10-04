@@ -216,6 +216,7 @@
           <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
         </ion-label>
         <div class="actions" slot="end" (click)="$event.stopPropagation()">
+          <ion-button size="small" fill="outline" (click)="openTelehealth(a)">New Telehealth</ion-button>
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment', a.id)" aria-label="Print this wound assessment"><ion-icon slot="icon-only" name="print-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment', a.id)" aria-label="Send this wound assessment"><ion-icon slot="icon-only" name="share-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>

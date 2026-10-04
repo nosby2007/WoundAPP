@@ -95,6 +95,7 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
           <button class="quick" *ngIf="address" (click)="directions()"><ion-icon [icon]="navigateOutline"></ion-icon><span>Directions</span></button>
           <a class="quick" *ngIf="phone" [href]="'tel:' + phone"><ion-icon [icon]="callOutline"></ion-icon><span>Call</span></a>
           <button class="quick" *ngIf="visit.patientId" (click)="chart()"><ion-icon [icon]="folderOpenOutline"></ion-icon><span>Chart</span></button>
+          <button class="quick" *ngIf="visit.patientId" (click)="telehealth()"><span>New Telehealth</span></button>
         </section>
 
         <ion-card class="command-card">
@@ -273,6 +274,10 @@ export class FieldVisitPage implements OnInit {
     const id = this.route.snapshot.paramMap.get('appointmentId') || '';
     try {
       this.visit = await this.work.getVisit(id);
+      if (this.visit?.deliveryMode === 'telehealth_video' || this.visit?.deliveryMode === 'telehealth_audio') {
+        await this.router.navigate(['/tabs/telehealth/session', id], { replaceUrl: true });
+        return; // Never create physical EVV for a virtual appointment.
+      }
       this.nextAppointmentId = this.visit?.nextAppointmentId ?? null;
       if (this.visit?.patientId && this.visit.status !== 'completed') {
         const patientId = this.visit.patientId;
@@ -313,6 +318,11 @@ export class FieldVisitPage implements OnInit {
   }
 
   back(): void { void this.router.navigate(['/tabs/today']); }
+  telehealth(): void {
+    if (this.visit?.patientId) void this.router.navigate(['/tabs/telehealth'], {
+      queryParams: {patientId: this.visit.patientId, woundId: this.visit.woundId || ''},
+    });
+  }
   chart(): void {
     if (!this.visit?.patientId) return;
     void this.visits.recordJourneyStep(

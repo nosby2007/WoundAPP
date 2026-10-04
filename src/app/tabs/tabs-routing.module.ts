@@ -34,12 +34,15 @@ import { ReceptionPatientsPage } from '../pages/reception-patients/reception-pat
 import { IntakePatientPage } from '../pages/intake-patient/intake-patient.page';
 import { VisitCompletePage } from '../pages/visit-complete/visit-complete.page';
 import { SyncReviewPage } from '../pages/sync-review/sync-review.page';
+import { telehealthFacilitatorGuard } from '../guards/telehealth.guard';
 
 const routes: Routes = [
   {
     path: '',
     component: TabsPage,
     children: [
+      { path: 'telehealth/session/:appointmentId', loadComponent: () => import('../pages/telehealth/telehealth-session.page').then(m => m.TelehealthSessionPage), canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'telehealth', loadComponent: () => import('../pages/telehealth/telehealth.page').then(m => m.TelehealthPage), canActivate: [telehealthFacilitatorGuard] },
       { path: 'patients', component: PatientsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'today', component: TodayPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'sync-review', component: SyncReviewPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
