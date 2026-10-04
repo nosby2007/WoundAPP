@@ -2,12 +2,22 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonCard, IonCardContent, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
-import { arrowForwardOutline, checkmarkCircleOutline, locationOutline, navigateOutline, timeOutline } from 'ionicons/icons';
-import { Observable } from 'rxjs';
+import { alertCircleOutline, arrowForwardOutline, checkmarkCircleOutline, locationOutline, navigateOutline, timeOutline } from 'ionicons/icons';
+import { addIcons } from 'ionicons';
+import { Observable, from, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { FieldTask, FieldVisit, FieldWorkService, TodayWork } from '../../services/field-work.service';
 import { NetworkStatusService } from '../../services/network-status.service';
 import { ClinicalSyncQueueService } from '../../services/clinical-sync-queue.service';
 import { DurableClinicalMutationService } from '../../services/durable-clinical-mutation.service';
+import { VisitCompletenessService, WorkflowCompletionResult } from '../../services/visit-completeness.service';
+
+interface DocumentationPriorityItem {
+  visit: FieldVisit;
+  completion: WorkflowCompletionResult;
+}
+
+type PrioritizedTodayWork = TodayWork & { documentationAlerts: DocumentationPriorityItem[] };
 
 @Component({
   selector: 'app-today',
@@ -38,6 +48,19 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
               <div><strong>{{ day.overdueTasks.length + day.dueTodayTasks.length }}</strong><span>Open tasks</span></div>
               <div><strong>{{ day.completedTodayTasks.length }}</strong><span>Done</span></div>
             </div>
+          </section>
+
+          <section class="section priority-section" *ngIf="day.documentationAlerts.length">
+            <div class="section-head">
+              <div><p class="eyebrow dark">PRIORITY ACTIONS</p><h2>Documentation to complete</h2></div>
+              <ion-badge color="danger">{{ day.documentationAlerts.length }}</ion-badge>
+            </div>
+            <p class="priority-note">These visits are marked complete, but required workflow items are still missing. This is a documentation reminder, not a clinical diagnosis.</p>
+            <button class="priority-card" type="button" *ngFor="let item of day.documentationAlerts" (click)="openVisit(item.visit)">
+              <span class="priority-mark"><ion-icon [icon]="alertCircleOutline"></ion-icon></span>
+              <span class="priority-copy"><strong>{{ item.visit.patient?.name || item.visit.patientName }}</strong><small>{{ item.completion.completed }}/{{ item.completion.totalRequired }} required items complete</small><span>Missing: {{ missingLabels(item.completion).join(' · ') }}</span></span>
+              <ion-icon class="arrow" [icon]="arrowForwardOutline"></ion-icon>
+            </button>
           </section>
 
           <section class="section">
@@ -71,7 +94,7 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
     </ion-content>
   `,
   styles: [`
-    :host{--ink:#10233f;--muted:#687b8f;--green:#0b7551;--navy:#173d5d}ion-toolbar{--background:#fff;--color:var(--ink)}.page{background:#f4f7fa;min-height:100%;padding:16px 16px 34px}.hero{background:linear-gradient(145deg,#0b7451 0%,#143a59 82%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 18px 42px rgba(18,58,78,.2)}.hero-head{display:flex;justify-content:space-between;gap:16px}.hero h1{font-size:29px;margin:3px 0 4px}.hero p{margin:0;opacity:.8}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 5px}.eyebrow.dark{color:#557087}.connectivity{height:28px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:6px;font-size:11px}.connectivity span{width:7px;height:7px;border-radius:50%;background:#80e1b5;box-shadow:0 0 0 5px rgba(128,225,181,.12)}.connectivity.offline{background:rgba(127,29,29,.32)}.connectivity.offline span{background:#fecaca;box-shadow:0 0 0 5px rgba(254,202,202,.12)}.sync-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.08);font-size:11px;line-height:1.4}.sync-strip strong{color:#fff}.sync-strip span{opacity:.85}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:22px}.metrics div{background:rgba(255,255,255,.09);border-radius:16px;padding:12px}.metrics strong{display:block;font-size:23px}.metrics span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72}.section{margin-top:26px}.section-head{display:flex;align-items:flex-end;justify-content:space-between;margin:0 4px 10px}.section-head h2{margin:0;color:var(--ink);font-size:20px}.visit-card{margin:10px 0;border-radius:22px;box-shadow:0 7px 24px rgba(30,55,75,.07)}.visit-card ion-card-content{padding:16px}.visit-row{display:grid;grid-template-columns:64px 1fr 22px;gap:12px;align-items:start}.time-tile{background:#eef7f3;border-radius:17px;min-height:64px;display:grid;place-items:center;align-content:center;color:var(--green);gap:3px}.time-tile ion-icon{font-size:18px}.time-tile strong{font-size:12px}.visit-main h3{margin:3px 0 4px;color:var(--ink);font-size:18px}.visit-main p{margin:4px 0;color:var(--muted);font-size:12px;display:flex;gap:5px;align-items:flex-start}.visit-main p ion-icon{font-size:15px;flex:none}.instruction{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.micro{font-size:9px;letter-spacing:.12em;font-weight:800;color:#517086}.micro.danger{color:#b44343}.arrow{color:#9aabb9;margin-top:22px}.visit-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #edf1f4;margin-top:13px;padding-top:11px;font-size:10px;color:var(--muted)}.task-strip{background:#fff;border-radius:18px;padding:14px 15px;margin:9px 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 5px 18px rgba(30,55,75,.05)}.task-strip.overdue{border-left:4px solid #d45858}.task-strip strong{display:block;color:var(--ink);margin:3px 0}.task-strip p{margin:0;color:var(--muted);font-size:12px}.task-strip>ion-icon{color:#9aabb9}.completed{--background:#fff;border-radius:16px;margin:8px 0}.empty{background:#fff;border-radius:22px;padding:28px;text-align:center;color:var(--muted)}.empty ion-icon{font-size:34px;color:var(--green)}.empty strong{display:block;color:var(--ink);margin-top:8px}.empty p{margin:4px 0}.loading{min-height:65vh;display:grid;place-items:center;align-content:center;color:var(--muted)}
+    :host{--ink:#10233f;--muted:#687b8f;--green:#0b7551;--navy:#173d5d}ion-toolbar{--background:#fff;--color:var(--ink)}.page{background:#f4f7fa;min-height:100%;padding:16px 16px 34px}.hero{background:linear-gradient(145deg,#0b7451 0%,#143a59 82%);color:#fff;border-radius:28px;padding:22px;box-shadow:0 18px 42px rgba(18,58,78,.2)}.hero-head{display:flex;justify-content:space-between;gap:16px}.hero h1{font-size:29px;margin:3px 0 4px}.hero p{margin:0;opacity:.8}.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:800;margin:0 0 5px}.eyebrow.dark{color:#557087}.connectivity{height:28px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:6px;font-size:11px}.connectivity span{width:7px;height:7px;border-radius:50%;background:#80e1b5;box-shadow:0 0 0 5px rgba(128,225,181,.12)}.connectivity.offline{background:rgba(127,29,29,.32)}.connectivity.offline span{background:#fecaca;box-shadow:0 0 0 5px rgba(254,202,202,.12)}.sync-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.08);font-size:11px;line-height:1.4}.sync-strip strong{color:#fff}.sync-strip span{opacity:.85}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:22px}.metrics div{background:rgba(255,255,255,.09);border-radius:16px;padding:12px}.metrics strong{display:block;font-size:23px}.metrics span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.72}.section{margin-top:26px}.section-head{display:flex;align-items:flex-end;justify-content:space-between;margin:0 4px 10px}.section-head h2{margin:0;color:var(--ink);font-size:20px}.priority-note{margin:0 4px 9px;color:var(--muted);font-size:11px;line-height:1.45}.priority-card{width:100%;display:flex;align-items:center;gap:11px;text-align:left;background:#fff;border:1px solid #f1c8c5;border-left:5px solid #c43f3b;border-radius:15px;padding:12px;margin:8px 0;box-shadow:0 5px 18px rgba(30,55,75,.05)}.priority-mark{flex:none;width:30px;height:30px;border-radius:10px;background:#fff0ef;color:#b42318;display:grid;place-items:center}.priority-mark ion-icon{font-size:18px}.priority-copy{display:grid;gap:3px;min-width:0}.priority-copy strong{color:var(--ink);font-size:13px}.priority-copy small{color:#9e342f;font-size:10px;font-weight:700}.priority-copy span{color:var(--muted);font-size:10px;line-height:1.35}.priority-card .arrow{margin:0 0 0 auto;flex:none}.visit-card{margin:10px 0;border-radius:22px;box-shadow:0 7px 24px rgba(30,55,75,.07)}.visit-card ion-card-content{padding:16px}.visit-row{display:grid;grid-template-columns:64px 1fr 22px;gap:12px;align-items:start}.time-tile{background:#eef7f3;border-radius:17px;min-height:64px;display:grid;place-items:center;align-content:center;color:var(--green);gap:3px}.time-tile ion-icon{font-size:18px}.time-tile strong{font-size:12px}.visit-main h3{margin:3px 0 4px;color:var(--ink);font-size:18px}.visit-main p{margin:4px 0;color:var(--muted);font-size:12px;display:flex;gap:5px;align-items:flex-start}.visit-main p ion-icon{font-size:15px;flex:none}.instruction{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.micro{font-size:9px;letter-spacing:.12em;font-weight:800;color:#517086}.micro.danger{color:#b44343}.arrow{color:#9aabb9;margin-top:22px}.visit-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #edf1f4;margin-top:13px;padding-top:11px;font-size:10px;color:var(--muted)}.task-strip{background:#fff;border-radius:18px;padding:14px 15px;margin:9px 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 5px 18px rgba(30,55,75,.05)}.task-strip.overdue{border-left:4px solid #d45858}.task-strip strong{display:block;color:var(--ink);margin:3px 0}.task-strip p{margin:0;color:var(--muted);font-size:12px}.task-strip>ion-icon{color:#9aabb9}.completed{--background:#fff;border-radius:16px;margin:8px 0}.empty{background:#fff;border-radius:22px;padding:28px;text-align:center;color:var(--muted)}.empty ion-icon{font-size:34px;color:var(--green)}.empty strong{display:block;color:var(--ink);margin-top:8px}.empty p{margin:4px 0}.loading{min-height:65vh;display:grid;place-items:center;align-content:center;color:var(--muted)}
   `],
 })
 export class TodayPage {
@@ -80,7 +103,8 @@ export class TodayPage {
   readonly locationOutline = locationOutline;
   readonly navigateOutline = navigateOutline;
   readonly timeOutline = timeOutline;
-  readonly day$: Observable<TodayWork>;
+  readonly day$: Observable<PrioritizedTodayWork>;
+  readonly alertCircleOutline = alertCircleOutline;
   readonly todayLabel = new Intl.DateTimeFormat(undefined, { weekday:'long', month:'short', day:'numeric' }).format(new Date());
   readonly greeting = this.greetingForNow();
 
@@ -90,9 +114,39 @@ export class TodayPage {
     public network: NetworkStatusService,
     public sync: ClinicalSyncQueueService,
     public durable: DurableClinicalMutationService,
-  ) { this.day$ = work.today$(); }
+    private readonly completeness: VisitCompletenessService,
+  ) {
+    addIcons({ alertCircleOutline });
+    this.day$ = work.today$().pipe(
+      switchMap((day: TodayWork) => from(this.withDocumentationAlerts(day)).pipe(
+        catchError(() => of({ ...day, documentationAlerts: [] }))
+      ))
+    );
+  }
   address(v: FieldVisit): string { return v.patient?.address || v.homeAddress || ''; }
   openVisit(v: FieldVisit): void { void this.router.navigate(['/tabs/today/visit', v.id]); }
   openTask(t: FieldTask): void { void this.router.navigate(['/tabs/today/task', t.id]); }
+  missingLabels(result: WorkflowCompletionResult): string[] {
+    const labels: Record<string, string> = { visit: 'Visit / check-in', assessment: 'Patient assessment', braden: 'Braden', systemic: 'Physical assessment', carePlan: 'Care plan', order: 'Order', education: 'Education', woundAssessment: 'Wound assessment', progressNote: 'Progress note' };
+    return result.missingRequired.map(item => labels[item] || item);
+  }
+  private async withDocumentationAlerts(day: TodayWork): Promise<PrioritizedTodayWork> {
+    const items = await Promise.all(day.visits
+      .filter(visit => visit.status === 'completed' && !!visit.patientId)
+      .map(async (visit): Promise<DocumentationPriorityItem | null> => {
+        try {
+          const completion = await this.completeness.evaluate(
+            visit.patientId!,
+            visit.visitType || 'routine',
+            this.work.toDate(visit.start) || new Date(),
+            { visitId: visit.woundVisitId || null, appointmentId: visit.id }
+          );
+          return completion.dataAvailable && completion.missingRequired.length ? { visit, completion } : null;
+        } catch {
+          return null;
+        }
+      }));
+    return { ...day, documentationAlerts: items.filter((item): item is DocumentationPriorityItem => !!item) };
+  }
   private greetingForNow(): string { const hour = new Date().getHours(); return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'; }
 }

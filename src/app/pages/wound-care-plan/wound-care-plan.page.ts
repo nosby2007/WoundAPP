@@ -83,7 +83,15 @@ export class WoundCarePlanPage implements OnInit {
   woundLabel = '';
   woundId: string | null = null;
 
-  catalog: CarePlanCatalogEntry[] = [];
+  private _catalog: CarePlanCatalogEntry[] = [];
+  get catalog(): CarePlanCatalogEntry[] { return this._catalog; }
+  set catalog(value: CarePlanCatalogEntry[]) {
+    this._catalog = value || [];
+    this.templateOptions = this.buildTemplateOptions(this._catalog);
+  }
+  /** Template options are shared with Ionic's popover. Keep stable references
+   * across change-detection passes, especially on Mobile Safari. */
+  templateOptions: CatalogTemplateProblemOption[] = [];
   catalogLoaded = false;
   selectedGoalIds = new Set<string>();
   selectedInterventionIds = new Set<string>();
@@ -120,28 +128,7 @@ export class WoundCarePlanPage implements OnInit {
   }
 
   get templateProblemOptions(): CatalogTemplateProblemOption[] {
-    const grouped = new Map<string, CatalogTemplateProblemOption>();
-    for (const goal of this.catalog) {
-      if (goal.kind !== 'goal' || !goal.sourceTemplateId || !goal.sourceTemplateProblemId) continue;
-      const key = `${goal.sourceTemplateId}::${goal.sourceTemplateProblemId}`;
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.goals.push(goal);
-        continue;
-      }
-      grouped.set(key, {
-        key,
-        templateId: goal.sourceTemplateId,
-        templateName: goal.sourceTemplateName || 'Organization template',
-        problemId: goal.sourceTemplateProblemId,
-        problemLabel: goal.sourceTemplateProblemLabel || goal.category,
-        category: goal.category as CarePlanProblemCategory,
-        goals: [goal],
-      });
-    }
-    return Array.from(grouped.values()).sort((a, b) =>
-      a.templateName.localeCompare(b.templateName) || a.problemLabel.localeCompare(b.problemLabel)
-    );
+    return this.templateOptions;
   }
 
   toggleGoal(id: string, checked: boolean): void {
@@ -194,6 +181,31 @@ export class WoundCarePlanPage implements OnInit {
     } finally {
       this.catalogLoaded = true;
     }
+  }
+
+  private buildTemplateOptions(catalog: CarePlanCatalogEntry[]): CatalogTemplateProblemOption[] {
+    const grouped = new Map<string, CatalogTemplateProblemOption>();
+    for (const goal of catalog) {
+      if (goal.kind !== 'goal' || !goal.sourceTemplateId || !goal.sourceTemplateProblemId) continue;
+      const key = `${goal.sourceTemplateId}::${goal.sourceTemplateProblemId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.goals.push(goal);
+        continue;
+      }
+      grouped.set(key, {
+        key,
+        templateId: goal.sourceTemplateId,
+        templateName: goal.sourceTemplateName || 'Organization template',
+        problemId: goal.sourceTemplateProblemId,
+        problemLabel: goal.sourceTemplateProblemLabel || goal.category,
+        category: goal.category as CarePlanProblemCategory,
+        goals: [goal],
+      });
+    }
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.templateName.localeCompare(b.templateName) || a.problemLabel.localeCompare(b.problemLabel)
+    );
   }
 
   private loadWound(): void {

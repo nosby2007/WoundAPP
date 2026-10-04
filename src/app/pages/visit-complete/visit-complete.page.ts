@@ -83,6 +83,11 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
             <div *ngIf="loading" class="loading"><ion-spinner></ion-spinner></div>
 
             <ng-container *ngIf="!loading && completeness as result">
+              <div class="missing" *ngIf="!result.dataAvailable">
+                <ion-icon name="alert-circle-outline"></ion-icon>
+                <span>Readiness could not be verified because one or more chart sections are unavailable. Refresh or check permissions before treating this visit as complete.</span>
+              </div>
+              <ng-container *ngIf="result.dataAvailable">
               <div class="score">
                 <strong>{{ result.completed }}/{{ result.totalRequired }}</strong>
                 <span>required items documented today</span>
@@ -103,6 +108,7 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
                   {{ missingLabels(result).join(', ') }}.
                 </span>
               </div>
+              </ng-container>
             </ng-container>
           </ion-card-content>
         </ion-card>

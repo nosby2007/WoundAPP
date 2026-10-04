@@ -13,6 +13,7 @@ export interface WorkflowCompletionItem {
 
 export interface WorkflowCompletionResult {
   visitType: string;
+  dataAvailable: boolean;
   completed: number;
   totalRequired: number;
   missingRequired: WorkflowCircle[];
@@ -35,7 +36,7 @@ export class VisitCompletenessService {
       'visit','assessment','braden','systemic','carePlan','order','education','woundAssessment','progressNote'
     ];
 
-    const [visits, assessments, carePlans, orders, education, wounds, notes] = await Promise.all([
+    const sources = await Promise.all([
       this.read(`patients/${patientId}/woundVisits`),
       this.read(`patients/${patientId}/assessments`),
       this.read(`patients/${patientId}/carePlans`),
@@ -44,6 +45,8 @@ export class VisitCompletenessService {
       this.read(`patients/${patientId}/woundAssessments`),
       this.read(`patients/${patientId}/providerNotes`),
     ]);
+    const [visits, assessments, carePlans, orders, education, wounds, notes] = sources.map(source => source.rows);
+    const dataAvailable = sources.every(source => source.available);
 
     const scoped = (row: any) => this.matchesVisit(row, link) ||
       (!link.visitId && !link.appointmentId && this.isSameLocalDay(this.extractDate(row), day));
@@ -69,6 +72,7 @@ export class VisitCompletenessService {
     const missingRequired = items.filter((x) => x.required && !x.complete).map((x) => x.circle);
     return {
       visitType,
+      dataAvailable,
       completed: items.filter((x) => x.required && x.complete).length,
       totalRequired: required.size,
       missingRequired,
@@ -103,12 +107,12 @@ export class VisitCompletenessService {
     return false;
   }
 
-  private async read(path: string): Promise<any[]> {
+  private async read(path: string): Promise<{ rows: any[]; available: boolean }> {
     try {
       const snap = await getDocs(collection(db, path));
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return { rows: snap.docs.map((d) => ({ id: d.id, ...d.data() })), available: true };
     } catch {
-      return [];
+      return { rows: [], available: false };
     }
   }
 

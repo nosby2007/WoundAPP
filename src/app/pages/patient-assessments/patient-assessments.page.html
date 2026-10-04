@@ -65,6 +65,8 @@
         </div>
         <ion-button size="small" fill="clear" [disabled]="readinessBusy()" (click)="refreshReadiness()">Refresh</ion-button>
       </div>
+      <div class="missing" *ngIf="!readiness.dataAvailable">Readiness could not be verified because one or more chart sections are unavailable. Refresh or check access before relying on this status.</div>
+      <ng-container *ngIf="readiness.dataAvailable">
       <div class="missing" *ngIf="readiness.missingRequired.length">
         <strong>Missing before close-out:</strong>
         <span *ngFor="let item of readiness.missingRequired">{{ workflowLabel(item) }}</span>
@@ -76,6 +78,7 @@
           {{ finding.title }} — {{ finding.message }}
         </div>
       </div>
+      </ng-container>
     </section>
 
     <section class="clinical-command">

@@ -57,6 +57,28 @@ describe('WoundCarePlanPage', () => {
     expect(component.selectedTemplateProblem?.goals[0].text).toBe('Organization-authored goal');
   });
 
+  it('keeps template option identities stable between render passes', () => {
+    component.catalog = [{
+      id: 'catalog-goal-1',
+      kind: 'goal',
+      category: 'potential_for_compromised_skin_integrity',
+      text: 'Organization-authored goal',
+      sourceTemplateId: 'template-1',
+      sourceTemplateName: 'Wound healing plan',
+      sourceTemplateProblemId: 'skin-integrity',
+      sourceTemplateProblemLabel: 'Wound healing',
+      sourceTemplateGoalId: 'goal-1',
+    }];
+
+    // The Ionic select uses these objects to build its popover. Recreating
+    // them on every Angular change-detection pass needlessly churns the DOM.
+    const options = component.templateProblemOptions;
+
+    expect(options.length).toBe(1);
+    expect(component.templateProblemOptions).toBe(options);
+    expect(component.templateProblemOptions[0]).toBe(options[0]);
+  });
+
   it('clears governed selections when the problem category changes', () => {
     component.selectedGoalIds.add('goal-1');
     component.selectedInterventionIds.add('intervention-1');
