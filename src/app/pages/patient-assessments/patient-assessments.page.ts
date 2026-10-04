@@ -603,6 +603,13 @@ export class PatientAssessmentsPage implements OnInit {
     this.openWoundCarePlan(target);
   }
 
+  /** Start a consultation against the existing canonical wound. */
+  openTelehealth(assessment: MobileAssessment): void {
+    const woundId = resolveWoundId(assessment);
+    if (!this.patientId || !woundId) return;
+    void this.router.navigate(['/tabs/telehealth'], {queryParams: {patientId: this.patientId, woundId}});
+  }
+
   /** Open the plan for one explicit wound assessment, never a generic patient plan. */
   openWoundCarePlan(assessment: MobileAssessment): void {
     const woundId = resolveWoundId(assessment);
