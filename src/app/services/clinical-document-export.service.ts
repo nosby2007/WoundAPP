@@ -205,7 +205,7 @@ export class ClinicalDocumentExportService {
 <meta charset="utf-8">
 <title>${this.escape(patientName)} — Clinical Visit Record</title>
 <style>
-  @page { size: Letter; margin: 0.55in 0.55in 0.62in; }
+  @page { size: A4; margin: 16mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color:#14213d; margin:0; background:#fff; font-size:10.5pt; line-height:1.38; }
   .letterhead { display:flex; justify-content:space-between; gap:24px; border-bottom:3px solid #14532d; padding-bottom:12px; margin-bottom:16px; }
@@ -245,28 +245,25 @@ export class ClinicalDocumentExportService {
 <body>
   <div class="letterhead">
     <div>
-      <div class="org">${this.escape(org?.legalName || org?.name || org?.displayName || 'Clinical Organization')}</div>
+      <div class="org">Perry Home Wound Care</div>
+      <p>Tel: 478-310-4446 · Fax: 478-721-9473<br>support@perryhomewoundcare.network</p>
       <h1>Clinical Visit Record</h1>
       <div class="subtitle">Transferable encounter documentation · Service date ${this.escape(serviceDate.toLocaleDateString())}</div>
     </div>
     <div class="confidential">
       CONFIDENTIAL CLINICAL RECORD<br>
       Generated ${this.escape(generatedAt.toLocaleString())}<br>
-      Patient ID: ${this.escape(patient.mrn || patient.patientId || patientId)}
+      Patient: ${this.escape(patientName)}
     </div>
   </div>
 
-  <div class="status ${readiness.ready ? 'ready' : 'review'}">
-    <strong>${readiness.ready ? 'Record assembled for professional review' : 'Record requires review before external release'}</strong>
-    ${readiness.items.length ? `<div>${readiness.items.map((item) => this.escape(item)).join(' · ')}</div>` : ''}
-  </div>
 
   <div class="grid">
     <div class="card">
       <div class="card-title">Patient face sheet</div>
       ${this.packetKv('Name', patientName)}
       ${this.packetKv('Date of birth', this.dateOnly(patient.dob || patient.dateOfBirth))}
-      ${this.packetKv('MRN / Patient ID', patient.mrn || patient.patientId || patientId)}
+      ${patient.mrn ? this.packetKv('Medical record number', patient.mrn) : ''}
       ${this.packetKv('Phone', patient.phone || patient.phoneNumber)}
       ${this.packetKv('Primary payer', patient.insuranceProvider || patient.payerName || patient.insurance?.name)}
       ${this.packetKv('Member ID', patient.memberId || patient.insuranceMemberId || patient.insurance?.memberId)}
@@ -323,20 +320,14 @@ export class ClinicalDocumentExportService {
   ${sectionHtml || '<section class="section"><div class="section-head"><h2>Clinical documentation</h2></div><div class="card">No additional records are explicitly linked to this encounter.</div></section>'}
 
   <section class="section page-break">
-    <div class="section-head"><h2>Authentication and source statement</h2></div>
+    <div class="section-head"><h2>Clinical authentication</h2></div>
     <div class="card">
-      <p>This record was compiled from chart documents explicitly linked to the selected clinical encounter. It does not merge unrelated historical visits and does not create new findings, diagnoses, measurements, orders, signatures, or EVV evidence.</p>
-      <p><strong>Visit source ID:</strong> ${this.escape(visitId)}</p>
-      ${appointmentId ? `<p><strong>Scheduler appointment ID:</strong> ${this.escape(appointmentId)}</p>` : ''}
       <div class="signature">
         <strong>Rendering clinician:</strong> ${this.escape([clinicianName, clinicianCredentials, clinicianNpi ? `NPI ${clinicianNpi}` : null].filter(Boolean).join(' · '))}
       </div>
     </div>
   </section>
 
-  <footer>
-    Confidential medical record. Verify recipient authorization before transmission. Generated from immutable/source chart records where available.
-  </footer>
 </body>
 </html>`;
   }
@@ -442,9 +433,16 @@ export class ClinicalDocumentExportService {
         ['Measurements', this.measurementValue(m, d)],
         ['Wound bed / tissue', this.textValue(desc.tissue || d.tissue || d.woundBed)],
         ['Drainage', this.textValue(desc.drainage || d.drainage)],
+        ['Exudate', this.textValue(d.exudate)],
+        ['Pain', this.textValue(d.pain)],
+        ['Tunneling / undermining', [m.tunneling, m.undermining].filter(Boolean).join(' / ')],
         ['Periwound / surrounding skin', this.textValue(desc.periwound || d.periwound || d.surrounding)],
         ['Progress', d.progress?.status || d.status],
-        ['Treatment performed', this.textValue(d.treatment || d.treatmentPerformed || d.interventions)]
+        ['Treatment performed', this.textValue(d.treatment || d.treatmentPerformed || d.interventions)],
+        ['Provider review', d.providerReview?.providerNote],
+        ['Review decision', d.providerReview?.decision],
+        ['Reviewed by', d.providerReview?.reviewedByName],
+        ['Review date', this.dateText(d.providerReview?.reviewedAt)]
       );
     } else if (kind === 'progressNote') {
       lines.push(
@@ -468,7 +466,7 @@ export class ClinicalDocumentExportService {
         <span class="small">${this.escape(this.dateText(d.assessedAt || d.effectiveAt || d.orderedAt || d.deliveredAt || d.createdAt) || '')}</span>
       </div>
       ${body}
-      <div class="record-meta">Source record ${this.escape(record.id)}${signer ? ` · ${this.escape(signer)}` : ''}</div>
+      <p class="record-meta">${this.escape(signer)}</p>
     </div>`;
   }
 
@@ -485,6 +483,14 @@ export class ClinicalDocumentExportService {
   }
 
   private signerLabel(data: any): string {
+    const author = data.authorIdentity?.displayName || data.createdByName;
+    const signature = data.esign || data.signature;
+    if (signature?.signed === true) {
+      const name = signature.signerDisplayName || signature.signerIdentity?.displayName || signature.signer?.displayName;
+      return [author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
+        name ? `Electronically signed by ${name}` : 'Electronically signed; signer name not recorded',
+        this.dateText(signature.signedAt || signature.signedAtIso)].filter(Boolean).join(' · ');
+    }
     const signer =
       data.signature?.signer ||
       data.esign?.signerIdentity ||
@@ -504,7 +510,7 @@ export class ClinicalDocumentExportService {
 
   private packetKv(label: string, value: any): string {
     const text = this.textValue(value);
-    return `<div class="kv"><div class="k">${this.escape(label)}</div><div>${this.escape(text || 'Not documented')}</div></div>`;
+    return `<div class="kv"><h3>${this.escape(label)}</h3><p style="white-space:pre-wrap">${this.escape(text || 'Not documented')}</p></div>`;
   }
 
   private measurementValue(m: any, d: any): string {
@@ -520,7 +526,7 @@ export class ClinicalDocumentExportService {
     if (Array.isArray(value)) return value.map((item) => this.textValue(item)).filter(Boolean).join('; ');
     if (typeof value === 'object') {
       return Object.entries(value)
-        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .filter(([k, v]) => !/(?:id|uid|ids|uids|version|source|storagepath|downloadurl|photourl)$/i.test(k) && v !== null && v !== undefined && v !== '')
         .map(([k, v]) => `${this.prettyLabel(k)}: ${this.textValue(v)}`)
         .join('; ');
     }
@@ -562,15 +568,16 @@ export class ClinicalDocumentExportService {
 <meta charset="utf-8">
 <title>${this.escape(patientName)} — Clinical Document</title>
 <style>
-  @page { size: auto; margin: 0.55in; }
+  @page { size: A4; margin: 16mm; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; color:#172033; margin:0; background:#fff; font-size:12px; line-height:1.45; }
   header { border-bottom:3px solid #176b54; padding-bottom:14px; margin-bottom:18px; }
   h1 { margin:0 0 5px; font-size:22px; }
   .sub { color:#5f6f7f; }
-  .section { page-break-inside:avoid; margin:0 0 22px; }
+  .section { margin:0 0 22px; }
   .section h2 { margin:0 0 10px; padding:8px 10px; background:#eef7f3; border-left:4px solid #176b54; font-size:16px; }
-  .record { border:1px solid #dbe3e9; border-radius:8px; padding:10px 12px; margin:0 0 10px; page-break-inside:avoid; }
+  .record { padding:10px 0; margin:0 0 10px; }
+  h2,h3 { break-after:avoid; } h3 { font-size:13px; margin:12px 0 4px; color:#176b54; } p { margin:0 0 8px; orphans:3; widows:3; }
   .record-id { font-size:9px; color:#7a8793; margin-bottom:6px; }
   dl { margin:0; }
   .row { display:grid; grid-template-columns:170px 1fr; gap:10px; padding:4px 0; border-bottom:1px solid #eef2f5; }
@@ -584,13 +591,12 @@ export class ClinicalDocumentExportService {
 </head>
 <body>
 <header>
-  <h1>${this.escape(patientName)}</h1>
-  <div class="sub">Clinical document packet · Generated ${this.escape(generatedAt.toLocaleString())}</div>
+  <h1>Perry Home Wound Care</h1>
+  <p>Tel: 478-310-4446 · Fax: 478-721-9473<br>support@perryhomewoundcare.network</p>
+  <h2>${this.escape(patientName)}</h2>
+  ${patient.dob || patient.dateOfBirth ? `<p>Date of birth: ${this.escape(this.dateOnly(patient.dob || patient.dateOfBirth))}</p>` : ''}
 </header>
-${sections.map((section) => this.renderSection(section)).join('')}
-<footer>
-  Generated from the clinical chart. Verify recipient authorization and use an approved secure channel for protected health information.
-</footer>
+${sections.map((section) => this.renderClinicalSection(section)).join('')}
 </body>
 </html>`;
   }
@@ -619,13 +625,7 @@ ${sections.map((section) => this.renderSection(section)).join('')}
   }
 
   private renderSection(section: ClinicalPacketSection): string {
-    return `<section class="section">
-      <h2>${this.escape(section.title)}</h2>
-      ${section.records.map((record) => `<div class="record">
-        <div class="record-id">Record ${this.escape(record.id)}</div>
-        <dl>${this.renderObject(record.data)}</dl>
-      </div>`).join('')}
-    </section>`;
+    return this.renderClinicalSection(section);
   }
 
   private renderObject(value: any, prefix = ''): string {
