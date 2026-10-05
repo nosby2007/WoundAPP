@@ -486,6 +486,7 @@ export class ClinicalDocumentExportService {
       <h3 class="record-title">${this.escape(this.recordTitle(kind, d))}</h3>
       <p class="small">${this.escape(this.dateText(d.assessedAt || d.effectiveAt || d.orderedAt || d.deliveredAt || d.createdAt) || '')}</p>
       ${body}
+      ${kind === 'woundAssessment' ? this.woundMedia(d) : ''}
       <p class="record-meta">${this.escape(signer)}</p>
     </div>`;
   }
@@ -540,6 +541,31 @@ export class ClinicalDocumentExportService {
         .join('; ');
     }
     return String(value);
+  }
+
+  private woundMedia(d: any): string {
+    const location = String(d.describe?.location || d.location || 'Wound');
+    // Only the assessment's existing photograph, never patient profile images.
+    const url = typeof d.photoURL === 'string' && /^https:\/\//i.test(d.photoURL) ? d.photoURL : null;
+    const photo = url ? `<figure style="margin:8px 0;break-inside:avoid"><img src="${this.escape(url)}" alt="${this.escape(location)}" width="100" height="100" style="width:100px;height:100px;object-fit:contain;border:1px solid #dbe3e9"><figcaption>${this.escape(location)} · ${this.escape(this.dateText(d.assessedAt) || 'Date not documented')}</figcaption></figure>` : '';
+    const history = Array.isArray(d.printMeasurementHistory) ? d.printMeasurementHistory : [];
+    const number = (v: unknown): number | null => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    const charts = [['area', 'Area (cm²)'], ['depth', 'Depth (cm)']].map(([field, title]) => {
+      const points = history.map((r: any) => ({date: this.toDate(r.assessedAt), value: number(r.measurements?.[field])}));
+      if (points.filter((p: any) => p.date && p.value !== null).length < 2) return '';
+      const start = points[0].date!.getTime(), end = points[points.length - 1].date!.getTime();
+      const max = Math.max(0, ...points.map((p: any) => p.value || 0)) || 1;
+      const x = (p: any) => 48 + (p.date.getTime() - start) / Math.max(1, end - start) * 450;
+      const y = (p: any) => 115 - p.value / max * 85;
+      const marks = points.map((p: any, i: number) => {
+        if (p.value === null) return ''; // Missing values break the line; no interpolation.
+        const prev = points[i - 1];
+        return `${prev && prev.value !== null ? `<line x1="${x(prev)}" y1="${y(prev)}" x2="${x(p)}" y2="${y(p)}" stroke="#176b54"/>` : ''}<circle cx="${x(p)}" cy="${y(p)}" r="3" fill="#176b54"/><text x="${x(p)}" y="${y(p) - 7}" text-anchor="middle" font-size="10">${p.value}</text>`;
+      }).join('');
+      return `<div style="break-inside:avoid;margin:12px 0"><h3>${title}</h3><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 155" role="img" aria-label="${title} over time" style="width:100%;max-width:550px"><line x1="48" y1="115" x2="510" y2="115" stroke="#8795a0"/><text x="38" y="118" font-size="10">0</text><text x="20" y="30" font-size="10">${max}</text>${marks}<text x="48" y="140" font-size="10">${this.escape(this.dateOnly(points[0].date))}</text><text x="498" y="140" text-anchor="end" font-size="10">${this.escape(this.dateOnly(points[points.length - 1].date))}</text></svg></div>`;
+    }).join('');
+    const table = history.length ? `<table style="width:100%;font-size:11px"><thead><tr><th>Date</th><th>Area (cm²)</th><th>Depth (cm)</th></tr></thead><tbody>${history.map((r: any) => `<tr><td>${this.escape(this.dateText(r.assessedAt))}</td><td>${number(r.measurements?.area) ?? 'Not documented'}</td><td>${number(r.measurements?.depth) ?? 'Not documented'}</td></tr>`).join('')}</tbody></table>` : '';
+    return `${photo}${history.length ? `<div><h3>Wound measurement evolution — ${this.escape(location)}</h3>${charts || '<p>Insufficient dated measurements for a trend chart.</p>'}${table}</div>` : ''}`;
   }
 
   private isTechnicalField(key: string): boolean {
@@ -648,6 +674,17 @@ ${sections.map((section) => this.renderClinicalSection(section)).join('')}
     const cfg = config[kind];
     const snap = await getDocs(collection(db, cfg.path));
     let rows = snap.docs.map((entry) => ({ id: entry.id, data: entry.data() as any }));
+    if (kind === 'woundAssessment') {
+      for (const row of rows) {
+        const woundId = row.data.woundId || row.id;
+        const cutoff = this.toDate(row.data.assessedAt)?.getTime();
+        row.data.printMeasurementHistory = cutoff === undefined ? [] : rows
+          .filter(r => (r.data.woundId || r.id) === woundId && r.data.orgId === row.data.orgId
+            && !!this.toDate(r.data.assessedAt) && this.toDate(r.data.assessedAt)!.getTime() <= cutoff)
+          .map(r => ({assessedAt: r.data.assessedAt, measurements: r.data.measurements || {}}))
+          .sort((a, b) => this.toDate(a.assessedAt)!.getTime() - this.toDate(b.assessedAt)!.getTime());
+      }
+    }
     if (cfg.filter) rows = rows.filter((row) => cfg.filter!(row.data));
     if (recordId) rows = rows.filter((row) => row.id === recordId);
     const names = new Map<string, string>();
@@ -769,7 +806,15 @@ ${sections.map((section) => this.renderClinicalSection(section)).join('')}
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => win.print(), 250);
+    // Wait for photographs before printing. Failed downloads are visibly unavailable.
+    const images = Array.from(win.document.images);
+    Promise.all(images.map(img => new Promise<void>(resolve => {
+      const failed = () => { img.replaceWith(win.document.createTextNode('Wound photograph unavailable')); resolve(); };
+      if (img.complete) { img.naturalWidth ? resolve() : failed(); return; }
+      const timer = setTimeout(failed, 15000);
+      img.onload = () => { clearTimeout(timer); resolve(); };
+      img.onerror = () => { clearTimeout(timer); failed(); };
+    }))).then(() => { if (!win.closed) win.print(); });
   }
 
   private kindTitle(kind: ClinicalDocumentKind): string {
