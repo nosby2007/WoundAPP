@@ -275,8 +275,8 @@ export class ClinicalDocumentExportService {
       ${this.packetKv('Visit type', visit.visitType || 'Wound visit')}
       ${this.packetKv('Place of service', visit.placeOfService)}
       ${this.packetKv('Scheduled', this.dateText(visit.scheduledFor))}
-      ${this.packetKv('Check-in', this.dateText(visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt))}
-      ${this.packetKv('Check-out', this.dateText(visit.checkOut?.occurredAt || visit.checkOut?.deviceReportedAt))}
+      ${this.packetKv('Check-in', this.dateText(visit.checkIn?.at || visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt))}
+      ${this.packetKv('Check-out', this.dateText(visit.checkOut?.at || visit.checkOut?.occurredAt || visit.checkOut?.deviceReportedAt))}
     </div>
   </div>
 
