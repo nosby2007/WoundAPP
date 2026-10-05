@@ -127,12 +127,11 @@ export class ClinicalDocumentExportService {
 
     const visitSection = await this.loadSection(patientId, 'visit');
     const sortedVisits = [...visitSection.records].sort((a, b) => this.dateMillis(b.data) - this.dateMillis(a.data));
-    const visitRecord =
-      (requestedVisitId ? sortedVisits.find((row) => row.id === requestedVisitId) : null) ||
-      (requestedAppointmentId
-        ? sortedVisits.find((row) => String(row.data?.appointmentId || '') === requestedAppointmentId)
-        : null) ||
-      sortedVisits[0];
+    const visitRecord = requestedVisitId
+      ? sortedVisits.find(row => row.id === requestedVisitId)
+      : requestedAppointmentId
+        ? sortedVisits.find(row => String(row.data?.appointmentId || '') === requestedAppointmentId)
+        : sortedVisits[0];
 
     if (!visitRecord) throw new Error('No wound visit is available for this patient.');
 
@@ -173,7 +172,7 @@ export class ClinicalDocumentExportService {
 
     const generatedAt = new Date();
     const serviceDate =
-      this.toDate(visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt || visit.scheduledFor || visit.createdAt) ||
+      this.toDate(visit.checkIn?.at || visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt || visit.scheduledFor) ||
       null;
     const clinicianName =
       visit.performedByName ||
