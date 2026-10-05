@@ -65,7 +65,6 @@ export class ClinicalDocumentExportService {
     if (navigator.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
       await navigator.share({
         title,
-        text: 'Clinical document generated from the patient chart. Use an approved secure destination for protected health information.',
         files: [file],
       });
       await this.audit.record({ action: 'document_shared', patientId, entityType: 'documentSnapshot', entityId: snapshot.id, metadata: { kind } });
@@ -98,7 +97,6 @@ export class ClinicalDocumentExportService {
     if (navigator.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
       await navigator.share({
         title,
-        text: 'Structured clinical visit record. Send only through an approved secure destination.',
         files: [file],
       });
       await this.audit.record({
@@ -176,7 +174,7 @@ export class ClinicalDocumentExportService {
     const generatedAt = new Date();
     const serviceDate =
       this.toDate(visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt || visit.scheduledFor || visit.createdAt) ||
-      generatedAt;
+      null;
     const clinicianName =
       visit.performedByName ||
       visit.clinicianName ||
@@ -195,7 +193,7 @@ export class ClinicalDocumentExportService {
     const readiness = this.packetReadiness(visit, sections);
     const sectionHtml = sections.map((section) => this.renderClinicalSection(section)).join('');
     const manifestRows = [
-      { title: 'Encounter / EVV', count: 1 },
+      { title: 'Clinical encounter', count: 1 },
       ...sections.map((section) => ({ title: section.title, count: section.records.length })),
     ].map((item) => `<tr><td>${this.escape(item.title)}</td><td>${item.count}</td></tr>`).join('');
 
@@ -221,12 +219,14 @@ export class ClinicalDocumentExportService {
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0 0 14px; }
   .card { border:1px solid #cbd5e1; padding:10px 12px; break-inside:avoid; }
   .card-title { font-size:8pt; font-weight:700; letter-spacing:.08em; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
-  .kv { display:grid; grid-template-columns:135px 1fr; gap:8px; padding:3px 0; border-bottom:1px solid #eef2f7; }
+  .kv { padding:5px 0; }
+  .kv h3 { color:#176b54; font-size:10pt; margin:6px 0 3px; break-after:avoid; }
+  .kv p { margin:0 0 6px; orphans:3; widows:3; }
   .kv:last-child { border-bottom:0; }
   .k { font-weight:700; color:#334155; }
   .section { margin:0 0 16px; }
   .section-head { border-bottom:2px solid #14532d; padding:0 0 5px; margin:0 0 8px; }
-  .record { border:1px solid #dbe3e9; padding:9px 10px; margin:0 0 8px; break-inside:avoid; }
+  .record { padding:9px 0; margin:0 0 8px; }
   .record-title { display:flex; justify-content:space-between; gap:12px; font-weight:700; margin-bottom:5px; }
   .record-meta { font-size:8pt; color:#64748b; margin-top:6px; }
   table { border-collapse:collapse; width:100%; }
@@ -236,26 +236,29 @@ export class ClinicalDocumentExportService {
   .small { font-size:8pt; color:#64748b; }
   .page-break { break-before:page; }
   footer { margin-top:20px; border-top:1px solid #cbd5e1; padding-top:8px; font-size:8pt; color:#64748b; }
+  .print-document {width:100%;border-collapse:collapse} .print-document>thead>tr>td,.print-document>tbody>tr>td{border:0;padding:0}
   @media print {
     body { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-    .section, .record, .card { break-inside:avoid; }
+    h2,h3 { break-after:avoid; } .card { break-inside:avoid; } thead {display:table-header-group}
   }
 </style>
 </head>
 <body>
+  <table class="print-document"><thead><tr><td>
   <div class="letterhead">
     <div>
       <div class="org">Perry Home Wound Care</div>
       <p>Tel: 478-310-4446 · Fax: 478-721-9473<br>support@perryhomewoundcare.network</p>
       <h1>Clinical Visit Record</h1>
-      <div class="subtitle">Transferable encounter documentation · Service date ${this.escape(serviceDate.toLocaleDateString())}</div>
+      <div class="subtitle">Service date ${this.escape(serviceDate?.toLocaleDateString() || 'Not documented')}</div>
     </div>
     <div class="confidential">
       CONFIDENTIAL CLINICAL RECORD<br>
-      Generated ${this.escape(generatedAt.toLocaleString())}<br>
-      Patient: ${this.escape(patientName)}
+      Patient: ${this.escape(patientName)}<br>
+      Date of birth: ${this.escape(this.dateOnly(patient.dob || patient.dateOfBirth))}
     </div>
   </div>
+  </td></tr></thead><tbody><tr><td>
 
 
   <div class="grid">
@@ -272,7 +275,6 @@ export class ClinicalDocumentExportService {
       <div class="card-title">Encounter</div>
       ${this.packetKv('Visit type', visit.visitType || 'Wound visit')}
       ${this.packetKv('Place of service', visit.placeOfService)}
-      ${this.packetKv('Status', visit.fieldVisitState || visit.status)}
       ${this.packetKv('Scheduled', this.dateText(visit.scheduledFor))}
       ${this.packetKv('Check-in', this.dateText(visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt))}
       ${this.packetKv('Check-out', this.dateText(visit.checkOut?.occurredAt || visit.checkOut?.deviceReportedAt))}
@@ -291,35 +293,31 @@ export class ClinicalDocumentExportService {
   </section>
 
   <section class="section">
-    <div class="section-head"><h2>Encounter verification / EVV</h2></div>
+    <div class="section-head"><h2>Encounter times</h2></div>
     <div class="grid">
       <div class="card">
         <div class="card-title">Arrival</div>
-        ${this.packetKv('Time', this.dateText(visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt))}
-        ${this.packetKv('Location status', visit.checkIn?.location?.status)}
-        ${this.packetKv('Location note', visit.checkIn?.location?.reason || visit.checkIn?.location?.message)}
+        ${this.packetKv('Time', this.dateText(visit.checkIn?.at || visit.checkIn?.occurredAt || visit.checkIn?.deviceReportedAt))}
       </div>
       <div class="card">
         <div class="card-title">Departure</div>
-        ${this.packetKv('Time', this.dateText(visit.checkOut?.occurredAt || visit.checkOut?.deviceReportedAt))}
-        ${this.packetKv('Location status', visit.checkOut?.location?.status)}
-        ${this.packetKv('Attestation', visit.patientAttestation?.method)}
+        ${this.packetKv('Time', this.dateText(visit.checkOut?.at || visit.checkOut?.occurredAt || visit.checkOut?.deviceReportedAt))}
         ${this.packetKv('Confirmed by', visit.patientAttestation?.name || visit.patientAttestation?.attestedByName)}
       </div>
     </div>
   </section>
 
   <section class="section">
-    <div class="section-head"><h2>Clinical document manifest</h2></div>
+    <div class="section-head"><h2>Clinical documents</h2></div>
     <table>
-      <thead><tr><th>Document category</th><th>Records linked to this encounter</th></tr></thead>
+      <thead><tr><th>Document category</th><th>Number of documents</th></tr></thead>
       <tbody>${manifestRows}</tbody>
     </table>
   </section>
 
   ${sectionHtml || '<section class="section"><div class="section-head"><h2>Clinical documentation</h2></div><div class="card">No additional records are explicitly linked to this encounter.</div></section>'}
 
-  <section class="section page-break">
+  <section class="section">
     <div class="section-head"><h2>Clinical authentication</h2></div>
     <div class="card">
       <div class="signature">
@@ -327,7 +325,7 @@ export class ClinicalDocumentExportService {
       </div>
     </div>
   </section>
-
+  </td></tr></tbody></table>
 </body>
 </html>`;
   }
@@ -382,31 +380,41 @@ export class ClinicalDocumentExportService {
     const lines: Array<[string, any]> = [];
 
     if (kind === 'assessment') {
+      const a = d.answers || d;
       lines.push(
-        ['Reason / focus', d.reason || d.chiefComplaint || d.focus],
-        ['General status', d.status || d.generalStatus],
-        ['Pain', d.pain || d.painScore],
-        ['Relevant findings', d.findings || d.summary || d.notes]
+        ['Reason / focus', a.reasonForVisit || a.reason || a.chiefComplaint || a.focus],
+        ['General status', a.generalStatus],
+        ['Pain', a.pain ?? a.painScore],
+        ['Functional status', a.functionalStatus],
+        ['Nutrition / hydration', a.nutritionHydration],
+        ['Medication concerns', a.medicationConcerns],
+        ['Safety concerns', a.safetyConcerns],
+        ['Relevant findings', a.clinicalSummary || a.findings || a.summary || a.notes]
       );
     } else if (kind === 'braden') {
+      const b = d.answers?.braden || d.braden || d;
       lines.push(
-        ['Braden score', d.totalScore || d.score || d.bradenScore],
-        ['Risk level', d.riskLevel || d.risk],
+        ['Braden score', b.total ?? d.totalScore ?? d.score ?? d.bradenScore],
+        ['Risk level', b.riskText || d.riskLevel || d.risk],
+        ['Sensory perception', b.sensory], ['Moisture', b.moisture],
+        ['Activity', b.activity], ['Mobility', b.mobility],
+        ['Nutrition', b.nutrition], ['Friction / shear', b.friction],
         ['Interventions', this.textValue(d.interventions || d.recommendations)]
       );
     } else if (kind === 'systemic') {
-      lines.push(
-        ['General', d.general || d.generalAppearance],
-        ['Cardiovascular', d.cardiovascular],
-        ['Respiratory', d.respiratory],
-        ['Neurologic', d.neurologic],
-        ['GI / GU', this.textValue([d.gastrointestinal, d.genitourinary].filter(Boolean))],
-        ['Other findings', d.summary || d.notes]
-      );
+      const systems = d.answers?.systems || d.systems || d;
+      for (const key of ['general','headToToe','mentalStatus','neurologic','cardiovascular','respiratory','gastrointestinal','genitourinary','musculoskeletal','integumentary','psychological','pain','nutritionHydration','functionalMobility','safetyRisks','other']) {
+        lines.push([this.prettyLabel(key), systems[key]]);
+      }
+      lines.push(['Clinical summary', d.answers?.clinicalSummary || d.clinicalSummary || d.summary || d.notes]);
     } else if (kind === 'carePlan') {
       lines.push(
         ['Status', d.status || d.workflow?.state],
+        ['Description', d.description],
+        ['Start date', this.dateOnly(d.startDate)],
+        ['End date', this.dateOnly(d.endDate)],
         ['Goals', this.textValue(d.goals || d.goal || d.primaryGoal)],
+        ['Problems and goals', this.textValue(d.clinicalProblems)],
         ['Interventions', this.textValue(d.interventions || d.plan || d.treatmentPlan)],
         ['Frequency / follow-up', d.frequency || d.followUp || d.followUpPlan]
       );
@@ -415,6 +423,7 @@ export class ClinicalDocumentExportService {
         ['Order', d.description || d.orderText || d.order || d.orderType],
         ['Instructions', d.instructions || d.directions],
         ['Frequency', d.frequency],
+        ['Duration', d.duration || d.routine?.duration],
         ['Status', d.status || d.workflow?.state],
         ['Prescriber', d.orderedBy?.displayName || d.prescriberName || d.providerName]
       );
@@ -422,6 +431,8 @@ export class ClinicalDocumentExportService {
       lines.push(
         ['Topic', d.topic || d.title],
         ['Learner', this.textValue(d.learners || d.learner)],
+        ['Readiness to learn', d.readiness],
+        ['Teaching method', d.method],
         ['Teaching / instructions', d.content || d.education || d.instructions || d.notes],
         ['Response / understanding', this.textValue(d.response || d.understanding)]
       );
@@ -430,15 +441,21 @@ export class ClinicalDocumentExportService {
       const m = d.measurements || {};
       lines.push(
         ['Wound', [desc.type || d.type, desc.stage || d.stage, desc.location || d.location].filter(Boolean).join(' · ')],
+        ['Acquired', desc.acquired || d.acquired],
+        ['Staged by', desc.stagedBy],
         ['Measurements', this.measurementValue(m, d)],
+        ['Measured area', m.area !== undefined && m.area !== null ? `${m.area} cm²` : null],
+        ['Measured volume', m.volume !== undefined && m.volume !== null ? `${m.volume} cm³` : null],
         ['Wound bed / tissue', this.textValue(desc.tissue || d.tissue || d.woundBed)],
         ['Drainage', this.textValue(desc.drainage || d.drainage)],
         ['Exudate', this.textValue(d.exudate)],
         ['Pain', this.textValue(d.pain)],
         ['Tunneling / undermining', [m.tunneling, m.undermining].filter(Boolean).join(' / ')],
         ['Periwound / surrounding skin', this.textValue(desc.periwound || d.periwound || d.surrounding)],
-        ['Progress', d.progress?.status || d.status],
+        ['Progress', this.textValue(d.progress)],
+        ['Care goal', d.orders?.goalOfCare],
         ['Treatment performed', this.textValue(d.treatment || d.treatmentPerformed || d.interventions)],
+        ['Debridement procedure', this.textValue(d.debridementProcedure || d.debridement)],
         ['Provider review', d.providerReview?.providerNote],
         ['Review decision', d.providerReview?.decision],
         ['Reviewed by', d.providerReview?.reviewedByName],
@@ -452,6 +469,12 @@ export class ClinicalDocumentExportService {
         ['Plan', d.planNarrative || d.plan],
         ['Follow-up', d.followUp]
       );
+      if (d.amendmentReason) lines.push(['Addendum reason', d.amendmentReason]);
+    } else if (kind === 'visit') {
+      lines.push(['Visit type', d.visitType], ['Scheduled date', this.dateText(d.scheduledFor)],
+        ['Arrival', this.dateText(d.checkIn?.at || d.checkIn?.occurredAt || d.checkIn?.deviceReportedAt)],
+        ['Departure', this.dateText(d.checkOut?.at || d.checkOut?.occurredAt || d.checkOut?.deviceReportedAt)],
+        ['Clinician', d.performedByName || d.clinicianName], ['Billing provider', d.billingProviderName]);
     }
 
     const body = lines
@@ -461,10 +484,8 @@ export class ClinicalDocumentExportService {
 
     const signer = this.signerLabel(d);
     return `<div class="record">
-      <div class="record-title">
-        <span>${this.escape(this.recordTitle(kind, d))}</span>
-        <span class="small">${this.escape(this.dateText(d.assessedAt || d.effectiveAt || d.orderedAt || d.deliveredAt || d.createdAt) || '')}</span>
-      </div>
+      <h3 class="record-title">${this.escape(this.recordTitle(kind, d))}</h3>
+      <p class="small">${this.escape(this.dateText(d.assessedAt || d.effectiveAt || d.orderedAt || d.deliveredAt || d.createdAt) || '')}</p>
       ${body}
       <p class="record-meta">${this.escape(signer)}</p>
     </div>`;
@@ -483,29 +504,16 @@ export class ClinicalDocumentExportService {
   }
 
   private signerLabel(data: any): string {
-    const author = data.authorIdentity?.displayName || data.createdByName;
+    const author = data.authorIdentity?.displayName || data.createdByName || data.recordedByName || data.providerName || data.deliveredBy?.displayName || data.createdBy?.displayName;
     const signature = data.esign || data.signature;
-    if (signature?.signed === true) {
-      const name = signature.signerDisplayName || signature.signerIdentity?.displayName || signature.signer?.displayName;
+    if (signature?.signed === true || data.signed === true) {
+      const name = signature?.signerDisplayName || signature?.signerIdentity?.displayName || signature?.signer?.displayName || data.signatureIdentity?.displayName || data.signedByName;
       return [author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
         name ? `Electronically signed by ${name}` : 'Electronically signed; signer name not recorded',
-        this.dateText(signature.signedAt || signature.signedAtIso)].filter(Boolean).join(' · ');
+        this.dateText(signature?.signedAt || signature?.signedAtIso || data.signedAt)].filter(Boolean).join(' · ');
     }
-    const signer =
-      data.signature?.signer ||
-      data.esign?.signerIdentity ||
-      data.signerIdentity ||
-      data.signatureIdentity ||
-      data.authorIdentity ||
-      data.orderedBy ||
-      null;
-    if (!signer || typeof signer !== 'object') return '';
-    return [
-      signer.displayName,
-      signer.credentials,
-      signer.licenseNumber ? `License ${signer.licenseNumber}${signer.licenseState ? ` (${signer.licenseState})` : ''}` : null,
-      signer.npi ? `NPI ${signer.npi}` : null,
-    ].filter(Boolean).join(' · ');
+    return [author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
+      data.draft === true || data.status === 'draft' ? 'Draft — not signed' : 'No electronic signature recorded'].filter(Boolean).join(' · ');
   }
 
   private packetKv(label: string, value: any): string {
@@ -523,17 +531,32 @@ export class ClinicalDocumentExportService {
 
   private textValue(value: any): string {
     if (value === null || value === undefined) return '';
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (this.isTimestamp(value) || value instanceof Date) return this.dateText(value);
     if (Array.isArray(value)) return value.map((item) => this.textValue(item)).filter(Boolean).join('; ');
     if (typeof value === 'object') {
       return Object.entries(value)
-        .filter(([k, v]) => !/(?:id|uid|ids|uids|version|source|storagepath|downloadurl|photourl)$/i.test(k) && v !== null && v !== undefined && v !== '')
+        .filter(([k, v]) => !this.isTechnicalField(k) && v !== null && v !== undefined && v !== '')
         .map(([k, v]) => `${this.prettyLabel(k)}: ${this.textValue(v)}`)
         .join('; ');
     }
     return String(value);
   }
 
+  private isTechnicalField(key: string): boolean {
+    return /(?:Id|Uid|Ids|Uids)$/.test(key) || /^(id|uid)$/i.test(key) ||
+      ['orgId','facilityIds','identityVersion','capturedAtIso','source','sourceOfTruth','version','revision',
+        'storagePath','downloadURL','photoURL','workflow','locked','createdAt','updatedAt','createdBy','updatedBy',
+        'authorIdentity','signatureIdentity','esign','voiceProvenance','templateId','templateVersion',
+        'goalCatalogRefs','interventionCatalogRefs','audit','metadata'].includes(key);
+  }
+
   private dateOnly(value: any): string {
+    // Birth dates and plan dates are calendar dates, not UTC instants.
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split('-');
+      return `${month}/${day}/${year}`;
+    }
     const date = this.toDate(value);
     return date ? date.toLocaleDateString() : (typeof value === 'string' ? value : 'Not documented');
   }
@@ -561,7 +584,11 @@ export class ClinicalDocumentExportService {
       if (section.records.length) sections.push(section);
     }
 
-    const generatedAt = new Date();
+    return this.documentHtml(patient, sections);
+  }
+
+  private documentHtml(patient: any, sections: ClinicalPacketSection[]): string {
+    const patientName = patient.name || patient.displayName || 'Patient name not recorded';
     return `<!doctype html>
 <html>
 <head>
@@ -577,7 +604,8 @@ export class ClinicalDocumentExportService {
   .section { margin:0 0 22px; }
   .section h2 { margin:0 0 10px; padding:8px 10px; background:#eef7f3; border-left:4px solid #176b54; font-size:16px; }
   .record { padding:10px 0; margin:0 0 10px; }
-  h2,h3 { break-after:avoid; } h3 { font-size:13px; margin:12px 0 4px; color:#176b54; } p { margin:0 0 8px; orphans:3; widows:3; }
+  h2,h3 { break-after:avoid; } h3 { font-size:13px; margin:10px 0 3px; color:#176b54; } p { margin:0 0 6px; orphans:3; widows:3; }
+  .record-meta { break-before:avoid; break-inside:avoid; }
   .record-id { font-size:9px; color:#7a8793; margin-bottom:6px; }
   dl { margin:0; }
   .row { display:grid; grid-template-columns:170px 1fr; gap:10px; padding:4px 0; border-bottom:1px solid #eef2f5; }
@@ -586,17 +614,21 @@ export class ClinicalDocumentExportService {
   dd { margin:0; white-space:pre-wrap; word-break:break-word; }
   .empty { color:#7a8793; font-style:italic; }
   footer { margin-top:26px; border-top:1px solid #dbe3e9; padding-top:10px; color:#6b7785; font-size:10px; }
-  @media print { .no-print { display:none!important; } body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+  .print-document { width:100%; border-collapse:collapse; } .print-document td { padding:0; border:0; vertical-align:top; }
+  @media print { .no-print { display:none!important; } body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } thead {display:table-header-group} header {break-inside:avoid} }
 </style>
 </head>
 <body>
+<table class="print-document"><thead><tr><td>
 <header>
   <h1>Perry Home Wound Care</h1>
   <p>Tel: 478-310-4446 · Fax: 478-721-9473<br>support@perryhomewoundcare.network</p>
   <h2>${this.escape(patientName)}</h2>
   ${patient.dob || patient.dateOfBirth ? `<p>Date of birth: ${this.escape(this.dateOnly(patient.dob || patient.dateOfBirth))}</p>` : ''}
 </header>
+</td></tr></thead><tbody><tr><td>
 ${sections.map((section) => this.renderClinicalSection(section)).join('')}
+</td></tr></tbody></table>
 </body>
 </html>`;
   }
@@ -619,6 +651,48 @@ ${sections.map((section) => this.renderClinicalSection(section)).join('')}
     let rows = snap.docs.map((entry) => ({ id: entry.id, data: entry.data() as any }));
     if (cfg.filter) rows = rows.filter((row) => cfg.filter!(row.data));
     if (recordId) rows = rows.filter((row) => row.id === recordId);
+    const names = new Map<string, string>();
+    const nameFor = async (uid: unknown, orgId: unknown): Promise<string | null> => {
+      if (typeof uid !== 'string' || !uid || typeof orgId !== 'string' || !orgId) return null;
+      const key = `${orgId}:${uid}`;
+      if (names.has(key)) return names.get(key) || null;
+      try {
+        const profile = await getDoc(doc(db, 'users', uid));
+        const name = profile.exists() && profile.data()['orgId'] === orgId ? profile.data()['displayName'] || profile.data()['name'] : null;
+        names.set(key, typeof name === 'string' ? name : '');
+      } catch { names.set(key, ''); } // Missing directory access never prints the UID instead.
+      return names.get(key) || null;
+    };
+    for (const row of rows) {
+      const d = row.data;
+      if (!d.authorIdentity?.displayName && !d.createdByName && !d.recordedByName && !d.providerName) {
+        d.recordedByName = await nameFor(d.authorIdentity?.uid || d.recordedByUid || d.providerUid || d.createdByUid || (typeof d.createdBy === 'string' ? d.createdBy : d.createdBy?.uid), d.orgId);
+      }
+      if (d.esign?.signed && !d.esign.signerDisplayName && !d.esign.signerIdentity?.displayName) {
+        d.esign.signerDisplayName = await nameFor(d.esign.signerUid, d.orgId);
+      }
+      if (d.signed && !d.signatureIdentity?.displayName && !d.signedByName) d.signedByName = await nameFor(d.signedByUid, d.orgId);
+      if (d.providerReview && !d.providerReview.reviewedByName) d.providerReview.reviewedByName = await nameFor(d.providerReview.reviewedByUid, d.orgId);
+    }
+
+    if (kind === 'carePlan') {
+      for (const row of rows) {
+        const problems = await getDocs(collection(db, `${cfg.path}/${row.id}/problems`));
+        let catalog = new Map<string, string>();
+        if (row.data.orgId && problems.docs.some(p => (p.data()['goalCatalogRefs'] || []).length || (p.data()['interventionCatalogRefs'] || []).length)) {
+          const entries = await getDocs(collection(db, `organizations/${row.data.orgId}/carePlanCatalog`));
+          catalog = new Map(entries.docs.map(e => [e.id, String(e.data()['text'] || '')]));
+        }
+        row.data.clinicalProblems = problems.docs.map(p => {
+          const d = p.data();
+          const wording = (refs: unknown) => (Array.isArray(refs) ? refs : []).map(id => catalog.get(String(id)) || 'Referenced clinical wording unavailable');
+          return {category: this.prettyLabel(String(d['category'] || '')),
+            goals: [...wording(d['goalCatalogRefs']), ...(d['customGoals'] || [])],
+            interventions: [...wording(d['interventionCatalogRefs']), ...(d['customInterventions'] || [])],
+            status: d['status']};
+        });
+      }
+    }
 
     rows.sort((a, b) => this.dateMillis(b.data) - this.dateMillis(a.data));
     return { kind, title: cfg.title, records: rows };
@@ -630,11 +704,10 @@ ${sections.map((section) => this.renderClinicalSection(section)).join('')}
 
   private renderObject(value: any, prefix = ''): string {
     if (!value || typeof value !== 'object') return '';
-    const hidden = new Set(['photoURL', 'storagePath', 'downloadURL']);
     const rows: string[] = [];
 
     Object.keys(value).sort().forEach((key) => {
-      if (hidden.has(key)) return;
+      if (this.isTechnicalField(key)) return;
       const current = value[key];
       if (current === undefined || current === null || current === '') return;
       const label = prefix ? `${prefix} › ${key}` : key;
