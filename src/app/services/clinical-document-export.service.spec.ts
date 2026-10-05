@@ -57,4 +57,27 @@ describe('external clinical document presentation', () => {
   it('does not shift a birth date to the previous day in US time zones', () => {
     expect(service.dateOnly('1970-01-01')).toBe('01/01/1970');
   });
+  it('prints only HTTPS wound photos at 100x100, escapes captions and preserves proportions', () => {
+    const html = service.woundMedia({photoURL:'https://firebasestorage.googleapis.com/photo?token=example&x=1',describe:{location:'Heel <right>'}});
+    expect(html).toContain('width="100" height="100"');
+    expect(html).toContain('object-fit:contain'); expect(html).toContain('Heel &lt;right&gt;');
+    expect(service.woundMedia({photoURL:'javascript:alert(1)'})).not.toContain('<img');
+    expect(service.woundMedia({photoURL:'http://unsafe.example/photo'})).not.toContain('<img');
+  });
+  it('plots documented area/depth separately, keeps zero and breaks missing-value gaps', () => {
+    const html = service.woundMedia({printMeasurementHistory:[
+      {assessedAt:'2026-10-01T12:00:00Z',measurements:{area:7.5,depth:0.2}},
+      {assessedAt:'2026-10-02T12:00:00Z',measurements:{}},
+      {assessedAt:'2026-10-03T12:00:00Z',measurements:{area:0,depth:0}}
+    ]});
+    expect(html).toContain('Area (cm²)'); expect(html).toContain('Depth (cm)');
+    expect((html.match(/<circle /g) || []).length).toBe(4);
+    expect((html.match(/<line /g) || []).length).toBe(2); // axes only, not across missing evidence
+    expect(html).toContain('Not documented'); expect(html).not.toContain('NaN');
+  });
+  it('does not derive area from length/width or a single observation into a trend', () => {
+    const html = service.woundMedia({printMeasurementHistory:[{assessedAt:'2026-10-01',measurements:{length:3,width:2,depth:0.2}}]});
+    expect(html).not.toContain('<svg'); expect(html).toContain('Insufficient dated measurements');
+    expect(html).toContain('Not documented');
+  });
 });

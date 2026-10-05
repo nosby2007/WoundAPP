@@ -36,3 +36,11 @@ Catalog reference wording is read from the existing organization catalog,
 not fabricated. Legacy records without an author-time catalog snapshot cannot
 prove historical wording; missing references are visibly unavailable. Already
 finalized HTML snapshots are not rewritten by this change.
+# Wound photograph and longitudinal measurement extension
+
+- Reuses canonical `patients/{patientId}/woundAssessments`: existing `photoURL`, `woundId`, `orgId`, `assessedAt`, and `measurements` only. No database writes, new collections, rules changes or clinical inference.
+- Current assessment photograph prints at 100x100 CSS pixels with contain sizing, site and assessment date. HTTPS only; patient avatars are never used. The print dialog waits for images (15-second timeout), with unavailable downloads visibly indicated.
+- Each assessment includes prior measurements of the same wound and organization through its assessment date. Historical assessments never include later measurements. Missing wound linkage is conservatively treated as its own first assessment, never grouped by location text.
+- Area and depth have independent SVG axes and documented numeric values; missing, negative, nonnumeric and nonfinite values are not plotted. Missing values break curve segments. Zero is retained. No area calculated from length/width. Exact dated measurements accompany charts in a table; fewer than two values cannot produce a trend.
+- Unit tests cover dimensions, escaping, unsafe URLs, missing/zero measurements and insufficient history. Synthetic renderer verifier checks wound/tenant/date isolation and selected-record history before visual A4 PDF review.
+- Existing finalized document snapshots are not rewritten. Authenticated device printing and real Storage permissions remain an operational UAT step; synthetic QA is not evidence of those permissions.
