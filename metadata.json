@@ -1,0 +1,8 @@
+{
+  "name": "WoundAPP",
+  "description": "Bedside and field wound care clinical documentation platform integrated with JADE-SHOP EHR",
+  "version": "1.0.0",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

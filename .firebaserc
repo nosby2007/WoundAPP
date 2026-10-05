@@ -1,23 +1,7 @@
 {
   "projects": {
     "default": "woundapp-261e6",
-    "production": "woundapp-261e6",
-    "dev": "jade-dev-5b0e3"
-  },
-  "targets": {
-    "woundapp-261e6": {
-      "hosting": {
-        "innovacare-mobile": [
-          "innovacare-mobile"
-        ]
-      }
-    },
-    "jade-dev-5b0e3": {
-      "hosting": {
-        "innovacare-mobile": [
-          "jade-dev-5b0e3"
-        ]
-      }
-    }
+    "dev": "jade-dev-5b0e3",
+    "production": "woundapp-261e6"
   }
 }

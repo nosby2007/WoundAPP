@@ -1,0 +1,70 @@
+<ion-content class="pin-page" [fullscreen]="true">
+  <div class="pin-wrapper">
+
+    <div *ngIf="mode === 'loading'" class="pin-state">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading…</p>
+    </div>
+
+    <div *ngIf="mode === 'error'" class="pin-state">
+      <ion-icon name="alert-circle-outline" class="pin-badge danger"></ion-icon>
+      <h1>Unavailable</h1>
+    </div>
+
+    <ng-container *ngIf="mode === 'create' || mode === 'unlock'">
+      <ion-icon [name]="mode === 'create' ? 'lock-open-outline' : 'lock-closed-outline'"
+                class="pin-badge"></ion-icon>
+
+      <h1>{{ mode === 'create' ? 'Create your access code' : 'Access code' }}</h1>
+      <p class="pin-lead">
+        {{ mode === 'create'
+            ? 'Six digits, asked at every sign-in. Avoid a birth date or a run like 123456.'
+            : 'Enter your six digits to continue.' }}
+      </p>
+
+      <ion-input
+        class="pin-input"
+        type="password"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="••••••"
+        [(ngModel)]="pin"
+        (keyup.enter)="submit()"
+        label="6-digit code"
+        labelPlacement="stacked"
+        fill="outline"
+      ></ion-input>
+
+      <ion-input
+        *ngIf="mode === 'create'"
+        class="pin-input"
+        type="password"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="••••••"
+        [(ngModel)]="confirmPin"
+        (keyup.enter)="submit()"
+        label="Confirm the code"
+        labelPlacement="stacked"
+        fill="outline"
+      ></ion-input>
+
+      <p class="pin-error" *ngIf="mode === 'create' && confirmPin && pin !== confirmPin">
+        The two codes do not match.
+      </p>
+    </ng-container>
+
+    <p class="pin-error" *ngIf="errorMsg">{{ errorMsg }}</p>
+
+    <ion-button
+      *ngIf="mode === 'create' || mode === 'unlock'"
+      expand="block"
+      class="pin-submit"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ busy ? 'Checking…' : (mode === 'create' ? 'Save the code' : 'Unlock') }}
+    </ion-button>
+
+  </div>
+</ion-content>

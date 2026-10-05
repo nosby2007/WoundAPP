@@ -1,7 +1,7 @@
 {
   "hosting": {
-    "target": "innovacare-mobile",
-    "public": "dist/touch",
+    "public": "www",
+    "site": "innovacare-mobile",
     "ignore": [
       "firebase.json",
       "**/.*",

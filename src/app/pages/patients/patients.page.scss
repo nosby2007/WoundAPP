@@ -1,0 +1,84 @@
+/* Roster. The one screen a nurse opens every shift, so it is tuned for
+   scanning: identity first, hairline rows, no decoration competing with the
+   names. */
+.page-wrapper {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--app-space-4);
+}
+
+.searchbar {
+  --background: var(--app-surface);
+  --border-radius: var(--app-radius);
+  --box-shadow: var(--app-shadow-sm);
+  --color: var(--app-ink);
+  --placeholder-color: var(--app-ink-muted);
+  --icon-color: var(--app-ink-muted);
+  padding: 0;
+  margin-bottom: var(--app-space-4);
+}
+
+ion-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  overflow: hidden;
+  padding: 0;
+}
+
+.patient-item {
+  --background: transparent;
+  --border-color: var(--app-border);
+  --padding-start: var(--app-space-4);
+  --inner-padding-end: var(--app-space-3);
+  --min-height: 72px;
+  --detail-icon-color: var(--app-border-strong);
+  --detail-icon-opacity: 1;
+
+  &:last-of-type { --border-width: 0; }
+}
+
+/* Photo when the record has one, initials when it does not. A silhouette on
+   every row gives the eye nothing to catch. */
+.patient-avatar {
+  width: 44px;
+  height: 44px;
+  margin-inline-end: var(--app-space-3);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+}
+
+.avatar-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.patient-name {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--app-ink);
+  letter-spacing: -0.01em;
+}
+
+.patient-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1);
+  margin-top: 2px;
+  font-size: 0.82rem;
+  color: var(--app-ink-muted);
+
+  .meta-dob { font-variant-numeric: tabular-nums; }
+}

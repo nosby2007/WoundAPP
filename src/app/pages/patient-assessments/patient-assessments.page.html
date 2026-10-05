@@ -1,0 +1,232 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-button fill="clear" slot="start" (click)="back()" style="color: aliceblue;">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+    </ion-button>
+    <ion-title>{{ patientName() }}</ion-title>
+
+    <ion-button slot="center" fill="clear" color="pink" (click)="newAssessment()" style="color: rgb(252, 3, 239);">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-button>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page">
+
+    <div class="evv-card" [class.evv-on]="openVisit()">
+      <div class="evv-row">
+        <ion-icon name="location-outline"></ion-icon>
+        <div class="evv-text">
+          <strong *ngIf="evvCompleted()">Visit completed</strong>
+          <strong *ngIf="!evvCompleted() && !openVisit()">Not checked in</strong>
+          <strong *ngIf="!evvCompleted() && openVisit()">On site</strong>
+          <ion-note *ngIf="!evvCompleted() && openVisit()">{{ locationText() }}</ion-note>
+          <ion-note *ngIf="evvCompleted()">Checked out. EVV arrival and departure recorded.</ion-note>
+          <ion-note *ngIf="!evvCompleted() && !openVisit()">Record your arrival so the visit can be verified.</ion-note>
+        </div>
+        <ion-button *ngIf="!openVisit() && !evvCompleted()" size="small" [disabled]="evvBusy()" (click)="checkIn()">
+          <ion-icon slot="start" name="log-in-outline"></ion-icon>Check in
+        </ion-button>
+        <ion-button *ngIf="openVisit() && !evvCompleted()" size="small" color="success" [disabled]="evvBusy() && !!evvBusySince" (click)="beginCheckOut()">
+          <ion-icon slot="start" name="log-out-outline"></ion-icon>Check out
+        </ion-button>
+      </div>
+
+      <div class="evv-attest" *ngIf="attesting()">
+        <div class="evv-attest-title">Did the patient or their responsible party confirm this visit?</div>
+        <ion-radio-group [ngModel]="attestMethod()" (ngModelChange)="attestMethod.set($event)">
+          <ion-item lines="none" *ngFor="let m of attestationMethods">
+            <ion-radio [value]="m.value" labelPlacement="end" justify="start">{{ m.label }}</ion-radio>
+          </ion-item>
+        </ion-radio-group>
+        <ion-item lines="none" *ngIf="needsName()"><ion-input label="Who confirmed it" labelPlacement="stacked" placeholder="Name" [ngModel]="attestName()" (ngModelChange)="attestName.set($event)"></ion-input></ion-item>
+        <ion-item lines="none" *ngIf="needsName()"><ion-input label="Relationship" labelPlacement="stacked" placeholder="patient / responsible party" [ngModel]="attestRelationship()" (ngModelChange)="attestRelationship.set($event)"></ion-input></ion-item>
+        <ion-item lines="none" *ngIf="needsReason()"><ion-input label="Why not" labelPlacement="stacked" placeholder="e.g. patient asleep, no RP present" [ngModel]="attestReason()" (ngModelChange)="attestReason.set($event)"></ion-input></ion-item>
+        <div class="evv-attest-actions">
+          <ion-button size="small" [disabled]="!attestMethod() || evvBusy()" (click)="confirmAttestation()">Record &amp; check out</ion-button>
+          <ion-button size="small" fill="clear" color="medium" [disabled]="evvBusy()" (click)="checkOutWithoutAttestation()">Check out without</ion-button>
+          <ion-button size="small" fill="clear" color="medium" (click)="cancelAttestation()">Cancel</ion-button>
+        </div>
+        <div class="evv-attest-note">Leaving it blank records that nobody was asked — which is honest. Choosing “not required” when it was not asked is not.</div>
+      </div>
+      <div class="evv-msg" *ngIf="evvMessage()">{{ evvMessage() }}</div>
+    </div>
+
+    <section class="readiness-panel" *ngIf="workflowCompletion() as readiness">
+      <div class="readiness-head">
+        <div>
+          <span>VISIT READINESS</span>
+          <strong>{{ readiness.completed }}/{{ readiness.totalRequired }} required steps complete</strong>
+        </div>
+        <ion-button size="small" fill="clear" [disabled]="readinessBusy()" (click)="refreshReadiness()">Refresh</ion-button>
+      </div>
+      <div class="missing" *ngIf="readiness.missingRequired.length">
+        <strong>Missing before close-out:</strong>
+        <span *ngFor="let item of readiness.missingRequired">{{ workflowLabel(item) }}</span>
+      </div>
+      <div class="ready-ok" *ngIf="!readiness.missingRequired.length">Required documentation is complete for this workflow.</div>
+      <div class="quality" *ngIf="qualityFindings().length">
+        <strong>{{ qualityFindings().length }} quality review item{{ qualityFindings().length === 1 ? '' : 's' }}</strong>
+        <div *ngFor="let finding of qualityFindings().slice(0, 4)" [class.high]="finding.severity === 'high'">
+          {{ finding.title }} — {{ finding.message }}
+        </div>
+      </div>
+    </section>
+
+    <section class="clinical-command">
+      <div class="clinical-command-head">
+        <div><span>CLINICAL COMMAND</span><h2>Assess · Plan · Order · Teach · Document</h2></div>
+        <small>Each completed circle can be printed or securely shared.</small>
+      </div>
+
+      <div class="packet-actions">
+        <div class="packet-note">Visit-specific professional record for continuity of care or payer review. Unlinked historical chart data is excluded.</div>
+        <ion-button size="small" fill="solid" [disabled]="documentBusy()" (click)="printVisitPacket()">
+          <ion-icon slot="start" name="documents-outline"></ion-icon>Print clinical record
+        </ion-button>
+        <ion-button size="small" fill="outline" [disabled]="documentBusy()" (click)="shareVisitPacket()">
+          <ion-icon slot="start" name="share-outline"></ion-icon>Send clinical record
+        </ion-button>
+      </div>
+
+      <div class="document-flow">
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="printClinicalDocument('visit')">
+            <span class="circle-index">1</span><strong>Check-in / Visit</strong><small>EVV arrival & departure</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('visit')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('visit')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openPatientAssessment()">
+            <span class="circle-index">2</span><strong>Patient Assessment</strong><small>General clinical assessment</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('assessment')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('assessment')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openBraden()">
+            <span class="circle-index">3</span><strong>Braden</strong><small>Risk assessment</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('braden')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('braden')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openSystemicAssessment()">
+            <span class="circle-index">4</span><strong>Physical Assessment</strong><small>Systemic / head-to-toe</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('systemic')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('systemic')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openCarePlan()">
+            <span class="circle-index">5</span><strong>Wound Care Plan</strong><small>Goals for the selected wound</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('carePlan')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('carePlan')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openOrders()">
+            <span class="circle-index">6</span><strong>Orders</strong><small>Provider treatment orders</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('order')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('order')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openEducation()">
+            <span class="circle-index">7</span><strong>Education</strong><small>Patient / caregiver teaching</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('education')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('education')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="newAssessment()">
+            <span class="circle-index">8</span><strong>Wound Assessment</strong><small>Measurements & wound findings</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+
+        <div class="document-circle">
+          <button class="circle-main" type="button" (click)="openWoundNote()">
+            <span class="circle-index">9</span><strong>Progress Note</strong><small>Visit narrative / wound note</small>
+          </button>
+          <div class="circle-actions">
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('progressNote')"><ion-icon name="print-outline"></ion-icon></ion-button>
+            <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('progressNote')"><ion-icon name="share-outline"></ion-icon></ion-button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)"></ion-searchbar>
+
+    <div *ngIf="loading()" class="center"><ion-spinner name="crescent"></ion-spinner></div>
+    <div *ngIf="!loading() && errorMsg()" class="error">{{ errorMsg() }}</div>
+    <div *ngIf="!loading() && !errorMsg() && !filteredAssessments().length" class="empty">No wounds recorded for this patient.</div>
+
+    <ion-list *ngIf="!loading() && !errorMsg() && filteredAssessments().length">
+      <ion-item button *ngFor="let a of filteredAssessments()" (click)="openAssessment(a)" class="assessment-item">
+        <ion-avatar slot="start" class="thumb">
+          <img *ngIf="a.photoURL" [src]="a.photoURL" alt="wound">
+          <ion-icon *ngIf="!a.photoURL" name="image-outline"></ion-icon>
+        </ion-avatar>
+        <ion-label class="assessment-main">
+          <div class="assessment-left"><h2 class="assessment-title">{{ a.type || 'Assessment' }}</h2>
+            <p class="assessment-sub">{{ a.location || 'Location N/A' }}<span *ngIf="a.assessedAt"> · {{ a.assessedAt | date: 'MM/dd/yyyy' }}</span><span *ngIf="a.assessmentCount > 1" class="reeval-count"> · {{ a.assessmentCount }} assessments</span></p>
+            <div class="wound-mobile-actions">
+              <ion-button size="small" fill="outline" class="btn-care-plan care-plan-mobile" (click)="$event.stopPropagation(); openWoundCarePlan(a)">
+                <ion-icon slot="start" name="reader-outline"></ion-icon>
+                Care plan
+              </ion-button>
+              <ion-button size="small" fill="solid" class="btn-reeval reeval-mobile" (click)="$event.stopPropagation(); reEvaluate(a)">
+                <ion-icon slot="start" name="refresh-outline"></ion-icon>
+                Re-evaluate
+              </ion-button>
+            </div>
+          </div>
+          <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
+        </ion-label>
+        <div class="actions" slot="end" (click)="$event.stopPropagation()">
+          <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment', a.id)" aria-label="Print this wound assessment"><ion-icon slot="icon-only" name="print-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment', a.id)" aria-label="Send this wound assessment"><ion-icon slot="icon-only" name="share-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="clear" class="btn-care-plan care-plan-desktop" (click)="openWoundCarePlan(a)" aria-label="Open this wound care plan"><ion-icon slot="icon-only" name="reader-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="solid" class="btn-reeval reeval-desktop" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
+        </div>
+      </ion-item>
+    </ion-list>
+  </div>
+</ion-content>
+
+<ion-fab vertical="bottom" horizontal="end" slot="fixed">
+  <ion-fab-button color="primary" (click)="newAssessment()"><ion-icon name="add"></ion-icon></ion-fab-button>
+</ion-fab>

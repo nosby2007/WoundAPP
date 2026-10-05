@@ -1,0 +1,118 @@
+import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { IonBadge, IonButton, IonCard, IonCardContent, IonContent, IonHeader, IonIcon, IonInput, IonItem, IonNote, IonSelect, IonSelectOption, IonSpinner, IonTitle, IonToolbar, ToastController } from '@ionic/angular/standalone';
+import { addCircleOutline, businessOutline, calendarOutline, chevronForwardOutline, pulseOutline, shieldCheckmarkOutline, sparklesOutline } from 'ionicons/icons';
+import { Subscription } from 'rxjs';
+import { MobileFacility, MobileRoundPatient, MobileWoundRound, WoundRoundMobileService } from '../../services/wound-round.service';
+
+@Component({
+  selector: 'app-wound-rounds',
+  standalone: true,
+  imports: [CommonModule, FormsModule, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonBadge, IonCard, IonCardContent, IonItem, IonSelect, IonSelectOption, IonInput, IonSpinner, IonNote],
+  template: `
+    <ion-header class="ion-no-border"><ion-toolbar><ion-title>Wound Rounds</ion-title></ion-toolbar></ion-header>
+    <ion-content>
+      <div class="page">
+        <section class="hero">
+          <div><p class="eyebrow">FACILITY COMMAND</p><h1>One building. One round. Every wound in view.</h1><p>Designed for provider rounds on iPad, with the same shared clinical record used by JADE-SHOP.</p></div>
+          <div class="pulse"><ion-icon [icon]="pulseOutline"></ion-icon><span>Live clinical workspace</span></div>
+        </section>
+
+        <section class="metrics">
+          <div><strong>{{ activeCount }}</strong><span>Active rounds</span></div><div><strong>{{ scheduledCount }}</strong><span>Scheduled</span></div><div><strong>{{ duePatients }}</strong><span>Patients due</span></div><div><strong>{{ completionRate }}%</strong><span>Completion</span></div>
+        </section>
+
+        <section class="launch" *ngIf="canAuthor">
+          <div class="launch-head"><div><p class="eyebrow dark">ROUND MODE</p><h2>Start a facility round</h2><p>Roster is built at the moment the round starts so admissions and discharges stay current.</p></div><ion-icon [icon]="sparklesOutline"></ion-icon></div>
+
+          <div class="catalog-state" *ngIf="facilitiesLoading">
+            <ion-spinner name="crescent"></ion-spinner>
+            <div><strong>Loading facility catalog</strong><span>Using the same organization facility directory as JADE-SHOP.</span></div>
+          </div>
+
+          <div class="catalog-state warning" *ngIf="!facilitiesLoading && facilityError">
+            <ion-icon [icon]="businessOutline"></ion-icon>
+            <div><strong>Facility catalog unavailable</strong><span>{{ facilityError }}</span></div>
+          </div>
+
+          <div class="catalog-state neutral" *ngIf="!facilitiesLoading && !facilityError && !facilities.length">
+            <ion-icon [icon]="businessOutline"></ion-icon>
+            <div><strong>No active facilities found</strong><span>Add or activate a facility in the organization facility catalog before starting a round.</span></div>
+          </div>
+
+          <div class="launch-grid" *ngIf="!facilitiesLoading && !facilityError && facilities.length">
+            <ion-item lines="none"><ion-select label="Facility" labelPlacement="stacked" [(ngModel)]="facilityId" interface="popover"><ion-select-option *ngFor="let f of facilities" [value]="f.id">{{ f.name }}</ion-select-option></ion-select></ion-item>
+            <ion-item lines="none"><ion-input label="Round date" labelPlacement="stacked" type="date" [(ngModel)]="roundDate"></ion-input></ion-item>
+            <ion-button [disabled]="busy || !facilityId || !roundDate" (click)="startRound()"><ion-spinner *ngIf="busy" name="crescent"></ion-spinner><ng-container *ngIf="!busy"><ion-icon slot="start" [icon]="addCircleOutline"></ion-icon>Start round</ng-container></ion-button>
+          </div>
+        </section>
+
+        <section class="readonly" *ngIf="!canAuthor"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon><div><strong>Facility review mode</strong><p>Your role can review permitted wound rounds but cannot start or modify PHWC clinical operations.</p></div></section>
+
+        <section class="section" *ngIf="inProgress.length">
+          <div class="section-head"><div><p class="eyebrow dark">IN PROGRESS</p><h2>Continue where you left off</h2></div><ion-badge color="success">{{ inProgress.length }}</ion-badge></div>
+          <ion-card class="round hero-round" *ngFor="let round of inProgress" button="true" (click)="open(round)"><ion-card-content><div class="round-grid"><div class="facility-icon"><ion-icon [icon]="businessOutline"></ion-icon></div><div><span class="micro">{{ round.roundDate }}</span><h3>{{ round.facilityName }}</h3><p>{{ progress(round).done }} of {{ progress(round).total }} resolved · {{ progress(round).percent }}%</p><div class="bar"><span [style.width.%]="progress(round).percent"></span></div></div><ion-icon [icon]="chevronForwardOutline"></ion-icon></div></ion-card-content></ion-card>
+        </section>
+
+        <section class="section" *ngIf="scheduled.length">
+          <div class="section-head"><div><p class="eyebrow dark">UPCOMING</p><h2>Scheduled rounds</h2></div><ion-badge>{{ scheduled.length }}</ion-badge></div>
+          <ion-card class="round" *ngFor="let round of scheduled"><ion-card-content><div class="round-grid"><div class="facility-icon soft"><ion-icon [icon]="calendarOutline"></ion-icon></div><div><span class="micro">{{ round.roundDate }}</span><h3>{{ round.facilityName }}</h3><p>Roster will be generated when the round begins.</p></div><ion-button *ngIf="canAuthor" fill="outline" size="small" [disabled]="busy" (click)="$event.stopPropagation(); startScheduled(round)">Start</ion-button><ion-icon *ngIf="!canAuthor" [icon]="chevronForwardOutline" (click)="open(round)"></ion-icon></div></ion-card-content></ion-card>
+        </section>
+
+        <section class="section" *ngIf="recent.length">
+          <div class="section-head"><div><p class="eyebrow dark">RECENT</p><h2>Completed rounds</h2></div></div>
+          <ion-card class="round compact" *ngFor="let round of recent" button="true" (click)="open(round)"><ion-card-content><div class="round-grid"><div class="facility-icon done"><ion-icon [icon]="shieldCheckmarkOutline"></ion-icon></div><div><span class="micro">{{ round.roundDate }}</span><h3>{{ round.facilityName }}</h3><p>{{ progress(round).total }} patients · QA {{ round.qaStatus || 'not ready' }}</p></div><ion-icon [icon]="chevronForwardOutline"></ion-icon></div></ion-card-content></ion-card>
+        </section>
+
+        <div class="empty" *ngIf="!loading && !rounds.length"><ion-icon [icon]="businessOutline"></ion-icon><h2>No wound rounds yet</h2><p>Start the first facility round when the provider arrives on site.</p></div>
+        <div class="loading" *ngIf="loading"><ion-spinner></ion-spinner><p>Loading facility rounds…</p></div>
+        <ion-note class="foot">Wound Round data stays in the shared woundRounds collection; this mobile workspace does not create a parallel chart.</ion-note>
+      </div>
+    </ion-content>
+  `,
+  styles: [`
+    :host{--ink:#10233f;--muted:#687b8f;--green:#087455;--navy:#173d5d}ion-toolbar{--background:#fff;--color:var(--ink)}.page{background:#f3f7f9;min-height:100%;padding:16px 16px 44px}.hero{background:radial-gradient(circle at 92% 8%,rgba(255,255,255,.19),transparent 24%),linear-gradient(145deg,#0a7654,#163b5c 80%);color:#fff;border-radius:30px;padding:25px;display:flex;justify-content:space-between;align-items:end;gap:22px;box-shadow:0 20px 48px rgba(20,62,84,.2)}.hero h1{font-size:30px;margin:5px 0 8px;max-width:760px}.hero p{margin:0;opacity:.78}.eyebrow{font-size:10px;letter-spacing:.17em;font-weight:850;margin:0}.eyebrow.dark{color:#5b7489}.pulse{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.11);padding:9px 12px;border-radius:999px;font-size:11px;white-space:nowrap}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.metrics div{background:#fff;border-radius:20px;padding:16px;box-shadow:0 5px 18px rgba(30,55,75,.05)}.metrics strong{display:block;color:var(--ink);font-size:24px}.metrics span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.launch{background:#fff;border-radius:26px;padding:18px;margin:16px 0;box-shadow:0 8px 28px rgba(31,62,82,.07)}.launch-head{display:flex;justify-content:space-between;align-items:start}.launch-head h2{margin:3px 0;color:var(--ink)}.launch-head p{margin:0;color:var(--muted);font-size:12px}.launch-head>ion-icon{font-size:28px;color:var(--green)}.launch-grid{display:grid;grid-template-columns:1.5fr 1fr auto;gap:10px;margin-top:14px;align-items:end}.launch ion-item{--background:#f7fafb;border-radius:15px}.catalog-state{display:flex;align-items:center;gap:12px;margin-top:14px;padding:14px;border-radius:16px;background:#f3f8fa;color:var(--ink)}.catalog-state.warning{background:#fff5e8;color:#775419}.catalog-state.neutral{background:#f7f9fb;color:#516578}.catalog-state ion-icon,.catalog-state ion-spinner{font-size:24px;min-width:24px}.catalog-state strong{display:block;font-size:13px}.catalog-state span{display:block;margin-top:2px;font-size:11px;line-height:1.4;opacity:.8}.readonly{display:flex;gap:12px;align-items:center;background:#fff7e6;color:#75571d;border-radius:20px;padding:15px;margin:16px 0}.readonly ion-icon{font-size:26px}.readonly p{margin:2px 0;font-size:11px}.section{margin-top:25px}.section-head{display:flex;justify-content:space-between;align-items:end;margin:0 4px 9px}.section-head h2{margin:3px 0;color:var(--ink);font-size:20px}.round{border-radius:22px;margin:9px 0;box-shadow:0 7px 22px rgba(30,55,75,.06)}.hero-round{border:1px solid #d9eee5}.round-grid{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center}.facility-icon{width:54px;height:54px;border-radius:18px;background:#e9f7f1;color:var(--green);display:grid;place-items:center}.facility-icon.soft{background:#edf4fa;color:#315f85}.facility-icon.done{background:#eef7f3}.facility-icon ion-icon{font-size:25px}.round h3{margin:3px 0;color:var(--ink);font-size:17px}.round p{margin:0;color:var(--muted);font-size:11px}.micro{font-size:9px;letter-spacing:.11em;font-weight:800;color:#5e778b}.bar{height:5px;background:#e8eef2;border-radius:999px;overflow:hidden;margin-top:9px}.bar span{display:block;height:100%;background:var(--green)}.empty,.loading{text-align:center;background:#fff;border-radius:24px;padding:34px 20px;color:var(--muted)}.empty ion-icon{font-size:38px;color:var(--green)}.empty h2{color:var(--ink)}.foot{display:block;text-align:center;margin-top:22px;font-size:10px}@media(max-width:720px){.hero{display:block}.pulse{margin-top:16px;width:max-content}.metrics{grid-template-columns:repeat(2,1fr)}.launch-grid{grid-template-columns:1fr}}
+  `],
+})
+export class WoundRoundsPage implements OnInit, OnDestroy {
+  readonly addCircleOutline=addCircleOutline; readonly businessOutline=businessOutline; readonly calendarOutline=calendarOutline; readonly chevronForwardOutline=chevronForwardOutline; readonly pulseOutline=pulseOutline; readonly shieldCheckmarkOutline=shieldCheckmarkOutline; readonly sparklesOutline=sparklesOutline;
+  facilities: MobileFacility[]=[]; rounds: MobileWoundRound[]=[]; loading=true; facilitiesLoading=true; facilityError=''; busy=false; canAuthor=false; facilityId=''; roundDate=this.today(); private subs=new Subscription();
+  constructor(private roundsService:WoundRoundMobileService,private router:Router,private toast:ToastController){}
+  async ngOnInit():Promise<void>{
+    this.canAuthor=await this.roundsService.canAuthor().catch(()=>false);
+    if(this.canAuthor){
+      this.subs.add(this.roundsService.facilities$().subscribe({
+        next:v=>{this.facilities=v;this.facilitiesLoading=false;this.facilityError='';if(v.length===1&&!this.facilityId)this.facilityId=v[0].id},
+        error:async()=>{this.facilitiesLoading=false;this.facilityError='Could not read the organization facility catalog.';await this.message('Facility catalog is temporarily unavailable','danger')}
+      }));
+    }else{
+      this.facilitiesLoading=false;
+    }
+    this.subs.add(this.roundsService.rounds$().subscribe({next:v=>{this.rounds=v;this.loading=false},error:async()=>{this.loading=false;await this.message('Wound rounds are temporarily unavailable','danger')}}));
+  }
+  ngOnDestroy():void{this.subs.unsubscribe()}
+  get inProgress(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='in_progress')}
+  get scheduled(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='scheduled').sort((a:MobileWoundRound,b:MobileWoundRound)=>a.roundDate.localeCompare(b.roundDate))}
+  get recent(): MobileWoundRound[]{return this.rounds.filter((r:MobileWoundRound)=>r.status==='completed').slice(0,12)}
+  get activeCount(): number{return this.inProgress.length}
+  get scheduledCount(): number{return this.scheduled.length}
+  get duePatients(): number{
+    return this.roundPatients(this.inProgress)
+      .filter((patient:MobileRoundPatient)=>patient.status==='pending'||patient.status==='in_progress').length;
+  }
+  get completionRate(): number{
+    const patients=this.roundPatients(this.inProgress);
+    if(!patients.length)return 0;
+    const resolved=patients.filter((patient:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(patient.status)).length;
+    return Math.round(resolved/patients.length*100);
+  }
+  progress(round:MobileWoundRound){const total=(round.patients||[]).length;const done=(round.patients||[]).filter((patient:MobileRoundPatient)=>['evaluated','seen','skipped'].includes(patient.status)).length;return{total,done,percent:total?Math.round(done/total*100):0}}
+  async startRound(){const facility=this.facilities.find((f:MobileFacility)=>f.id===this.facilityId);if(!facility)return;this.busy=true;try{const id=await this.roundsService.startRound(facility,this.roundDate);void this.router.navigate(['/tabs/wound-rounds',id])}catch(e:any){await this.message(e?.message||'Could not start round','danger')}finally{this.busy=false}}
+  async startScheduled(round:MobileWoundRound){this.busy=true;try{await this.roundsService.startScheduled(round.id);void this.router.navigate(['/tabs/wound-rounds',round.id])}catch(e:any){await this.message(e?.message||'Could not start round','danger')}finally{this.busy=false}}
+  open(round:MobileWoundRound){void this.router.navigate(['/tabs/wound-rounds',round.id])}
+  private roundPatients(rounds:MobileWoundRound[]): MobileRoundPatient[]{return rounds.reduce((all:MobileRoundPatient[],round:MobileWoundRound)=>all.concat(round.patients||[]),[])}
+  private today(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  private async message(message:string,color?:string){const t=await this.toast.create({message,duration:2200,color});await t.present()}
+}

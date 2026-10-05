@@ -1,0 +1,3795 @@
+From 8ef08a005c432fc85b0cb40495886df6dc8043d2 Mon Sep 17 00:00:00 2001
+From: nosby2007 <nosby2007@gmail.com>
+Date: Sun, 4 Oct 2026 03:47:17 +0000
+Subject: [PATCH] feat(clinical): JADE algorithm, safety rule engine & bedside
+ PUSH trajectory
+
+---
+ .env.example                                  |   1 +
+ .npmrc                                        |   1 +
+ metadata.json                                 |   8 +
+ package.json                                  |   8 +-
+ server.js                                     |  77 ++
+ .../wound-history/wound-history.page.html     |  51 +-
+ .../wound-history/wound-history.page.scss     |  34 +
+ .../pages/wound-history/wound-history.page.ts |  76 +-
+ src/app/services/assessments.service.ts       |  65 +-
+ .../clinical-safety-rule-engine.service.ts    |  99 +++
+ src/app/services/mobile-order.service.ts      | 168 +++++
+ .../shared/bedside-safety-banner.component.ts | 442 ++++++++++++
+ src/app/shared/clinical-safety-rules.spec.ts  | 103 +++
+ src/app/shared/clinical-safety-rules.ts       | 593 +++++++++++++++
+ .../healing-trajectory-graph.component.ts     | 683 ++++++++++++++++++
+ src/app/shared/jade-care-algorithm.spec.ts    | 114 +++
+ src/app/shared/jade-care-algorithm.ts         | 558 ++++++++++++++
+ src/app/shared/push-score.spec.ts             |  99 +++
+ src/app/shared/push-score.ts                  | 331 +++++++++
+ 19 files changed, 3466 insertions(+), 45 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 .npmrc
+ create mode 100644 metadata.json
+ create mode 100644 server.js
+ create mode 100644 src/app/services/clinical-safety-rule-engine.service.ts
+ create mode 100644 src/app/shared/bedside-safety-banner.component.ts
+ create mode 100644 src/app/shared/clinical-safety-rules.spec.ts
+ create mode 100644 src/app/shared/clinical-safety-rules.ts
+ create mode 100644 src/app/shared/healing-trajectory-graph.component.ts
+ create mode 100644 src/app/shared/jade-care-algorithm.spec.ts
+ create mode 100644 src/app/shared/jade-care-algorithm.ts
+ create mode 100644 src/app/shared/push-score.spec.ts
+ create mode 100644 src/app/shared/push-score.ts
+
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..f942f33
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1 @@
++FIREBASE_API_KEY=
+diff --git a/.npmrc b/.npmrc
+new file mode 100644
+index 0000000..521a9f7
+--- /dev/null
++++ b/.npmrc
+@@ -0,0 +1 @@
++legacy-peer-deps=true
+diff --git a/metadata.json b/metadata.json
+new file mode 100644
+index 0000000..af6709e
+--- /dev/null
++++ b/metadata.json
+@@ -0,0 +1,8 @@
++{
++  "name": "WoundAPP",
++  "description": "Bedside and field wound care clinical documentation platform integrated with JADE-SHOP EHR",
++  "version": "1.0.0",
++  "capabilities": [
++    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
++  ]
++}
+diff --git a/package.json b/package.json
+index e19f9f4..2451842 100644
+--- a/package.json
++++ b/package.json
+@@ -5,12 +5,14 @@
+   "homepage": "https://ionicframework.com/",
+   "scripts": {
+     "ng": "ng",
+-    "start": "ng serve",
++    "dev": "node server.js",
++    "start": "node server.js",
+     "build": "ng build",
+     "watch": "ng build --watch --configuration development",
+     "test": "ng test",
+     "test:ci": "ng test --watch=false --browsers=ChromeHeadlessNoSandbox",
+-    "lint": "ng lint"
++    "lint": "ng lint",
++    "build:watch": "ng build --watch --configuration development"
+   },
+   "private": true,
+   "dependencies": {
+@@ -69,4 +71,4 @@
+     "typescript": "~5.9.0"
+   },
+   "description": "An Ionic project"
+-}
++}
+\ No newline at end of file
+diff --git a/server.js b/server.js
+new file mode 100644
+index 0000000..83d5f7b
+--- /dev/null
++++ b/server.js
+@@ -0,0 +1,77 @@
++const http = require("http");
++const fs = require("fs");
++const path = require("path");
++
++const args = process.argv.slice(2);
++let port = process.env.PORT || 3000;
++for (let i = 0; i < args.length; i++) {
++  if (args[i] === "--port" && args[i + 1]) {
++    port = parseInt(args[i + 1], 10);
++  }
++}
++
++const WWW_DIR = path.resolve(__dirname, "www");
++
++const MIME_TYPES = {
++  ".html": "text/html; charset=utf-8",
++  ".js": "application/javascript; charset=utf-8",
++  ".mjs": "application/javascript; charset=utf-8",
++  ".css": "text/css; charset=utf-8",
++  ".json": "application/json; charset=utf-8",
++  ".png": "image/png",
++  ".jpg": "image/jpeg",
++  ".jpeg": "image/jpeg",
++  ".gif": "image/gif",
++  ".svg": "image/svg+xml",
++  ".ico": "image/x-icon",
++  ".woff": "font/woff",
++  ".woff2": "font/woff2",
++  ".ttf": "font/ttf",
++  ".map": "application/json"
++};
++
++const server = http.createServer((req, res) => {
++  res.setHeader("Access-Control-Allow-Origin", "*");
++  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
++  res.setHeader("Access-Control-Allow-Headers", "*");
++
++  if (req.method === "OPTIONS") {
++    res.writeHead(204);
++    res.end();
++    return;
++  }
++
++  const urlPath = req.url.split("?")[0];
++  const targetPath = path.resolve(WWW_DIR, "." + urlPath);
++
++  // Prevent directory traversal
++  if (!targetPath.startsWith(WWW_DIR)) {
++    res.writeHead(403, { "Content-Type": "text/plain" });
++    res.end("Forbidden");
++    return;
++  }
++
++  fs.stat(targetPath, (err, stats) => {
++    if (!err && stats.isFile()) {
++      const ext = path.extname(targetPath).toLowerCase();
++      const contentType = MIME_TYPES[ext] || "application/octet-stream";
++      res.writeHead(200, { "Content-Type": contentType });
++      fs.createReadStream(targetPath).pipe(res);
++    } else {
++      const indexPath = path.join(WWW_DIR, "index.html");
++      fs.readFile(indexPath, (readErr, content) => {
++        if (readErr) {
++          res.writeHead(404, { "Content-Type": "text/plain" });
++          res.end("Not Found");
++        } else {
++          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
++          res.end(content);
++        }
++      });
++    }
++  });
++});
++
++server.listen(port, "0.0.0.0", () => {
++  console.log("App serving from " + WWW_DIR + " on http://0.0.0.0:" + port);
++});
+diff --git a/src/app/pages/wound-history/wound-history.page.html b/src/app/pages/wound-history/wound-history.page.html
+index 16ca4cd..e46436d 100644
+--- a/src/app/pages/wound-history/wound-history.page.html
++++ b/src/app/pages/wound-history/wound-history.page.html
+@@ -1,45 +1,72 @@
+ <!-- src/app/pages/wound-history/wound-history.page.html -->
+ <ion-header>
+-  <ion-toolbar>
++  <ion-toolbar color="primary">
+     <ion-buttons slot="start">
+       <ion-back-button (click)="backToList()">Back</ion-back-button>
+     </ion-buttons>
+-    <ion-title>Wound history</ion-title>
++    <ion-title>Wound History & Trajectory</ion-title>
+   </ion-toolbar>
+ </ion-header>
+ 
+-<ion-content>
+-  <ion-refresher slot="fixed">
++<ion-content class="ion-padding">
++  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+     <ion-refresher-content></ion-refresher-content>
+   </ion-refresher>
+ 
+   <div class="page-wrapper">
++    <!-- Top Action: New Assessment -->
+     <div class="app-actions history-action">
+       <ion-button expand="block" (click)="newAssessmentForThisWound()">
+         <ion-icon name="add-outline" slot="start"></ion-icon>
+-        New assessment for this wound
++        New Assessment for This Wound
+       </ion-button>
+     </div>
+ 
++    <!-- Loading State -->
+     <div class="state" *ngIf="loading">
+       <ion-spinner name="crescent"></ion-spinner>
+-      <p>Loading history…</p>
++      <p>Loading wound clinical history & trajectory…</p>
+     </div>
+ 
+     <ng-container *ngIf="!loading">
++      <!-- 1. Bedside Safety Rule Engine (NERDS / STONEES & ABPI alerts) -->
++      <app-bedside-safety-banner
++        *ngIf="safetySnapshot"
++        [snapshot]="safetySnapshot"
++      ></app-bedside-safety-banner>
++
++      <!-- 2. Bedside Healing Trajectory Graph & PUSH Score Visualization -->
++      <app-healing-trajectory-graph
++        *ngIf="trajectory && trajectory.points.length"
++        [trajectory]="trajectory"
++      ></app-healing-trajectory-graph>
++
++      <!-- 3. Assessment Log List -->
+       <ng-container *ngIf="(items$ | async) || [] as items">
+-        <h2 class="section-title" *ngIf="items.length">Assessments</h2>
++        <h2 class="section-title" *ngIf="items.length">Recorded Assessments ({{ items.length }})</h2>
+ 
+         <ion-list class="app-list history-list" *ngIf="items.length" lines="full">
+-          <ion-item button *ngFor="let a of items" (click)="openAssessment(a)" detail="true">
++          <ion-item button *ngFor="let a of items" (click)="openAssessment(a)" detail="true" class="assessment-item">
+             <ion-label>
+-              <h2 class="history-when text-numeric">{{ a.assessedAt | date:'short' }}</h2>
++              <div class="item-header-row">
++                <h3 class="history-when text-numeric">{{ a.assessedAt | date:'mediumDate' }}</h3>
++                <span class="push-chip">PUSH: {{ getPushScoreForAssessment(a) }}/17</span>
++              </div>
+               <p class="history-what">
+-                {{ a.type }} <span class="dot">·</span> {{ a.location }}
+-                <span *ngIf="a.stage"> <span class="dot">·</span> Stage {{ a.stage }}</span>
++                <strong>{{ a.type }}</strong>
++                <span *ngIf="a.location"> · {{ a.location }}</span>
++                <span *ngIf="a.stage"> · Stage {{ a.stage }}</span>
++              </p>
++              <!-- Measurements display -->
++              <p class="history-measurements" *ngIf="a.measurements">
++                <span class="dim-label">Dimensions:</span>
++                {{ a.measurements.length }} × {{ a.measurements.width }} × {{ a.measurements.depth || 0 }} cm
++                <span class="area-tag" *ngIf="a.measurements.area">({{ a.measurements.area }} cm²)</span>
+               </p>
+             </ion-label>
+-            <span class="app-chip" slot="end" *ngIf="a.status">{{ a.status | titlecase }}</span>
++            <ion-badge slot="end" [color]="a.status === 'healed' ? 'success' : a.status === 'deteriorating' ? 'danger' : 'primary'">
++              {{ a.status | titlecase }}
++            </ion-badge>
+           </ion-item>
+         </ion-list>
+ 
+diff --git a/src/app/pages/wound-history/wound-history.page.scss b/src/app/pages/wound-history/wound-history.page.scss
+index 95dd119..94bbc94 100644
+--- a/src/app/pages/wound-history/wound-history.page.scss
++++ b/src/app/pages/wound-history/wound-history.page.scss
+@@ -41,3 +41,37 @@
+   align-self: center;
+   margin-inline-start: var(--app-space-2);
+ }
++
++.item-header-row {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  margin-bottom: 2px;
++}
++
++.push-chip {
++  font-size: 11px;
++  font-weight: 700;
++  background: #dbeafe;
++  color: #1e40af;
++  padding: 2px 6px;
++  border-radius: 4px;
++}
++
++.history-measurements {
++  font-size: 12px;
++  color: #4b5563;
++  margin-top: 4px;
++
++  .dim-label {
++    font-weight: 600;
++    color: #374151;
++  }
++
++  .area-tag {
++    font-weight: 700;
++    color: #059669;
++    margin-left: 4px;
++  }
++}
++
+diff --git a/src/app/pages/wound-history/wound-history.page.ts b/src/app/pages/wound-history/wound-history.page.ts
+index e8ba1cc..f39f3aa 100644
+--- a/src/app/pages/wound-history/wound-history.page.ts
++++ b/src/app/pages/wound-history/wound-history.page.ts
+@@ -1,5 +1,5 @@
+ // src/app/pages/wound-history/wound-history.page.ts
+-import { Component, inject } from '@angular/core';
++import { Component, inject, OnInit } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import {
+   IonBackButton,
+@@ -16,23 +16,28 @@ import {
+   IonSpinner,
+   IonTitle,
+   IonToolbar,
++  IonBadge,
+ } from '@ionic/angular/standalone';
+ import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+ import { AssessmentsService, MobileAssessment } from 'src/app/services/assessments.service';
++import { ClinicalSafetyRuleEngineService } from 'src/app/services/clinical-safety-rule-engine.service';
++import { BedsideSafetyBannerComponent } from 'src/app/shared/bedside-safety-banner.component';
++import { HealingTrajectoryGraphComponent } from 'src/app/shared/healing-trajectory-graph.component';
++import { computeHealingTrajectory, calculatePushScore, BedsideHealingTrajectory } from 'src/app/shared/push-score';
++import { ClinicalSafetySnapshot } from 'src/app/shared/clinical-safety-rules';
+ import { Observable } from 'rxjs';
++import { tap } from 'rxjs/operators';
+ import { addIcons } from 'ionicons';
+-import { addOutline, documentTextOutline } from 'ionicons/icons';
++import { addOutline, documentTextOutline, pulseOutline, warningOutline } from 'ionicons/icons';
+ 
+ @Component({
+   selector: 'app-wound-history',
+   standalone: true,
+   templateUrl: './wound-history.page.html',
+   styleUrls: ['./wound-history.page.scss'],
+-  imports: [ CommonModule, RouterModule,
+-    // Ionic standalone resolves ion-* through these component classes.
+-    // IonicModule (the NgModule API) sat here instead, which registers
+-    // nothing for a standalone component: the tags fell through as
+-    // unknown elements and the page rendered as bare HTML.
++  imports: [
++    CommonModule,
++    RouterModule,
+     IonBackButton,
+     IonButton,
+     IonButtons,
+@@ -47,28 +52,69 @@ import { addOutline, documentTextOutline } from 'ionicons/icons';
+     IonSpinner,
+     IonTitle,
+     IonToolbar,
++    IonBadge,
++    BedsideSafetyBannerComponent,
++    HealingTrajectoryGraphComponent,
+   ],
+ })
+-export class WoundHistoryPage {
++export class WoundHistoryPage implements OnInit {
+   private route = inject(ActivatedRoute);
+   private router = inject(Router);
+   private assessments = inject(AssessmentsService);
++  private safetyEngine = inject(ClinicalSafetyRuleEngineService);
+ 
+   patientId = this.route.snapshot.paramMap.get('patientId')!;
+   woundId   = this.route.snapshot.paramMap.get('woundId')!;
+ 
+   items$!: Observable<MobileAssessment[]>;
++  trajectory: BedsideHealingTrajectory | null = null;
++  safetySnapshot: ClinicalSafetySnapshot | null = null;
+   loading = true;
+ 
+   constructor() {
+-    // Ionic standalone has no global icon registry: each page registers the
+-    // glyphs its own template names.
+-    addIcons({ addOutline, documentTextOutline });
++    addIcons({ addOutline, documentTextOutline, pulseOutline, warningOutline });
+   }
+ 
+   ngOnInit() {
+-    this.items$ = this.assessments.listForWound(this.patientId, this.woundId);
+-    this.loading = false;
++    this.loadHistory();
++  }
++
++  loadHistory() {
++    this.loading = true;
++    this.items$ = this.assessments.listForWound(this.patientId, this.woundId).pipe(
++      tap((items: MobileAssessment[]) => {
++        if (items && items.length > 0) {
++          // Compute bedside trajectory & PUSH trends
++          this.trajectory = computeHealingTrajectory(this.woundId, items);
++
++          // Evaluate latest assessment for NERDS / STONEES & ABPI alerts
++          const latest = items[0]; // descending order: 0 is latest
++          this.safetySnapshot = this.safetyEngine.evaluateAssessment(latest.raw || latest);
++        } else {
++          this.trajectory = null;
++          this.safetySnapshot = null;
++        }
++        this.loading = false;
++      })
++    );
++  }
++
++  getPushScoreForAssessment(a: MobileAssessment): number {
++    return calculatePushScore({
++      length: a.measurements?.length,
++      width: a.measurements?.width,
++      depth: a.measurements?.depth,
++      exudateAmount: a.exudate?.amount,
++      tissueType: a.describe?.tissueType,
++      sloughPresent: a.woundBed?.slough?.present === true,
++      escharPresent: a.woundBed?.eschar === true,
++      isClosed: a.status === 'healed' || a.status === 'closed',
++    }).totalPushScore;
++  }
++
++  handleRefresh(event: any) {
++    this.loadHistory();
++    event.target.complete();
+   }
+ 
+   openAssessment(a: MobileAssessment) {
+@@ -89,11 +135,11 @@ export class WoundHistoryPage {
+       'assessments',
+       'new'
+     ], {
+-      queryParams: { woundId: this.woundId },   // ✅ on passe la plaie
++      queryParams: { woundId: this.woundId },
+     });
+   }
+ 
+-   backToList() {
++  backToList() {
+     this.router.navigate([
+       '/tabs',
+       'skin-wound',
+diff --git a/src/app/services/assessments.service.ts b/src/app/services/assessments.service.ts
+index c9de7d8..b889a5e 100644
+--- a/src/app/services/assessments.service.ts
++++ b/src/app/services/assessments.service.ts
+@@ -50,6 +50,23 @@ export interface MobileAssessment {
+   status?: string;
+   assessedAt?: Date;
+   photoURL?: string;
++  measurements?: {
++    length?: number | null;
++    width?: number | null;
++    depth?: number | null;
++    area?: number | null;
++    volume?: number | null;
++  };
++  exudate?: {
++    amount?: string | null;
++    type?: string | null;
++    odor?: string | null;
++  };
++  woundBed?: any;
++  periWound?: any;
++  describe?: any;
++  abpi?: number | null;
++  raw?: any;
+ }
+ 
+ @Injectable({ providedIn: 'root' })
+@@ -63,21 +80,39 @@ export class AssessmentsService {
+     const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
+     const q = query(colRef, orderBy('createdAt', 'desc'));
+     return collectionData(q, { idField: 'id' }).pipe(
+-      map((docs: any[]) => docs.map((d) => ({
+-        id: d.id,
+-        woundId: d.woundId || null,
+-        episodeId: d.episodeId || null,
+-        type: d.describe?.type || d.type || 'Unknown',
+-        stage: d.describe?.stage || d.stage,
+-        location: d.describe?.location || d.location || 'Unknown',
+-        acquired: (d.describe?.acquired || d.acquired || '').toString().toLowerCase(),
+-        status: (d.progress?.status || d.status || 'unknown').toString().toLowerCase(),
+-        assessedAt: d.assessedAt?.toDate ? d.assessedAt.toDate()
+-          : d.createdAt?.toDate ? d.createdAt.toDate()
+-          : d.assessedAt ? new Date(d.assessedAt)
+-          : d.createdAt ? new Date(d.createdAt) : undefined,
+-        photoURL: d.photoURL || null,
+-      })))
++      map((docs: any[]) => docs.map((d) => {
++        const l = Number(d.measurements?.length) || 0;
++        const w = Number(d.measurements?.width) || 0;
++        const depth = Number(d.measurements?.depth) || 0;
++        return {
++          id: d.id,
++          woundId: d.woundId || null,
++          episodeId: d.episodeId || null,
++          type: d.describe?.type || d.type || 'Unknown',
++          stage: d.describe?.stage || d.stage,
++          location: d.describe?.location || d.location || 'Unknown',
++          acquired: (d.describe?.acquired || d.acquired || '').toString().toLowerCase(),
++          status: (d.progress?.status || d.status || 'unknown').toString().toLowerCase(),
++          assessedAt: d.assessedAt?.toDate ? d.assessedAt.toDate()
++            : d.createdAt?.toDate ? d.createdAt.toDate()
++            : d.assessedAt ? new Date(d.assessedAt)
++            : d.createdAt ? new Date(d.createdAt) : undefined,
++          photoURL: d.photoURL || null,
++          measurements: d.measurements ? {
++            length: l,
++            width: w,
++            depth: depth,
++            area: Math.round(l * w * 100) / 100,
++            volume: Math.round(l * w * depth * 100) / 100,
++          } : undefined,
++          exudate: d.exudate || null,
++          woundBed: d.woundBed || null,
++          periWound: d.periWound || null,
++          describe: d.describe || null,
++          abpi: d.abpi ?? d.perfusion?.abpi ?? null,
++          raw: d,
++        };
++      }))
+     );
+   }
+ 
+diff --git a/src/app/services/clinical-safety-rule-engine.service.ts b/src/app/services/clinical-safety-rule-engine.service.ts
+new file mode 100644
+index 0000000..51357c3
+--- /dev/null
++++ b/src/app/services/clinical-safety-rule-engine.service.ts
+@@ -0,0 +1,99 @@
++// src/app/services/clinical-safety-rule-engine.service.ts
++import { Injectable, inject } from '@angular/core';
++import {
++  evaluateNerds,
++  evaluateStonees,
++  evaluateAbpiSafety,
++  generateClinicalSafetySnapshot,
++  ClinicalSafetySnapshot,
++  NerdsEvaluationResult,
++  StoneesEvaluationResult,
++  AbpiSafetyEvaluationResult,
++} from '../shared/clinical-safety-rules';
++import { ClinicalAuditService } from './clinical-audit.service';
++
++@Injectable({ providedIn: 'root' })
++export class ClinicalSafetyRuleEngineService {
++  private audit = inject(ClinicalAuditService);
++
++  evaluateAssessment(data: any): ClinicalSafetySnapshot {
++    const describe = data?.describe || {};
++    const woundBed = data?.woundBed || {};
++    const exudate = data?.exudate || {};
++    const measurements = data?.measurements || {};
++    const progress = data?.progress || {};
++    const periWound = data?.periWound || {};
++
++    const infectionList: string[] = Array.isArray(woundBed?.infection) ? woundBed.infection : [];
++    const clinicalFindings: string[] = [
++      ...infectionList,
++      progress?.status || '',
++      describe?.type || '',
++    ].filter(Boolean);
++
++    const nerdsInput = {
++      isNonHealing: progress?.status === 'stalled' || progress?.status === 'deteriorating',
++      exudateAmount: exudate?.amount || null,
++      exudateIncreased: exudate?.amount === 'heavy' || exudate?.amount === 'moderate',
++      granulationBleedsEasily: woundBed?.granulation?.friable === true || infectionList.some(i => i.toLowerCase().includes('bleed')),
++      hypergranulation: woundBed?.granulation?.hyper === true || infectionList.some(i => i.toLowerCase().includes('hypergranulation')),
++      sloughPercent: woundBed?.slough?.percent ?? (woundBed?.slough?.present ? 30 : 0),
++      sloughPresent: woundBed?.slough?.present === true,
++      escharPresent: woundBed?.eschar === true || woundBed?.eschar?.present === true,
++      debrisPresent: woundBed?.debris === true,
++      odorPresent: exudate?.odor && exudate.odor !== 'None' && exudate.odor !== '',
++      odorType: exudate?.odor || null,
++      clinicalFindings,
++    };
++
++    const stoneesInput = {
++      sizeIncreasing: progress?.status === 'deteriorating' || data?.sizeIncreasing === true,
++      depthIncreased: measurements?.depth > 1.5,
++      temperatureIncreased: periWound?.warmth === true || periWound?.temperature === 'warm' || periWound?.temperature === 'hot',
++      probesToBone: woundBed?.probesToBone === true || woundBed?.boneVisible === true || infectionList.some(i => i.toLowerCase().includes('bone')),
++      boneVisible: woundBed?.boneVisible === true,
++      newBreakdownPresent: progress?.satelliteLesions === true || periWound?.maceration === true,
++      satelliteLesions: progress?.satelliteLesions === true,
++      erythemaExtended: periWound?.erythemaExtended === true || (periWound?.erythemaDistanceCm && periWound.erythemaDistanceCm >= 2),
++      erythemaDistanceCm: periWound?.erythemaDistanceCm || (periWound?.erythema === 'severe' ? 3 : 0),
++      indurationPresent: periWound?.induration === true,
++      exudatePurulent: exudate?.type === 'purulent' || exudate?.type === 'seropurulent' || infectionList.some(i => i.toLowerCase().includes('purulent')),
++      edemaPresent: periWound?.edema === true || periWound?.edema === 'moderate' || periWound?.edema === 'severe',
++      odorFoulPutrid: exudate?.odor === 'Foul' || exudate?.odor === 'Putrid',
++      clinicalFindings,
++    };
++
++    const rawAbpi = data?.abpi ?? data?.perfusion?.abpi ?? null;
++    const parsedAbpi = rawAbpi !== null && rawAbpi !== undefined && !Number.isNaN(Number(rawAbpi)) ? Number(rawAbpi) : null;
++
++    const snapshot = generateClinicalSafetySnapshot({
++      nerdsInput,
++      stoneesInput,
++      abpiValue: parsedAbpi,
++    });
++
++    return snapshot;
++  }
++
++  evaluateNerdsOnly(input: Parameters<typeof evaluateNerds>[0]): NerdsEvaluationResult {
++    return evaluateNerds(input);
++  }
++
++  evaluateStoneesOnly(input: Parameters<typeof evaluateStonees>[0]): StoneesEvaluationResult {
++    return evaluateStonees(input);
++  }
++
++  evaluateAbpiOnly(abpi: number | null | undefined): AbpiSafetyEvaluationResult {
++    return evaluateAbpiSafety(abpi);
++  }
++
++  async auditSafetyAlertTriggered(patientId: string, alertType: string, details: any): Promise<void> {
++    await this.audit.record({
++      action: 'clinical_safety_alert_triggered',
++      patientId,
++      entityType: 'safetyAlert',
++      entityId: alertType,
++      metadata: details,
++    });
++  }
++}
+diff --git a/src/app/services/mobile-order.service.ts b/src/app/services/mobile-order.service.ts
+index 0ee8fb3..278ae10 100644
+--- a/src/app/services/mobile-order.service.ts
++++ b/src/app/services/mobile-order.service.ts
+@@ -6,6 +6,14 @@ import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-id
+ import { ClinicalAuditService } from './clinical-audit.service';
+ import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
+ import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
++import {
++  BUILT_IN_JADE_ALGORITHMS,
++  evaluateStepVariances,
++  JadeCareAlgorithm,
++  MobileOrderExecutionInput,
++  MobileStepVariance,
++  recommendJadeAlgorithm,
++} from '../shared/jade-care-algorithm';
+ 
+ export interface MobileTreatmentProtocolOption {
+   id: string;
+@@ -471,6 +479,166 @@ export class MobileOrderService {
+     return ref.id;
+   }
+ 
++  /**
++   * Lists published JADE algorithms from organization repository merged with built-in guidelines.
++   */
++  async listJadeAlgorithms(): Promise<JadeCareAlgorithm[]> {
++    const orgId = await this.tenant.currentOrgId();
++    const result: JadeCareAlgorithm[] = [...BUILT_IN_JADE_ALGORITHMS];
++
++    if (orgId) {
++      try {
++        const snap = await getDocs(collection(db, `organizations/${orgId}/careAlgorithms`));
++        const remoteAlgs = snap.docs
++          .map(d => ({ id: d.id, ...(d.data() as any) } as JadeCareAlgorithm))
++          .filter(a => a.active === true);
++        if (remoteAlgs.length) {
++          result.unshift(...remoteAlgs);
++        }
++      } catch {
++        // Fallback gracefully to built-in standard algorithms
++      }
++    }
++    return result;
++  }
++
++  /**
++   * Recommends a tailored JADE Care Algorithm for a specific wound assessment.
++   */
++  async recommendAlgorithmForWound(
++    patientId: string,
++    woundId: string,
++    abpi?: number | null
++  ): Promise<ReturnType<typeof recommendJadeAlgorithm>> {
++    const wounds = await this.listWounds(patientId);
++    const wound = wounds.find(w => w.woundId === woundId);
++    const algorithms = await this.listJadeAlgorithms();
++    return recommendJadeAlgorithm(wound?.guidanceInput, abpi, algorithms);
++  }
++
++  /**
++   * Calculates clinical step variance between what was ordered and what was executed at the bedside.
++   */
++  evaluateExecutionStepVariances(
++    order: MobileClinicalOrderRow,
++    actualSteps: MobileOrderExecutionInput['actualSteps'],
++    clinicianReasons?: Record<string, { code: any; explanation: string }>
++  ): { variances: MobileStepVariance[]; overallStatus: 'fully_concordant' | 'minor_variance' | 'significant_variance' } {
++    const clinical = (order as any).clinical || {};
++    const prescribedRoutine = {
++      cleanse: clinical.cleanse || [],
++      prep: clinical.prep || [],
++      fillApply: clinical.apply || [],
++      cover: clinical.cover || [],
++      secureWith: clinical.secure || [],
++      compression: clinical.compression || [],
++      offloading: clinical.offloading || [],
++      frequency: clinical.schedule?.frequency || null,
++      specialInstructions: clinical.specialInstructions || [],
++    };
++    return evaluateStepVariances({
++      prescribedRoutine,
++      actualSteps,
++      clinicianReasons,
++    });
++  }
++
++  /**
++   * Records execution of an order at the bedside, capturing step-level compliance,
++   * deviations, supplies consumed, and variance audit trail under:
++   * patients/{patientId}/orders/{orderId}/executions/{executionId}
++   */
++  async recordOrderExecution(
++    patientId: string,
++    orderId: string,
++    input: MobileOrderExecutionInput
++  ): Promise<string> {
++    if (!patientId || !orderId) throw new Error('Patient and Order ID are required to record execution.');
++    const user = auth.currentUser;
++    if (!user) throw new Error('Sign in required.');
++
++    const actor = await this.identity.requireCurrentIdentity();
++    const orgId = await this.tenant.currentOrgId();
++
++    const executionsCol = collection(db, `patients/${patientId}/orders/${orderId}/executions`);
++    const executionRef = doc(executionsCol);
++    const now = serverTimestamp();
++
++    const payload = {
++      id: executionRef.id,
++      orderId,
++      patientId,
++      orgId,
++      woundId: input.woundId || null,
++      visitId: input.visitId || null,
++      fieldEncounterVisitId: input.fieldEncounterVisitId || null,
++      episodeId: input.episodeId || null,
++      performedAt: input.performedAt ? Timestamp.fromDate(new Date(input.performedAt)) : now,
++      performedBy: actor,
++      actualSteps: input.actualSteps,
++      suppliesUsed: input.suppliesUsed || [],
++      variances: input.variances,
++      overallVarianceStatus: input.overallVarianceStatus,
++      clinicianNotes: input.clinicianNotes || null,
++      patientTolerated: input.patientTolerated,
++      painScoreBefore: input.painScoreBefore ?? null,
++      painScoreAfter: input.painScoreAfter ?? null,
++      createdAt: now,
++      updatedAt: now,
++    };
++
++    await setDoc(executionRef, payload);
++
++    // Update order workflow state and audit trail
++    try {
++      const orderRef = doc(db, `patients/${patientId}/orders/${orderId}`);
++      await setDoc(orderRef, {
++        lastExecutedAt: now,
++        lastExecutedBy: actor,
++        executionCount: ((orderRef as any).executionCount || 0) + 1,
++        workflow: {
++          state: 'active',
++          lastAction: 'bedside_execution_recorded',
++          lastVarianceStatus: input.overallVarianceStatus,
++        },
++        updatedAt: now,
++      }, { merge: true });
++    } catch {
++      // Non-fatal if order status update is restricted by rule
++    }
++
++    await this.audit.record({
++      action: 'order_execution_recorded',
++      patientId,
++      entityType: 'orderExecution',
++      entityId: executionRef.id,
++      metadata: {
++        orderId,
++        woundId: input.woundId ?? null,
++        visitId: input.visitId ?? null,
++        varianceCount: input.variances.length,
++        overallVarianceStatus: input.overallVarianceStatus,
++      },
++    });
++
++    return executionRef.id;
++  }
++
++  /**
++   * Retrieves previous bedside executions for a given order.
++   */
++  async listOrderExecutions(patientId: string, orderId: string): Promise<any[]> {
++    if (!patientId || !orderId) return [];
++    try {
++      const snap = await getDocs(collection(db, `patients/${patientId}/orders/${orderId}/executions`));
++      return snap.docs
++        .map(d => ({ id: d.id, ...d.data() }))
++        .sort((a: any, b: any) => this.toMillis(b.performedAt || b.createdAt) - this.toMillis(a.performedAt || a.createdAt));
++    } catch {
++      return [];
++    }
++  }
++
+   private assertClinicalAuthor(identity: ClinicalIdentitySnapshot): void {
+     const roles = new Set([identity.role, ...(identity.roles || [])].map(r => String(r || '').toLowerCase()));
+     if (![...roles].some(r => ['provider', 'np', 'nurse', 'rn', 'wound_nurse_internal'].includes(r))) {
+diff --git a/src/app/shared/bedside-safety-banner.component.ts b/src/app/shared/bedside-safety-banner.component.ts
+new file mode 100644
+index 0000000..11ae2f8
+--- /dev/null
++++ b/src/app/shared/bedside-safety-banner.component.ts
+@@ -0,0 +1,442 @@
++// src/app/shared/bedside-safety-banner.component.ts
++import { Component, Input } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import {
++  IonCard,
++  IonCardContent,
++  IonCardHeader,
++  IonCardTitle,
++  IonBadge,
++  IonIcon,
++  IonButton,
++} from '@ionic/angular/standalone';
++import { addIcons } from 'ionicons';
++import {
++  warningOutline,
++  alertCircleOutline,
++  shieldCheckmarkOutline,
++  checkmarkCircleOutline,
++  informationCircleOutline,
++  chevronDownOutline,
++  chevronUpOutline,
++} from 'ionicons/icons';
++import { ClinicalSafetySnapshot } from './clinical-safety-rules';
++
++@Component({
++  selector: 'app-bedside-safety-banner',
++  standalone: true,
++  imports: [
++    CommonModule,
++    IonCard,
++    IonCardContent,
++    IonCardHeader,
++    IonCardTitle,
++    IonBadge,
++    IonIcon,
++    IonButton,
++  ],
++  template: `
++    <div class="safety-banner-wrapper" *ngIf="snapshot">
++      <!-- High/Immediate Escalation Alert Card -->
++      <ion-card
++        [class]="'safety-card ' + snapshot.compositeRiskLevel"
++        [class.urgent]="snapshot.compositeRiskLevel === 'immediate_escalation'"
++      >
++        <ion-card-header class="banner-header">
++          <div class="title-row">
++            <div class="header-left">
++              <ion-icon
++                [name]="
++                  snapshot.compositeRiskLevel === 'immediate_escalation'
++                    ? 'alert-circle-outline'
++                    : snapshot.compositeRiskLevel === 'urgent_attention'
++                    ? 'warning-outline'
++                    : 'shield-checkmark-outline'
++                "
++                [class]="'header-icon ' + snapshot.compositeRiskLevel"
++              ></ion-icon>
++              <div>
++                <ion-card-title class="banner-title">
++                  {{
++                    snapshot.compositeRiskLevel === 'immediate_escalation'
++                      ? 'CRITICAL CLINICAL SAFETY ALERT'
++                      : snapshot.compositeRiskLevel === 'urgent_attention'
++                      ? 'Clinical Action Required'
++                      : snapshot.compositeRiskLevel === 'caution'
++                      ? 'Safety Monitoring Active'
++                      : 'Clinical Safety Screen: Stable'
++                  }}
++                </ion-card-title>
++                <p class="banner-subtitle">
++                  NERDS: {{ snapshot.nerds.score }}/5 · STONEES: {{ snapshot.stonees.score }}/7 · ABPI: {{ snapshot.abpi.abpiValue !== null ? snapshot.abpi.abpiValue.toFixed(2) : 'Unrecorded' }}
++                </p>
++              </div>
++            </div>
++            <ion-button fill="clear" size="small" (click)="toggleDetails()">
++              <ion-icon [name]="showDetails ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
++            </ion-button>
++          </div>
++        </ion-card-header>
++
++        <ion-card-content>
++          <!-- Active alert badges -->
++          <div class="alert-badges" *ngIf="snapshot.activeAlerts.length">
++            <div
++              *ngFor="let alert of snapshot.activeAlerts"
++              class="alert-pill"
++              [class.critical-pill]="alert.includes('CRITICAL')"
++            >
++              <ion-icon name="warning-outline"></ion-icon>
++              <span>{{ alert }}</span>
++            </div>
++          </div>
++
++          <!-- Quick summary if collapsed -->
++          <div *ngIf="!showDetails && snapshot.compositeRiskLevel !== 'stable'" class="quick-summary">
++            <span *ngIf="snapshot.stonees.isDeepTissueInfectionSuspected" class="tag urgent-tag">Deep Infection Risk</span>
++            <span *ngIf="snapshot.nerds.isSuperficialInfectionSuspected" class="tag warn-tag">Superficial Colonization</span>
++            <span *ngIf="snapshot.abpi.severity === 'critical'" class="tag critical-tag">Compression Contraindicated</span>
++            <span *ngIf="snapshot.abpi.severity === 'warning'" class="tag warn-tag">Perfusion Warning</span>
++          </div>
++
++          <!-- Expanded Clinical Detail Grid -->
++          <div class="expanded-grid" *ngIf="showDetails">
++            <!-- 1. NERDS Superficial Infection Assessment -->
++            <div class="safety-section">
++              <div class="section-heading">
++                <h4>NERDS (Superficial / Local Infection)</h4>
++                <ion-badge [color]="snapshot.nerds.isSuperficialInfectionSuspected ? 'danger' : 'medium'">
++                  {{ snapshot.nerds.score }}/5
++                </ion-badge>
++              </div>
++              <p class="summary-text">{{ snapshot.nerds.clinicalSummary }}</p>
++              <div class="criteria-list">
++                <div
++                  *ngFor="let c of snapshot.nerds.criteria"
++                  class="criterion-row"
++                  [class.met]="c.met"
++                >
++                  <span class="letter-badge">{{ c.letter }}</span>
++                  <div class="criterion-body">
++                    <strong>{{ c.name }}</strong>: {{ c.description }}
++                    <span class="evidence" *ngIf="c.clinicalEvidence"> — {{ c.clinicalEvidence }}</span>
++                  </div>
++                  <ion-icon [name]="c.met ? 'checkmark-circle-outline' : 'shield-checkmark-outline'"></ion-icon>
++                </div>
++              </div>
++              <div class="guidance-box" *ngIf="snapshot.nerds.prescriptiveGuidance.length">
++                <ul>
++                  <li *ngFor="let g of snapshot.nerds.prescriptiveGuidance">{{ g }}</li>
++                </ul>
++              </div>
++            </div>
++
++            <!-- 2. STONEES Deep Tissue Infection Assessment -->
++            <div class="safety-section">
++              <div class="section-heading">
++                <h4>STONEES (Deep / Spreading Infection)</h4>
++                <ion-badge [color]="snapshot.stonees.isDeepTissueInfectionSuspected ? 'danger' : 'medium'">
++                  {{ snapshot.stonees.score }}/7
++                </ion-badge>
++              </div>
++              <p class="summary-text">{{ snapshot.stonees.clinicalSummary }}</p>
++              <div class="criteria-list">
++                <div
++                  *ngFor="let c of snapshot.stonees.criteria"
++                  class="criterion-row"
++                  [class.met]="c.met"
++                  [class.critical-row]="c.isCriticalStandalone && c.met"
++                >
++                  <span class="letter-badge" [class.critical-letter]="c.isCriticalStandalone">{{ c.letter }}</span>
++                  <div class="criterion-body">
++                    <strong>{{ c.name }}</strong>: {{ c.description }}
++                    <span class="evidence" *ngIf="c.clinicalEvidence"> — {{ c.clinicalEvidence }}</span>
++                  </div>
++                  <ion-icon [name]="c.met ? 'alert-circle-outline' : 'shield-checkmark-outline'"></ion-icon>
++                </div>
++              </div>
++              <div class="mandatory-actions-box" *ngIf="snapshot.stonees.mandatoryActions.length">
++                <h5>Mandatory Clinical Escalation</h5>
++                <ul>
++                  <li *ngFor="let a of snapshot.stonees.mandatoryActions">{{ a }}</li>
++                </ul>
++              </div>
++            </div>
++
++            <!-- 3. ABPI Arterial Perfusion & Compression Bounds -->
++            <div class="safety-section">
++              <div class="section-heading">
++                <h4>ABPI (Arterial Perfusion & Compression Rules)</h4>
++                <ion-badge [color]="snapshot.abpi.severity === 'critical' ? 'danger' : snapshot.abpi.severity === 'warning' ? 'warning' : 'success'">
++                  {{ snapshot.abpi.categoryLabel }}
++                </ion-badge>
++              </div>
++              <p class="summary-text">{{ snapshot.abpi.summary }}</p>
++              <div class="compression-status-callout" [class.danger-callout]="snapshot.abpi.severity === 'critical'">
++                <strong>Compression Rule: </strong> {{ snapshot.abpi.compressionStatusLabel }}
++              </div>
++              <div class="contraindications-box" *ngIf="snapshot.abpi.contraindications.length">
++                <h6>Contraindications:</h6>
++                <ul>
++                  <li *ngFor="let ci of snapshot.abpi.contraindications">{{ ci }}</li>
++                </ul>
++              </div>
++              <div class="actions-box" *ngIf="snapshot.abpi.recommendedActions.length">
++                <h6>Recommended Actions:</h6>
++                <ul>
++                  <li *ngFor="let ra of snapshot.abpi.recommendedActions">{{ ra }}</li>
++                </ul>
++              </div>
++            </div>
++          </div>
++        </ion-card-content>
++      </ion-card>
++    </div>
++  `,
++  styles: [
++    `
++      .safety-banner-wrapper {
++        margin: 12px 0;
++      }
++      .safety-card {
++        border-radius: 12px;
++        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
++        border-left: 6px solid #10b981;
++      }
++      .safety-card.immediate_escalation {
++        border-left-color: #ef4444;
++        background: #fff8f8;
++      }
++      .safety-card.urgent_attention {
++        border-left-color: #f59e0b;
++        background: #fffbf0;
++      }
++      .safety-card.caution {
++        border-left-color: #3b82f6;
++      }
++      .banner-header {
++        padding: 12px 16px 8px 16px;
++      }
++      .title-row {
++        display: flex;
++        align-items: center;
++        justify-content: space-between;
++      }
++      .header-left {
++        display: flex;
++        align-items: center;
++        gap: 10px;
++      }
++      .header-icon {
++        font-size: 28px;
++      }
++      .header-icon.immediate_escalation {
++        color: #ef4444;
++      }
++      .header-icon.urgent_attention {
++        color: #f59e0b;
++      }
++      .banner-title {
++        font-size: 15px;
++        font-weight: 700;
++        margin: 0;
++      }
++      .banner-subtitle {
++        font-size: 12px;
++        color: #6b7280;
++        margin: 2px 0 0 0;
++      }
++      .alert-badges {
++        display: flex;
++        flex-direction: column;
++        gap: 6px;
++        margin-bottom: 8px;
++      }
++      .alert-pill {
++        display: flex;
++        align-items: center;
++        gap: 8px;
++        font-size: 12px;
++        background: #fef3c7;
++        color: #92400e;
++        padding: 6px 10px;
++        border-radius: 6px;
++        font-weight: 500;
++      }
++      .alert-pill.critical-pill {
++        background: #fee2e2;
++        color: #b91c1c;
++        font-weight: 600;
++      }
++      .quick-summary {
++        display: flex;
++        gap: 6px;
++        flex-wrap: wrap;
++        margin-top: 4px;
++      }
++      .tag {
++        font-size: 11px;
++        padding: 3px 8px;
++        border-radius: 4px;
++        font-weight: 600;
++      }
++      .tag.urgent-tag,
++      .tag.critical-tag {
++        background: #fee2e2;
++        color: #dc2626;
++      }
++      .tag.warn-tag {
++        background: #fef3c7;
++        color: #d97706;
++      }
++      .expanded-grid {
++        display: flex;
++        flex-direction: column;
++        gap: 16px;
++        margin-top: 12px;
++        padding-top: 12px;
++        border-top: 1px solid #e5e7eb;
++      }
++      .safety-section {
++        background: #ffffff;
++        padding: 12px;
++        border-radius: 8px;
++        border: 1px solid #e5e7eb;
++      }
++      .section-heading {
++        display: flex;
++        align-items: center;
++        justify-content: space-between;
++        margin-bottom: 6px;
++      }
++      .section-heading h4 {
++        margin: 0;
++        font-size: 14px;
++        font-weight: 700;
++      }
++      .summary-text {
++        font-size: 12px;
++        color: #4b5563;
++        margin: 0 0 8px 0;
++      }
++      .criteria-list {
++        display: flex;
++        flex-direction: column;
++        gap: 4px;
++      }
++      .criterion-row {
++        display: flex;
++        align-items: center;
++        gap: 8px;
++        font-size: 12px;
++        padding: 4px 6px;
++        border-radius: 4px;
++        background: #f9fafb;
++      }
++      .criterion-row.met {
++        background: #fef2f2;
++        color: #991b1b;
++        font-weight: 500;
++      }
++      .criterion-row.critical-row {
++        background: #fee2e2;
++        border: 1px solid #ef4444;
++      }
++      .letter-badge {
++        font-weight: 800;
++        background: #e5e7eb;
++        color: #374151;
++        padding: 2px 6px;
++        border-radius: 4px;
++        font-size: 11px;
++      }
++      .letter-badge.critical-letter {
++        background: #dc2626;
++        color: white;
++      }
++      .criterion-body {
++        flex: 1;
++      }
++      .evidence {
++        color: #b91c1c;
++        font-style: italic;
++      }
++      .guidance-box,
++      .mandatory-actions-box,
++      .contraindications-box,
++      .actions-box {
++        margin-top: 8px;
++        padding: 8px 12px;
++        border-radius: 6px;
++        font-size: 11px;
++      }
++      .guidance-box {
++        background: #eff6ff;
++        color: #1e40af;
++      }
++      .mandatory-actions-box {
++        background: #fee2e2;
++        color: #991b1b;
++      }
++      .mandatory-actions-box h5 {
++        margin: 0 0 4px 0;
++        font-size: 12px;
++        font-weight: 700;
++      }
++      .compression-status-callout {
++        padding: 8px;
++        border-radius: 6px;
++        background: #ecfdf5;
++        color: #065f46;
++        font-size: 12px;
++        margin: 6px 0;
++      }
++      .compression-status-callout.danger-callout {
++        background: #fee2e2;
++        color: #b91c1c;
++        font-weight: 700;
++      }
++      .contraindications-box {
++        background: #fff1f2;
++        color: #9f1239;
++      }
++      .contraindications-box h6,
++      .actions-box h6 {
++        margin: 0 0 2px 0;
++        font-size: 11px;
++        font-weight: 700;
++      }
++      .actions-box {
++        background: #f0fdf4;
++        color: #166534;
++      }
++      ul {
++        margin: 0;
++        padding-left: 16px;
++      }
++      li {
++        margin: 2px 0;
++      }
++    `,
++  ],
++})
++export class BedsideSafetyBannerComponent {
++  @Input() snapshot: ClinicalSafetySnapshot | null = null;
++  showDetails = false;
++
++  constructor() {
++    addIcons({
++      warningOutline,
++      alertCircleOutline,
++      shieldCheckmarkOutline,
++      checkmarkCircleOutline,
++      informationCircleOutline,
++      chevronDownOutline,
++      chevronUpOutline,
++    });
++  }
++
++  toggleDetails() {
++    this.showDetails = !this.showDetails;
++  }
++}
+diff --git a/src/app/shared/clinical-safety-rules.spec.ts b/src/app/shared/clinical-safety-rules.spec.ts
+new file mode 100644
+index 0000000..a776588
+--- /dev/null
++++ b/src/app/shared/clinical-safety-rules.spec.ts
+@@ -0,0 +1,103 @@
++// src/app/shared/clinical-safety-rules.spec.ts
++import {
++  evaluateNerds,
++  evaluateStonees,
++  evaluateAbpiSafety,
++  generateClinicalSafetySnapshot,
++} from './clinical-safety-rules';
++
++describe('Clinical Safety Rule Engine (NERDS / STONEES & ABPI)', () => {
++  describe('NERDS (Superficial Infection / Local Bioburden)', () => {
++    it('returns score 0 and negative infection when wound is clean', () => {
++      const res = evaluateNerds({
++        isNonHealing: false,
++        exudateAmount: 'None',
++        sloughPresent: false,
++        odorPresent: false,
++      });
++
++      expect(res.score).toBe(0);
++      expect(res.isSuperficialInfectionSuspected).toBe(false);
++    });
++
++    it('identifies superficial infection when >= 3 NERDS criteria are met', () => {
++      const res = evaluateNerds({
++        isNonHealing: true, // N
++        exudateAmount: 'Heavy', // E
++        granulationBleedsEasily: true, // R
++        sloughPresent: true, // D
++        odorPresent: true, // S
++      });
++
++      expect(res.score).toBe(5);
++      expect(res.isSuperficialInfectionSuspected).toBe(true);
++      expect(res.prescriptiveGuidance.some(g => g.includes('topical antimicrobial'))).toBe(true);
++    });
++  });
++
++  describe('STONEES (Deep / Spreading Infection)', () => {
++    it('triggers critical standalone escalation when probe contacts bone (Os)', () => {
++      const res = evaluateStonees({
++        probesToBone: true, // O
++      });
++
++      expect(res.criticalStandaloneTriggered).toBe(true);
++      expect(res.isDeepTissueInfectionSuspected).toBe(true);
++      expect(res.mandatoryActions.some(a => a.includes('plain film / MRI'))).toBe(true);
++    });
++
++    it('detects deep spreading infection when >= 3 criteria are met', () => {
++      const res = evaluateStonees({
++        sizeIncreasing: true, // S
++        temperatureIncreased: true, // T
++        erythemaExtended: true, // E (>2 cm)
++        exudatePurulent: true, // E
++      });
++
++      expect(res.score).toBe(4);
++      expect(res.isDeepTissueInfectionSuspected).toBe(true);
++      expect(res.mandatoryActions.some(a => a.includes('provider co-signature notification'))).toBe(true);
++    });
++  });
++
++  describe('ABPI Safety Bounds', () => {
++    it('strictly contraindicates compression when ABPI < 0.5', () => {
++      const res = evaluateAbpiSafety(0.45);
++      expect(res.severity).toBe('critical');
++      expect(res.compressionStatus).toBe('strict_contraindicated');
++      expect(res.contraindications.some(c => c.includes('STRICT CONTRAINDICATION: All forms of compression'))).toBe(true);
++    });
++
++    it('requires modified reduced compression when ABPI is between 0.5 and 0.8', () => {
++      const res = evaluateAbpiSafety(0.68);
++      expect(res.severity).toBe('warning');
++      expect(res.compressionStatus).toBe('modified_reduced_only');
++    });
++
++    it('allows full therapeutic compression when ABPI is normal (0.8 - 1.3)', () => {
++      const res = evaluateAbpiSafety(1.05);
++      expect(res.severity).toBe('none');
++      expect(res.compressionStatus).toBe('full_compression_safe');
++    });
++
++    it('warns of falsely elevated incompressible vessels when ABPI > 1.3', () => {
++      const res = evaluateAbpiSafety(1.42);
++      expect(res.severity).toBe('warning');
++      expect(res.compressionStatus).toBe('unreliable_requires_tbi');
++      expect(res.recommendedActions.some(a => a.includes('Toe-Brachial Index'))).toBe(true);
++    });
++  });
++
++  describe('Integrated Safety Snapshot', () => {
++    it('sets immediate_escalation risk level when deep infection or severe ischemia present', () => {
++      const snap = generateClinicalSafetySnapshot({
++        nerdsInput: {},
++        stoneesInput: { probesToBone: true },
++        abpiValue: 0.45,
++      });
++
++      expect(snap.compositeRiskLevel).toBe('immediate_escalation');
++      expect(snap.activeAlerts.length).toBeGreaterThan(0);
++    });
++  });
++});
+diff --git a/src/app/shared/clinical-safety-rules.ts b/src/app/shared/clinical-safety-rules.ts
+new file mode 100644
+index 0000000..360ac50
+--- /dev/null
++++ b/src/app/shared/clinical-safety-rules.ts
+@@ -0,0 +1,593 @@
++// src/app/shared/clinical-safety-rules.ts
++/**
++ * Clinical Infection & Safety Rule Engine
++ * Standards-compliant implementation of:
++ * - NERDS Criteria (Superficial / Local Bacterial Burden)
++ * - STONEES Criteria (Deep / Systemic Spreading Infection)
++ * - ABPI Perfusion & Compression Safety Bounds
++ */
++
++export interface NerdsCriteriaItem {
++  key: 'nonHealing' | 'exudateIncreased' | 'redBleeding' | 'debris' | 'smell';
++  letter: 'N' | 'E' | 'R' | 'D' | 'S';
++  name: string;
++  description: string;
++  met: boolean;
++  clinicalEvidence: string | null;
++}
++
++export interface NerdsEvaluationResult {
++  score: number; // 0 to 5
++  totalCriteria: number;
++  isSuperficialInfectionSuspected: boolean; // true if score >= 3
++  severity: 'none' | 'low' | 'moderate' | 'high_superficial';
++  criteria: NerdsCriteriaItem[];
++  clinicalSummary: string;
++  prescriptiveGuidance: string[];
++}
++
++export interface StoneesCriteriaItem {
++  key:
++    | 'sizeIncreasing'
++    | 'temperatureIncreased'
++    | 'osProbesToBone'
++    | 'newBreakdown'
++    | 'erythemaExtended'
++    | 'exudatePurulent'
++    | 'smellFoul';
++  letter: 'S' | 'T' | 'O' | 'N' | 'E' | 'E' | 'S';
++  name: string;
++  description: string;
++  met: boolean;
++  clinicalEvidence: string | null;
++  isCriticalStandalone: boolean; // e.g., Probes to Bone is an emergency standalone trigger
++}
++
++export interface StoneesEvaluationResult {
++  score: number; // 0 to 7
++  totalCriteria: number;
++  isDeepTissueInfectionSuspected: boolean; // true if score >= 3 OR critical trigger met
++  criticalStandaloneTriggered: boolean;
++  severity: 'none' | 'low' | 'moderate' | 'critical_deep_systemic';
++  criteria: StoneesCriteriaItem[];
++  clinicalSummary: string;
++  prescriptiveGuidance: string[];
++  mandatoryActions: string[];
++}
++
++export type AbpiSafetyCategory =
++  | 'critical_severe_ischemia'
++  | 'moderate_arterial_disease'
++  | 'normal_perfusion'
++  | 'calcified_incompressible'
++  | 'unassessed';
++
++export type CompressionSafetyStatus =
++  | 'strict_contraindicated'
++  | 'modified_reduced_only'
++  | 'full_compression_safe'
++  | 'unreliable_requires_tbi'
++  | 'requires_assessment';
++
++export interface AbpiSafetyEvaluationResult {
++  abpiValue: number | null;
++  category: AbpiSafetyCategory;
++  categoryLabel: string;
++  severity: 'none' | 'info' | 'warning' | 'critical';
++  compressionStatus: CompressionSafetyStatus;
++  compressionStatusLabel: string;
++  summary: string;
++  contraindications: string[];
++  recommendedActions: string[];
++}
++
++export interface ClinicalSafetySnapshot {
++  nerds: NerdsEvaluationResult;
++  stonees: StoneesEvaluationResult;
++  abpi: AbpiSafetyEvaluationResult;
++  compositeRiskLevel: 'stable' | 'caution' | 'urgent_attention' | 'immediate_escalation';
++  activeAlerts: string[];
++  evaluatedAt: Date;
++}
++
++/**
++ * Evaluates NERDS criteria for superficial / local wound bioburden.
++ */
++export function evaluateNerds(input: {
++  isNonHealing?: boolean;
++  woundAgeDays?: number;
++  areaReductionPercent2Weeks?: number;
++  exudateAmount?: string | null;
++  exudateIncreased?: boolean;
++  granulationBleedsEasily?: boolean;
++  hypergranulation?: boolean;
++  sloughPercent?: number;
++  sloughPresent?: boolean;
++  escharPresent?: boolean;
++  debrisPresent?: boolean;
++  odorPresent?: boolean;
++  odorType?: string | null;
++  clinicalFindings?: string[];
++}): NerdsEvaluationResult {
++  const findings = (input.clinicalFindings || []).map(f => f.toLowerCase());
++  const exudate = String(input.exudateAmount || '').toLowerCase();
++  const odor = String(input.odorType || '').toLowerCase();
++
++  // N - Non-healing
++  const nMet =
++    input.isNonHealing === true ||
++    (input.woundAgeDays !== undefined && input.woundAgeDays > 28 && (input.areaReductionPercent2Weeks ?? 0) < 20) ||
++    findings.some(f => f.includes('non-healing') || f.includes('stalled'));
++  const nEvidence = nMet
++    ? input.woundAgeDays
++      ? `Wound age ${input.woundAgeDays}d with stalled area reduction (<20% in 2 weeks)`
++      : 'Documented stagnant wound healing progression'
++    : null;
++
++  // E - Exudative wound / Exudate increased
++  const eMet =
++    input.exudateIncreased === true ||
++    exudate === 'moderate' ||
++    exudate === 'heavy' ||
++    findings.some(f => f.includes('exudate') || f.includes('drainage increased'));
++  const eEvidence = eMet
++    ? input.exudateAmount
++      ? `Drainage documented as ${input.exudateAmount}`
++      : 'Exudate volume is increased above baseline'
++    : null;
++
++  // R - Red and bleeding wound bed / friable granulation
++  const rMet =
++    input.granulationBleedsEasily === true ||
++    input.hypergranulation === true ||
++    findings.some(f => f.includes('bleed') || f.includes('friable') || f.includes('hypergranulation'));
++  const rEvidence = rMet ? 'Friable, hyperemic granulation tissue bleeds easily upon light touch' : null;
++
++  // D - Debris (slough or necrotic tissue)
++  const dMet =
++    input.sloughPresent === true ||
++    input.escharPresent === true ||
++    input.debrisPresent === true ||
++    (input.sloughPercent !== undefined && input.sloughPercent > 0) ||
++    findings.some(f => f.includes('slough') || f.includes('eschar') || f.includes('debris') || f.includes('devitalized'));
++  const dEvidence = dMet
++    ? input.sloughPercent
++      ? `Devitalized slough/eschar covering ${input.sloughPercent}% of wound bed`
++      : 'Devitalized slough or necrotic tissue identified in wound base'
++    : null;
++
++  // S - Smell / Odor
++  const sMet =
++    input.odorPresent === true ||
++    (odor.length > 0 && odor !== 'none') ||
++    findings.some(f => f.includes('odor') || f.includes('smell') || f.includes('malodor'));
++  const sEvidence = sMet
++    ? input.odorType && input.odorType !== 'none'
++      ? `Documented wound odor (${input.odorType})`
++      : 'Noticeable offensive odor following cleansing'
++    : null;
++
++  const criteria: NerdsCriteriaItem[] = [
++    {
++      key: 'nonHealing',
++      letter: 'N',
++      name: 'Non-Healing',
++      description: 'Wound present >4 weeks without 20-40% reduction, or healing stalled',
++      met: nMet,
++      clinicalEvidence: nEvidence,
++    },
++    {
++      key: 'exudateIncreased',
++      letter: 'E',
++      name: 'Exudative / Increased',
++      description: 'Moderate to heavy exudate or sudden change in moisture volume',
++      met: eMet,
++      clinicalEvidence: eEvidence,
++    },
++    {
++      key: 'redBleeding',
++      letter: 'R',
++      name: 'Red & Friable Tissue',
++      description: 'Granulation tissue bleeds easily or exhibits hypergranulation',
++      met: rMet,
++      clinicalEvidence: rEvidence,
++    },
++    {
++      key: 'debris',
++      letter: 'D',
++      name: 'Debris in Wound Bed',
++      description: 'Presence of slough, necrotic eschar, or devitalized cellular debris',
++      met: dMet,
++      clinicalEvidence: dEvidence,
++    },
++    {
++      key: 'smell',
++      letter: 'S',
++      name: 'Smell / Malodor',
++      description: 'Foul or pungent odor persisting after irrigation/cleansing',
++      met: sMet,
++      clinicalEvidence: sEvidence,
++    },
++  ];
++
++  const score = criteria.filter(c => c.met).length;
++  const isSuperficialInfectionSuspected = score >= 3;
++
++  let severity: NerdsEvaluationResult['severity'] = 'none';
++  if (score >= 3) severity = 'high_superficial';
++  else if (score === 2) severity = 'moderate';
++  else if (score === 1) severity = 'low';
++
++  const prescriptiveGuidance: string[] = [];
++  if (isSuperficialInfectionSuspected) {
++    prescriptiveGuidance.push(
++      'NERDS score >= 3: Superficial (local) increased bioburden / critical colonization suspected.',
++      'Initiate targeted topical antimicrobial therapy (e.g. silver calcium alginate, cadexomer iodine, medical grade honey, or PHMB).',
++      'Perform gentle conservative debridement to remove devitalized slough/biofilm.',
++      'Systemic antibiotics are NOT indicated for local colonization unless STONEES deep infection criteria are triggered.'
++    );
++  } else if (score === 2) {
++    prescriptiveGuidance.push(
++      'NERDS score = 2: Borderline colonization risk. Monitor wound bed closely; optimize exudate management.'
++    );
++  }
++
++  const clinicalSummary = isSuperficialInfectionSuspected
++    ? `NERDS Positive (${score}/5 criteria): Superficial bacterial colonization suspected. Topical antimicrobial protocol indicated.`
++    : `NERDS Negative (${score}/5 criteria): No critical superficial colonization detected.`;
++
++  return {
++    score,
++    totalCriteria: 5,
++    isSuperficialInfectionSuspected,
++    severity,
++    criteria,
++    clinicalSummary,
++    prescriptiveGuidance,
++  };
++}
++
++/**
++ * Evaluates STONEES criteria for deep compartment or systemic spreading infection.
++ */
++export function evaluateStonees(input: {
++  sizeIncreasing?: boolean;
++  areaChangePercent?: number;
++  depthIncreased?: boolean;
++  temperatureIncreased?: boolean;
++  temperatureDiffFahrenheit?: number;
++  probesToBone?: boolean;
++  boneVisible?: boolean;
++  newBreakdownPresent?: boolean;
++  satelliteLesions?: boolean;
++  erythemaExtended?: boolean; // >2 cm from edge
++  erythemaDistanceCm?: number;
++  indurationPresent?: boolean;
++  exudatePurulent?: boolean;
++  edemaPresent?: boolean;
++  odorFoulPutrid?: boolean;
++  clinicalFindings?: string[];
++}): StoneesEvaluationResult {
++  const findings = (input.clinicalFindings || []).map(f => f.toLowerCase());
++
++  // S - Size increasing
++  const sMet =
++    input.sizeIncreasing === true ||
++    (input.areaChangePercent !== undefined && input.areaChangePercent > 10) ||
++    input.depthIncreased === true ||
++    findings.some(f => f.includes('size increas') || f.includes('enlarging'));
++  const sEvidence = sMet
++    ? input.areaChangePercent
++      ? `Surface area increased by ${input.areaChangePercent}%`
++      : 'Wound surface area or depth enlargement documented'
++    : null;
++
++  // T - Temperature increased
++  const tMet =
++    input.temperatureIncreased === true ||
++    (input.temperatureDiffFahrenheit !== undefined && input.temperatureDiffFahrenheit >= 3) ||
++    findings.some(f => f.includes('warmth') || f.includes('temperature') || f.includes('hot'));
++  const tEvidence = tMet
++    ? input.temperatureDiffFahrenheit
++      ? `Periwound warmth +${input.temperatureDiffFahrenheit}°F compared to contralateral skin`
++      : 'Periwound skin significantly warm to touch'
++    : null;
++
++  // O - Os / Probes to bone (CRITICAL STANDALONE)
++  const oMet =
++    input.probesToBone === true ||
++    input.boneVisible === true ||
++    findings.some(f => f.includes('probes to bone') || f.includes('bone palpable') || f.includes('bone visible'));
++  const oEvidence = oMet ? 'Palpable hard bone contact with sterile probe or visible cortical bone' : null;
++
++  // N - New areas of breakdown
++  const nMet =
++    input.newBreakdownPresent === true ||
++    input.satelliteLesions === true ||
++    findings.some(f => f.includes('satellite') || f.includes('new breakdown') || f.includes('sinus'));
++  const nEvidence = nMet ? 'New satellite ulcers, maceration breakdown, or new sinus tract formation' : null;
++
++  // E - Erythema > 2 cm / cellulitis
++  const e1Met =
++    input.erythemaExtended === true ||
++    input.indurationPresent === true ||
++    (input.erythemaDistanceCm !== undefined && input.erythemaDistanceCm >= 2) ||
++    findings.some(f => f.includes('cellulitis') || f.includes('erythema > 2') || f.includes('induration'));
++  const e1Evidence = e1Met
++    ? input.erythemaDistanceCm
++      ? `Periwound erythema extending ${input.erythemaDistanceCm} cm beyond margin with induration`
++      : 'Periwound erythema > 2cm with palpable induration'
++    : null;
++
++  // E - Exudate purulent / edema
++  const e2Met =
++    input.exudatePurulent === true ||
++    input.edemaPresent === true ||
++    findings.some(f => f.includes('purulent') || f.includes('pus') || f.includes('fluctuance'));
++  const e2Evidence = e2Met ? 'Frank purulent exudate or significant local edema and fluctuance' : null;
++
++  // S - Smell / Foul odor
++  const s2Met =
++    input.odorFoulPutrid === true ||
++    findings.some(f => f.includes('putrid') || f.includes('foul') || f.includes('gangrenous'));
++  const s2Evidence = s2Met ? 'Pungent, putrid, necrotic tissue odor' : null;
++
++  const criteria: StoneesCriteriaItem[] = [
++    {
++      key: 'sizeIncreasing',
++      letter: 'S',
++      name: 'Size Increasing',
++      description: 'Enlarging wound surface dimensions or deepening cavity',
++      met: sMet,
++      clinicalEvidence: sEvidence,
++      isCriticalStandalone: false,
++    },
++    {
++      key: 'temperatureIncreased',
++      letter: 'T',
++      name: 'Temperature Elevated',
++      description: 'Periwound warmth (>3°F difference vs contralateral extremity)',
++      met: tMet,
++      clinicalEvidence: tEvidence,
++      isCriticalStandalone: false,
++    },
++    {
++      key: 'osProbesToBone',
++      letter: 'O',
++      name: 'Os (Probes to Bone)',
++      description: 'Bone contact with metal probe or visible cortical bone (osteomyelitis high probability)',
++      met: oMet,
++      clinicalEvidence: oEvidence,
++      isCriticalStandalone: true,
++    },
++    {
++      key: 'newBreakdown',
++      letter: 'N',
++      name: 'New Areas of Breakdown',
++      description: 'Satellite lesions, undermining extension, or periwound tissue breakdown',
++      met: nMet,
++      clinicalEvidence: nEvidence,
++      isCriticalStandalone: false,
++    },
++    {
++      key: 'erythemaExtended',
++      letter: 'E',
++      name: 'Erythema > 2 cm',
++      description: 'Spreading periwound erythema >2cm from margin with induration/cellulitis',
++      met: e1Met,
++      clinicalEvidence: e1Evidence,
++      isCriticalStandalone: false,
++    },
++    {
++      key: 'exudatePurulent',
++      letter: 'E',
++      name: 'Exudate Purulent / Edema',
++      description: 'Purulent thick drainage, localized edema, or tissue fluctuance',
++      met: e2Met,
++      clinicalEvidence: e2Evidence,
++      isCriticalStandalone: false,
++    },
++    {
++      key: 'smellFoul',
++      letter: 'S',
++      name: 'Smell / Foul Putrid Odor',
++      description: 'Distinct foul, rotten, or anaerobic bacterial odor',
++      met: s2Met,
++      clinicalEvidence: s2Evidence,
++      isCriticalStandalone: false,
++    },
++  ];
++
++  const score = criteria.filter(c => c.met).length;
++  const criticalStandaloneTriggered = oMet || (e1Met && e2Met);
++  const isDeepTissueInfectionSuspected = score >= 3 || criticalStandaloneTriggered;
++
++  let severity: StoneesEvaluationResult['severity'] = 'none';
++  if (criticalStandaloneTriggered || score >= 4) severity = 'critical_deep_systemic';
++  else if (score >= 3) severity = 'critical_deep_systemic';
++  else if (score >= 1) severity = 'moderate';
++
++  const prescriptiveGuidance: string[] = [];
++  const mandatoryActions: string[] = [];
++
++  if (isDeepTissueInfectionSuspected) {
++    prescriptiveGuidance.push(
++      'STONEES CRITICAL: Deep compartment or spreading infection suspected.',
++      'Notify supervising Provider / MD immediately for systemic antibiotic evaluation.',
++      'Obtain deep wound culture (Levine technique after thorough cleansing) or tissue biopsy.',
++      oMet ? 'Probing to bone present: Osteomyelitis probability >85%. Order plain radiographs / MRI.' : 'Monitor for systemic signs of sepsis (fever, tachycardia, altered mental status).'
++    );
++    mandatoryActions.push(
++      'Immediate provider co-signature notification',
++      'Levine wound culture collection',
++      oMet ? 'Urgent plain film / MRI imaging requisition for osteomyelitis' : 'Periwound erythema boundary marking with surgical pen'
++    );
++  } else if (score >= 1) {
++    prescriptiveGuidance.push(
++      `STONEES score = ${score}/7. Early signs of deep tissue involvement. Re-assess within 48 hours.`
++    );
++  }
++
++  const clinicalSummary = isDeepTissueInfectionSuspected
++    ? `STONEES POSITIVE (${score}/7 criteria${oMet ? ' + Probes to Bone' : ''}): High risk of deep tissue / systemic infection. Urgent physician escalation required.`
++    : `STONEES Negative (${score}/7 criteria): No acute spreading deep infection identified.`;
++
++  return {
++    score,
++    totalCriteria: 7,
++    isDeepTissueInfectionSuspected,
++    criticalStandaloneTriggered,
++    severity,
++    criteria,
++    clinicalSummary,
++    prescriptiveGuidance,
++    mandatoryActions,
++  };
++}
++
++/**
++ * Evaluates Ankle-Brachial Pressure Index (ABPI) for safe compression and debridement boundaries.
++ */
++export function evaluateAbpiSafety(abpi: number | null | undefined): AbpiSafetyEvaluationResult {
++  if (abpi === null || abpi === undefined || Number.isNaN(abpi)) {
++    return {
++      abpiValue: null,
++      category: 'unassessed',
++      categoryLabel: 'ABPI Not Documented',
++      severity: 'info',
++      compressionStatus: 'requires_assessment',
++      compressionStatusLabel: 'Perfusion Assessment Required',
++      summary: 'No ABPI documented. Lower extremity compression requires verified baseline arterial perfusion.',
++      contraindications: ['Do NOT apply high compression (>30 mmHg) until arterial perfusion is confirmed.'],
++      recommendedActions: ['Perform hand-held Doppler ankle-brachial pressure index assessment.'],
++    };
++  }
++
++  if (abpi < 0.5) {
++    return {
++      abpiValue: abpi,
++      category: 'critical_severe_ischemia',
++      categoryLabel: 'Severe Arterial Disease / Critical Limb Ischemia',
++      severity: 'critical',
++      compressionStatus: 'strict_contraindicated',
++      compressionStatusLabel: 'COMPRESSION STRICTLY CONTRAINDICATED',
++      summary: `ABPI ${abpi.toFixed(2)}: Critical limb ischemia detected. Severe arterial insufficiency.`,
++      contraindications: [
++        'STRICT CONTRAINDICATION: All forms of compression therapy (elastic, inelastic, or pneumatic).',
++        'STRICT CONTRAINDICATION: Sharp or surgical debridement of dry stable eschar without revascularization.',
++      ],
++      recommendedActions: [
++        'Immediate vascular surgical consultation for revascularization evaluation.',
++        'Keep affected extremity warm, dry, and protected from pressure.',
++        'Apply dry non-adherent protective dressings only.',
++      ],
++    };
++  }
++
++  if (abpi >= 0.5 && abpi < 0.8) {
++    return {
++      abpiValue: abpi,
++      category: 'moderate_arterial_disease',
++      categoryLabel: 'Moderate Arterial Insufficiency (Mixed Disease)',
++      severity: 'warning',
++      compressionStatus: 'modified_reduced_only',
++      compressionStatusLabel: 'High Compression Contraindicated (Modified Only)',
++      summary: `ABPI ${abpi.toFixed(2)}: Moderate arterial disease. Mixed venous-arterial ulceration likely.`,
++      contraindications: [
++        'CONTRAINDICATION: Standard high-compression therapy (30-40 mmHg or 4-layer systems).',
++        'Avoid aggressive debridement near ischemic margins.',
++      ],
++      recommendedActions: [
++        'Specialist physician order required prior to any reduced compression.',
++        'Modified low-stretch compression (<20 mmHg) with frequent monitoring only if authorized.',
++        'Schedule non-invasive arterial duplex ultrasound.',
++      ],
++    };
++  }
++
++  if (abpi >= 0.8 && abpi <= 1.3) {
++    return {
++      abpiValue: abpi,
++      category: 'normal_perfusion',
++      categoryLabel: 'Normal Arterial Perfusion',
++      severity: 'none',
++      compressionStatus: 'full_compression_safe',
++      compressionStatusLabel: 'Therapeutic Compression Safe',
++      summary: `ABPI ${abpi.toFixed(2)}: Adequate arterial inflow verified. Therapeutic compression is safe for venous hypertension.`,
++      contraindications: [],
++      recommendedActions: [
++        'Proceed with therapeutic multi-layer compression (30-40 mmHg at ankle) if venous ulcer.',
++        'Check pedal pulses and distal capillary refill following wrap application.',
++      ],
++    };
++  }
++
++  // abpi > 1.3
++  return {
++    abpiValue: abpi,
++    category: 'calcified_incompressible',
++    categoryLabel: 'Calcified / Incompressible Arteries (Falsely Elevated)',
++    severity: 'warning',
++    compressionStatus: 'unreliable_requires_tbi',
++    compressionStatusLabel: 'ABPI Unreliable - Verify with TBI',
++    summary: `ABPI ${abpi.toFixed(2)}: Falsely elevated due to medial arterial calcification (common in diabetes and ESRD).`,
++    contraindications: [
++      'Do NOT assume normal perfusion based on elevated ABPI value.',
++      'Avoid high compression until digital pressure is confirmed.',
++    ],
++    recommendedActions: [
++      'Order Toe-Brachial Index (TBI) - digital vessels rarely calcify.',
++      'Perform arterial Doppler waveform analysis (biphasic/triphasic vs monophasic).',
++      'Assess for microvascular neuropathy and foot offloading needs.',
++    ],
++  };
++}
++
++/**
++ * Generates an integrated clinical safety snapshot covering NERDS, STONEES, and ABPI.
++ */
++export function generateClinicalSafetySnapshot(params: {
++  nerdsInput: Parameters<typeof evaluateNerds>[0];
++  stoneesInput: Parameters<typeof evaluateStonees>[0];
++  abpiValue?: number | null;
++}): ClinicalSafetySnapshot {
++  const nerds = evaluateNerds(params.nerdsInput);
++  const stonees = evaluateStonees(params.stoneesInput);
++  const abpi = evaluateAbpiSafety(params.abpiValue);
++
++  const activeAlerts: string[] = [];
++  let compositeRiskLevel: ClinicalSafetySnapshot['compositeRiskLevel'] = 'stable';
++
++  if (stonees.isDeepTissueInfectionSuspected || abpi.category === 'critical_severe_ischemia') {
++    compositeRiskLevel = 'immediate_escalation';
++    if (stonees.isDeepTissueInfectionSuspected) {
++      activeAlerts.push(`CRITICAL INFECTION: STONEES ${stonees.score}/7 criteria met (Deep tissue infection risk).`);
++    }
++    if (abpi.category === 'critical_severe_ischemia') {
++      activeAlerts.push(`CRITICAL PERFUSION: ABPI ${params.abpiValue?.toFixed(2)} - Severe ischemia. Compression strictly forbidden.`);
++    }
++  } else if (nerds.isSuperficialInfectionSuspected || abpi.category === 'moderate_arterial_disease' || abpi.category === 'calcified_incompressible') {
++    compositeRiskLevel = 'urgent_attention';
++    if (nerds.isSuperficialInfectionSuspected) {
++      activeAlerts.push(`LOCAL INFECTION: NERDS ${nerds.score}/5 criteria met (Topical antimicrobial protocol indicated).`);
++    }
++    if (abpi.category === 'moderate_arterial_disease') {
++      activeAlerts.push(`PERFUSION WARNING: ABPI ${params.abpiValue?.toFixed(2)} - Standard high-compression contraindicated.`);
++    }
++    if (abpi.category === 'calcified_incompressible') {
++      activeAlerts.push(`ABPI UNRELIABLE: ABPI ${params.abpiValue?.toFixed(2)} - Incompressible vessels, order Toe-Brachial Index.`);
++    }
++  } else if (nerds.score > 0 || stonees.score > 0) {
++    compositeRiskLevel = 'caution';
++    activeAlerts.push(`Early bioburden markers detected: NERDS ${nerds.score}/5, STONEES ${stonees.score}/7.`);
++  }
++
++  return {
++    nerds,
++    stonees,
++    abpi,
++    compositeRiskLevel,
++    activeAlerts,
++    evaluatedAt: new Date(),
++  };
++}
+diff --git a/src/app/shared/healing-trajectory-graph.component.ts b/src/app/shared/healing-trajectory-graph.component.ts
+new file mode 100644
+index 0000000..0535090
+--- /dev/null
++++ b/src/app/shared/healing-trajectory-graph.component.ts
+@@ -0,0 +1,683 @@
++// src/app/shared/healing-trajectory-graph.component.ts
++import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import {
++  IonCard,
++  IonCardContent,
++  IonCardHeader,
++  IonCardTitle,
++  IonSegment,
++  IonSegmentButton,
++  IonLabel,
++  IonBadge,
++  IonIcon,
++} from '@ionic/angular/standalone';
++import { addIcons } from 'ionicons';
++import {
++  trendingDownOutline,
++  trendingUpOutline,
++  removeOutline,
++  analyticsOutline,
++  medicalOutline,
++  alertCircleOutline,
++  calendarOutline,
++  speedometerOutline,
++  sparklesOutline,
++} from 'ionicons/icons';
++import { BedsideHealingTrajectory, TrajectoryDataPoint } from './push-score';
++
++@Component({
++  selector: 'app-healing-trajectory-graph',
++  standalone: true,
++  imports: [
++    CommonModule,
++    IonCard,
++    IonCardContent,
++    IonCardHeader,
++    IonCardTitle,
++    IonSegment,
++    IonSegmentButton,
++    IonLabel,
++    IonBadge,
++    IonIcon,
++  ],
++  template: `
++    <ion-card class="trajectory-card" *ngIf="trajectory && trajectory.points.length">
++      <ion-card-header>
++        <div class="card-title-row">
++          <div>
++            <ion-card-title class="main-title">
++              <ion-icon name="analytics-outline"></ion-icon>
++              Bedside Healing Trajectory & PUSH
++            </ion-card-title>
++            <p class="subtitle">
++              Tracking {{ trajectory.daysTracked }} days across {{ trajectory.points.length }} clinical assessments
++            </p>
++          </div>
++          <ion-badge [class]="'trajectory-badge ' + trajectory.trajectoryClassification">
++            {{
++              trajectory.trajectoryClassification === 'rapidly_healing'
++                ? 'Rapid Progress'
++                : trajectory.trajectoryClassification === 'healing_on_target'
++                ? 'Healing On Target'
++                : trajectory.trajectoryClassification === 'stalled_delayed'
++                ? 'Stalled / Delayed'
++                : trajectory.trajectoryClassification === 'deteriorating'
++                ? 'Deteriorating'
++                : 'Baseline'
++            }}
++          </ion-badge>
++        </div>
++
++        <!-- Metric Switcher Tabs -->
++        <ion-segment [value]="activeMetric" (ionChange)="onMetricChange($event)" class="metric-segment">
++          <ion-segment-button value="area">
++            <ion-label>Area (cm²)</ion-label>
++          </ion-segment-button>
++          <ion-segment-button value="push">
++            <ion-label>PUSH Score (0-17)</ion-label>
++          </ion-segment-button>
++          <ion-segment-button value="depth">
++            <ion-label>Depth (cm)</ion-label>
++          </ion-segment-button>
++        </ion-segment>
++      </ion-card-header>
++
++      <ion-card-content>
++        <!-- Clinical Trajectory Summary Metric Cards -->
++        <div class="metric-summary-grid">
++          <!-- Area Change -->
++          <div class="metric-box">
++            <span class="box-label">Area Reduction</span>
++            <div class="box-value" [class.positive]="trajectory.overallPercentAreaReduction > 0" [class.negative]="trajectory.overallPercentAreaReduction < 0">
++              <ion-icon [name]="trajectory.overallPercentAreaReduction > 0 ? 'trending-down-outline' : trajectory.overallPercentAreaReduction < 0 ? 'trending-up-outline' : 'remove-outline'"></ion-icon>
++              {{ trajectory.overallPercentAreaReduction > 0 ? '-' + trajectory.overallPercentAreaReduction + '%' : '+' + Math.abs(trajectory.overallPercentAreaReduction) + '%' }}
++            </div>
++            <span class="box-sub">
++              {{ trajectory.baselinePoint?.areaCm2 }} cm² → {{ trajectory.latestPoint?.areaCm2 }} cm²
++            </span>
++          </div>
++
++          <!-- PUSH Score Change -->
++          <div class="metric-box">
++            <span class="box-label">PUSH Score</span>
++            <div class="box-value" [class.positive]="trajectory.overallPushReduction > 0" [class.negative]="trajectory.overallPushReduction < 0">
++              <ion-icon [name]="trajectory.overallPushReduction > 0 ? 'trending-down-outline' : 'trending-up-outline'"></ion-icon>
++              {{ trajectory.latestPoint?.pushScore }} / 17
++            </div>
++            <span class="box-sub">
++              {{ trajectory.overallPushReduction >= 0 ? '-' + trajectory.overallPushReduction + ' pts reduction' : '+' + Math.abs(trajectory.overallPushReduction) + ' pts increase' }}
++            </span>
++          </div>
++
++          <!-- Weekly Velocity -->
++          <div class="metric-box">
++            <span class="box-label">Healing Velocity</span>
++            <div class="box-value neutral">
++              <ion-icon name="speedometer-outline"></ion-icon>
++              {{ trajectory.weeklyHealingRateCm2 }}
++            </div>
++            <span class="box-sub">cm² / week</span>
++          </div>
++
++          <!-- Est Closure -->
++          <div class="metric-box">
++            <span class="box-label">Est. Closure</span>
++            <div class="box-value" [class.positive]="trajectory.projectedWeeksToClosure !== null">
++              <ion-icon name="sparkles-outline"></ion-icon>
++              {{ trajectory.projectedWeeksToClosure !== null ? '~' + trajectory.projectedWeeksToClosure + ' wks' : 'N/A' }}
++            </div>
++            <span class="box-sub">at current rate</span>
++          </div>
++        </div>
++
++        <!-- SVG Interactive Bedside Chart -->
++        <div class="svg-chart-container">
++          <svg
++            [attr.viewBox]="'0 0 ' + svgWidth + ' ' + svgHeight"
++            class="trajectory-svg"
++            preserveAspectRatio="xMidYMid meet"
++          >
++            <defs>
++              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
++                <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
++                <stop offset="100%" stop-color="#10b981" stop-opacity="0.02" />
++              </linearGradient>
++              <linearGradient id="pushGradient" x1="0" y1="0" x2="0" y2="1">
++                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
++                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.02" />
++              </linearGradient>
++              <linearGradient id="depthGradient" x1="0" y1="0" x2="0" y2="1">
++                <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35" />
++                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.02" />
++              </linearGradient>
++            </defs>
++
++            <!-- Grid horizontal lines -->
++            <g class="grid-lines">
++              <line
++                *ngFor="let tick of yTicks"
++                [attr.x1]="paddingLeft"
++                [attr.y1]="tick.y"
++                [attr.x2]="svgWidth - paddingRight"
++                [attr.y2]="tick.y"
++                stroke="#e5e7eb"
++                stroke-dasharray="3,3"
++                stroke-width="1"
++              />
++              <text
++                *ngFor="let tick of yTicks"
++                [attr.x]="paddingLeft - 8"
++                [attr.y]="tick.y + 4"
++                text-anchor="end"
++                class="axis-label"
++              >
++                {{ tick.val }}
++              </text>
++            </g>
++
++            <!-- Shaded Area Path -->
++            <path
++              [attr.d]="svgAreaPath"
++              [attr.fill]="
++                activeMetric === 'area'
++                  ? 'url(#areaGradient)'
++                  : activeMetric === 'push'
++                  ? 'url(#pushGradient)'
++                  : 'url(#depthGradient)'
++              "
++            />
++
++            <!-- Trend Line Path -->
++            <path
++              [attr.d]="svgLinePath"
++              fill="none"
++              [attr.stroke]="
++                activeMetric === 'area'
++                  ? '#059669'
++                  : activeMetric === 'push'
++                  ? '#2563eb'
++                  : '#d97706'
++              "
++              stroke-width="3"
++              stroke-linecap="round"
++              stroke-linejoin="round"
++            />
++
++            <!-- Target Closure Horizon Line for Area -->
++            <line
++              *ngIf="activeMetric === 'area'"
++              [attr.x1]="paddingLeft"
++              [attr.y1]="zeroY"
++              [attr.x2]="svgWidth - paddingRight"
++              [attr.y2]="zeroY"
++              stroke="#10b981"
++              stroke-width="1.5"
++              stroke-dasharray="4,2"
++            />
++
++            <!-- Data Points -->
++            <g *ngFor="let pt of chartPoints; let i = index">
++              <!-- Point Circle -->
++              <circle
++                [attr.cx]="pt.x"
++                [attr.cy]="pt.y"
++                [attr.r]="selectedPointIndex === i ? 7 : 5"
++                [attr.fill]="
++                  pt.raw.hasInfectionMarkers
++                    ? '#ef4444'
++                    : activeMetric === 'area'
++                    ? '#059669'
++                    : activeMetric === 'push'
++                    ? '#2563eb'
++                    : '#d97706'
++                "
++                stroke="#ffffff"
++                stroke-width="2"
++                class="data-circle"
++                (click)="selectPoint(i)"
++              />
++
++              <!-- Infection Warning Marker -->
++              <g *ngIf="pt.raw.hasInfectionMarkers" [attr.transform]="'translate(' + (pt.x - 6) + ',' + (pt.y - 18) + ')'">
++                <circle cx="6" cy="6" r="6" fill="#ef4444" />
++                <text x="6" y="9" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="bold">!</text>
++              </g>
++
++              <!-- Value Label above point -->
++              <text
++                [attr.x]="pt.x"
++                [attr.y]="pt.y - 10"
++                text-anchor="middle"
++                class="point-label"
++                [class.selected-label]="selectedPointIndex === i"
++              >
++                {{ pt.val }}
++              </text>
++
++              <!-- Date Label along bottom axis -->
++              <text
++                [attr.x]="pt.x"
++                [attr.y]="svgHeight - 10"
++                text-anchor="middle"
++                class="date-label"
++              >
++                {{ pt.raw.dateLabel }}
++              </text>
++            </g>
++          </svg>
++        </div>
++
++        <!-- Selected Assessment Detail Inspector -->
++        <div class="point-inspector" *ngIf="selectedPoint">
++          <div class="inspector-header">
++            <span class="inspector-date">
++              <ion-icon name="calendar-outline"></ion-icon>
++              Assessment: {{ selectedPoint.date | date:'mediumDate' }}
++            </span>
++            <ion-badge [class]="'status-badge ' + selectedPoint.status">
++              {{ selectedPoint.status | titlecase }}
++            </ion-badge>
++          </div>
++
++          <div class="inspector-details">
++            <div class="detail-item">
++              <span class="detail-title">Dimensions:</span>
++              <span class="detail-val">
++                {{ selectedPoint.pushBreakdown.lengthCm }} × {{ selectedPoint.pushBreakdown.widthCm }} × {{ selectedPoint.depthCm || 0 }} cm
++              </span>
++            </div>
++            <div class="detail-item">
++              <span class="detail-title">Area:</span>
++              <span class="detail-val highlight">{{ selectedPoint.areaCm2 }} cm²</span>
++            </div>
++            <div class="detail-item">
++              <span class="detail-title">PUSH Score:</span>
++              <span class="detail-val highlight-push">
++                {{ selectedPoint.pushScore }}/17 (Area: {{ selectedPoint.pushBreakdown.areaScore }}, Exudate: {{ selectedPoint.pushBreakdown.exudateScore }}, Tissue: {{ selectedPoint.pushBreakdown.tissueScore }})
++              </span>
++            </div>
++            <div class="detail-item">
++              <span class="detail-title">Predominant Tissue:</span>
++              <span class="detail-val">{{ selectedPoint.pushBreakdown.tissueType }}</span>
++            </div>
++            <div class="detail-item">
++              <span class="detail-title">Exudate Level:</span>
++              <span class="detail-val">{{ selectedPoint.pushBreakdown.exudateAmount }}</span>
++            </div>
++            <div class="detail-item" *ngIf="selectedPoint.percentChangeFromBaseline !== undefined">
++              <span class="detail-title">Δ from Baseline:</span>
++              <span class="detail-val" [class.text-healed]="selectedPoint.percentChangeFromBaseline > 0" [class.text-enlarged]="selectedPoint.percentChangeFromBaseline < 0">
++                {{ selectedPoint.percentChangeFromBaseline > 0 ? selectedPoint.percentChangeFromBaseline + '% reduction' : Math.abs(selectedPoint.percentChangeFromBaseline) + '% enlargement' }}
++              </span>
++            </div>
++          </div>
++        </div>
++
++        <!-- Bedside Clinical Trajectory Recommendations -->
++        <div class="recommendations-box">
++          <div class="rec-header">
++            <ion-icon name="medical-outline"></ion-icon>
++            <h5>Bedside Clinical Decision Support</h5>
++          </div>
++          <ul>
++            <li *ngFor="let rec of trajectory.clinicalRecommendations">{{ rec }}</li>
++          </ul>
++        </div>
++      </ion-card-content>
++    </ion-card>
++  `,
++  styles: [
++    `
++      .trajectory-card {
++        margin: 16px 0;
++        border-radius: 14px;
++        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
++        border: 1px solid #e5e7eb;
++      }
++      .card-title-row {
++        display: flex;
++        align-items: flex-start;
++        justify-content: space-between;
++        gap: 8px;
++        margin-bottom: 12px;
++      }
++      .main-title {
++        font-size: 16px;
++        font-weight: 700;
++        display: flex;
++        align-items: center;
++        gap: 6px;
++      }
++      .subtitle {
++        font-size: 12px;
++        color: #6b7280;
++        margin: 2px 0 0 0;
++      }
++      .trajectory-badge {
++        font-size: 11px;
++        padding: 4px 8px;
++        border-radius: 6px;
++        font-weight: 700;
++      }
++      .trajectory-badge.rapidly_healing {
++        background: #d1fae5;
++        color: #065f46;
++      }
++      .trajectory-badge.healing_on_target {
++        background: #ecfdf5;
++        color: #047857;
++      }
++      .trajectory-badge.stalled_delayed {
++        background: #fef3c7;
++        color: #b45309;
++      }
++      .trajectory-badge.deteriorating {
++        background: #fee2e2;
++        color: #b91c1c;
++      }
++      .metric-segment {
++        margin-top: 8px;
++      }
++      .metric-summary-grid {
++        display: grid;
++        grid-template-columns: repeat(2, 1fr);
++        gap: 8px;
++        margin-bottom: 16px;
++      }
++      @media (min-width: 600px) {
++        .metric-summary-grid {
++          grid-template-columns: repeat(4, 1fr);
++        }
++      }
++      .metric-box {
++        background: #f9fafb;
++        padding: 10px;
++        border-radius: 8px;
++        border: 1px solid #f3f4f6;
++        display: flex;
++        flex-direction: column;
++      }
++      .box-label {
++        font-size: 11px;
++        color: #6b7280;
++        font-weight: 600;
++        text-transform: uppercase;
++      }
++      .box-value {
++        font-size: 18px;
++        font-weight: 800;
++        margin: 4px 0 2px 0;
++        display: flex;
++        align-items: center;
++        gap: 4px;
++      }
++      .box-value.positive {
++        color: #059669;
++      }
++      .box-value.negative {
++        color: #dc2626;
++      }
++      .box-value.neutral {
++        color: #2563eb;
++      }
++      .box-sub {
++        font-size: 11px;
++        color: #9ca3af;
++      }
++      .svg-chart-container {
++        width: 100%;
++        background: #ffffff;
++        border-radius: 8px;
++        border: 1px solid #e5e7eb;
++        padding: 8px 4px 4px 4px;
++        box-sizing: border-box;
++      }
++      .trajectory-svg {
++        width: 100%;
++        height: auto;
++        display: block;
++      }
++      .axis-label {
++        font-size: 10px;
++        fill: #9ca3af;
++        font-family: sans-serif;
++      }
++      .point-label {
++        font-size: 11px;
++        fill: #374151;
++        font-weight: 700;
++        font-family: sans-serif;
++      }
++      .point-label.selected-label {
++        fill: #111827;
++        font-size: 13px;
++      }
++      .date-label {
++        font-size: 10px;
++        fill: #6b7280;
++        font-family: sans-serif;
++      }
++      .data-circle {
++        cursor: pointer;
++        transition: r 0.2s ease;
++      }
++      .data-circle:hover {
++        r: 8;
++      }
++      .point-inspector {
++        background: #f8fafc;
++        border: 1px solid #e2e8f0;
++        border-radius: 8px;
++        padding: 12px;
++        margin-top: 12px;
++      }
++      .inspector-header {
++        display: flex;
++        justify-content: space-between;
++        align-items: center;
++        margin-bottom: 8px;
++      }
++      .inspector-date {
++        font-size: 13px;
++        font-weight: 700;
++        color: #1e293b;
++        display: flex;
++        align-items: center;
++        gap: 6px;
++      }
++      .status-badge {
++        font-size: 10px;
++      }
++      .status-badge.progressing {
++        background: #d1fae5;
++        color: #065f46;
++      }
++      .status-badge.deteriorating {
++        background: #fee2e2;
++        color: #b91c1c;
++      }
++      .status-badge.stagnant {
++        background: #fef3c7;
++        color: #b45309;
++      }
++      .inspector-details {
++        display: grid;
++        grid-template-columns: 1fr;
++        gap: 6px;
++        font-size: 12px;
++      }
++      @media (min-width: 480px) {
++        .inspector-details {
++          grid-template-columns: 1fr 1fr;
++        }
++      }
++      .detail-item {
++        display: flex;
++        justify-content: space-between;
++        padding: 4px 6px;
++        background: #ffffff;
++        border-radius: 4px;
++        border: 1px solid #f1f5f9;
++      }
++      .detail-title {
++        color: #64748b;
++      }
++      .detail-val {
++        font-weight: 600;
++        color: #0f172a;
++      }
++      .detail-val.highlight {
++        color: #059669;
++        font-weight: 700;
++      }
++      .detail-val.highlight-push {
++        color: #2563eb;
++        font-weight: 700;
++      }
++      .text-healed {
++        color: #059669;
++      }
++      .text-enlarged {
++        color: #dc2626;
++      }
++      .recommendations-box {
++        background: #f0fdf4;
++        border: 1px solid #bbf7d0;
++        border-radius: 8px;
++        padding: 12px;
++        margin-top: 14px;
++      }
++      .rec-header {
++        display: flex;
++        align-items: center;
++        gap: 6px;
++        color: #166534;
++        margin-bottom: 6px;
++      }
++      .rec-header h5 {
++        margin: 0;
++        font-size: 13px;
++        font-weight: 700;
++      }
++      .recommendations-box ul {
++        margin: 0;
++        padding-left: 18px;
++        color: #15803d;
++        font-size: 12px;
++      }
++      .recommendations-box li {
++        margin-bottom: 4px;
++      }
++    `,
++  ],
++})
++export class HealingTrajectoryGraphComponent implements OnChanges {
++  @Input() trajectory: BedsideHealingTrajectory | null = null;
++
++  activeMetric: 'area' | 'push' | 'depth' = 'area';
++  selectedPointIndex = 0;
++  Math = Math;
++
++  svgWidth = 400;
++  svgHeight = 200;
++  paddingLeft = 40;
++  paddingRight = 24;
++  paddingTop = 24;
++  paddingBottom = 30;
++
++  chartPoints: Array<{ x: number; y: number; val: number; raw: TrajectoryDataPoint }> = [];
++  svgLinePath = '';
++  svgAreaPath = '';
++  zeroY = 0;
++  yTicks: Array<{ y: number; val: number }> = [];
++
++  constructor() {
++    addIcons({
++      trendingDownOutline,
++      trendingUpOutline,
++      removeOutline,
++      analyticsOutline,
++      medicalOutline,
++      alertCircleOutline,
++      calendarOutline,
++      speedometerOutline,
++      sparklesOutline,
++    });
++  }
++
++  ngOnChanges(changes: SimpleChanges): void {
++    if (changes['trajectory'] && this.trajectory) {
++      this.selectedPointIndex = Math.max(0, this.trajectory.points.length - 1);
++      this.calculateChartGeometry();
++    }
++  }
++
++  onMetricChange(event: any) {
++    this.activeMetric = event.detail.value;
++    this.calculateChartGeometry();
++  }
++
++  selectPoint(index: number) {
++    this.selectedPointIndex = index;
++  }
++
++  get selectedPoint(): TrajectoryDataPoint | null {
++    if (!this.trajectory || !this.trajectory.points.length) return null;
++    return this.trajectory.points[this.selectedPointIndex] || null;
++  }
++
++  private calculateChartGeometry(): void {
++    if (!this.trajectory || !this.trajectory.points.length) return;
++
++    const points = this.trajectory.points;
++    const values = points.map(p => {
++      if (this.activeMetric === 'area') return p.areaCm2;
++      if (this.activeMetric === 'push') return p.pushScore;
++      return p.depthCm || 0;
++    });
++
++    const maxVal = Math.max(...values, this.activeMetric === 'push' ? 17 : 5);
++    const minVal = 0;
++    const valRange = Math.max(maxVal - minVal, 1);
++
++    const plotWidth = this.svgWidth - this.paddingLeft - this.paddingRight;
++    const plotHeight = this.svgHeight - this.paddingTop - this.paddingBottom;
++
++    this.chartPoints = points.map((p, idx) => {
++      const v = values[idx];
++      const x =
++        points.length === 1
++          ? this.paddingLeft + plotWidth / 2
++          : this.paddingLeft + (idx / (points.length - 1)) * plotWidth;
++      const y = this.paddingTop + plotHeight - ((v - minVal) / valRange) * plotHeight;
++      return { x, y, val: v, raw: p };
++    });
++
++    this.zeroY = this.paddingTop + plotHeight;
++
++    // Build SVG path strings
++    if (this.chartPoints.length === 1) {
++      const pt = this.chartPoints[0];
++      this.svgLinePath = `M ${pt.x - 20} ${pt.y} L ${pt.x + 20} ${pt.y}`;
++      this.svgAreaPath = `M ${pt.x - 20} ${this.zeroY} L ${pt.x - 20} ${pt.y} L ${pt.x + 20} ${pt.y} L ${pt.x + 20} ${this.zeroY} Z`;
++    } else {
++      let lineD = '';
++      this.chartPoints.forEach((pt, idx) => {
++        lineD += idx === 0 ? `M ${pt.x} ${pt.y}` : ` L ${pt.x} ${pt.y}`;
++      });
++      this.svgLinePath = lineD;
++
++      const firstPt = this.chartPoints[0];
++      const lastPt = this.chartPoints[this.chartPoints.length - 1];
++      this.svgAreaPath = `${lineD} L ${lastPt.x} ${this.zeroY} L ${firstPt.x} ${this.zeroY} Z`;
++    }
++
++    // Y ticks
++    this.yTicks = [0, 0.25, 0.5, 0.75, 1].map(frac => {
++      const val = Math.round((minVal + frac * valRange) * 10) / 10;
++      const y = this.paddingTop + plotHeight - frac * plotHeight;
++      return { y, val };
++    });
++  }
++}
+diff --git a/src/app/shared/jade-care-algorithm.spec.ts b/src/app/shared/jade-care-algorithm.spec.ts
+new file mode 100644
+index 0000000..b6cb8ea
+--- /dev/null
++++ b/src/app/shared/jade-care-algorithm.spec.ts
+@@ -0,0 +1,114 @@
++// src/app/shared/jade-care-algorithm.spec.ts
++import {
++  recommendJadeAlgorithm,
++  evaluateStepVariances,
++  BUILT_IN_JADE_ALGORITHMS,
++} from './jade-care-algorithm';
++
++describe('JADE Care Algorithm & Step Variance Engine', () => {
++  it('recommends venous compression algorithm for venous ulcers with normal ABPI', () => {
++    const res = recommendJadeAlgorithm(
++      {
++        woundType: 'Venous Stasis Ulcer',
++        exudateAmount: 'Heavy',
++        sloughPresent: false,
++        escharPresent: false,
++      },
++      0.95
++    );
++
++    expect(res.recommendedAlgorithm).toBeTruthy();
++    expect(res.recommendedAlgorithm?.category).toBe('venous');
++    expect(res.contraindications.length).toBe(0);
++  });
++
++  it('flags strict contraindication to compression when ABPI < 0.5', () => {
++    const res = recommendJadeAlgorithm(
++      {
++        woundType: 'Venous Ulcer',
++        exudateAmount: 'Moderate',
++      },
++      0.42
++    );
++
++    expect(res.contraindications.some(c => c.includes('STRICT CONTRAINDICATION TO COMPRESSION'))).toBe(true);
++    expect(res.recommendedAlgorithm?.category).toBe('arterial_neuropathic');
++  });
++
++  it('evaluates fully concordant execution when actual steps match prescribed routine', () => {
++    const prescribed = {
++      cleanse: ['Normal saline 0.9% irrigation'],
++      prep: ['Zinc oxide barrier paste'],
++      fillApply: ['Silver calcium alginate pad'],
++      cover: ['Polyurethane foam pad'],
++      secureWith: ['Tubular elastic stockinette'],
++      frequency: 'Daily',
++    };
++
++    const actual = {
++      cleanse: ['Normal saline 0.9% irrigation'],
++      prep: ['Zinc oxide barrier paste'],
++      fillApply: ['Silver calcium alginate pad'],
++      cover: ['Polyurethane foam pad'],
++      secureWith: ['Tubular elastic stockinette'],
++      frequency: 'Daily',
++    };
++
++    const res = evaluateStepVariances({
++      prescribedRoutine: prescribed,
++      actualSteps: actual,
++    });
++
++    expect(res.variances.length).toBe(0);
++    expect(res.overallStatus).toBe('fully_concordant');
++  });
++
++  it('detects step omission as clinical variance', () => {
++    const prescribed = {
++      cleanse: ['Normal saline 0.9% irrigation'],
++      prep: ['Zinc oxide barrier paste'],
++      fillApply: ['Silver calcium alginate pad'],
++      cover: ['Polyurethane foam pad'],
++      secureWith: ['Tubular elastic stockinette'],
++    };
++
++    const actual = {
++      cleanse: ['Normal saline 0.9% irrigation'],
++      prep: [], // Omitted prep
++      fillApply: ['Silver calcium alginate pad'],
++      cover: ['Polyurethane foam pad'],
++      secureWith: ['Tubular elastic stockinette'],
++    };
++
++    const res = evaluateStepVariances({
++      prescribedRoutine: prescribed,
++      actualSteps: actual,
++    });
++
++    expect(res.variances.length).toBe(1);
++    expect(res.variances[0].stepCategory).toBe('prep');
++    expect(res.variances[0].varianceType).toBe('omission');
++    expect(res.overallStatus).toBe('minor_variance');
++  });
++
++  it('detects step substitution with critical severity when primary therapeutic layer is replaced', () => {
++    const prescribed = {
++      fillApply: ['Cadexomer iodine paste'],
++    };
++
++    const actual = {
++      fillApply: ['Hydrogel ointment'],
++    };
++
++    const res = evaluateStepVariances({
++      prescribedRoutine: prescribed,
++      actualSteps: actual,
++    });
++
++    expect(res.variances.length).toBe(1);
++    expect(res.variances[0].stepCategory).toBe('fillApply');
++    expect(res.variances[0].varianceType).toBe('substitution');
++    expect(res.variances[0].varianceSeverity).toBe('high_clinical_divergence');
++    expect(res.overallStatus).toBe('significant_variance');
++  });
++});
+diff --git a/src/app/shared/jade-care-algorithm.ts b/src/app/shared/jade-care-algorithm.ts
+new file mode 100644
+index 0000000..1c1c705
+--- /dev/null
++++ b/src/app/shared/jade-care-algorithm.ts
+@@ -0,0 +1,558 @@
++// src/app/shared/jade-care-algorithm.ts
++/**
++ * Shared JADE Care Algorithm Contract & Step Variance Engine
++ * Integrates WoundAPP mobile execution with JADE-SHOP authoring platform.
++ */
++
++import { MobileWoundGuidanceInput } from './mobile-order-guidance';
++
++export type JadeStepCategory =
++  | 'cleanse'
++  | 'prep'
++  | 'fillApply'
++  | 'cover'
++  | 'secureWith'
++  | 'compression'
++  | 'offloading'
++  | 'frequency'
++  | 'specialInstructions';
++
++export type StepVarianceType =
++  | 'concordant'
++  | 'omission'
++  | 'substitution'
++  | 'addition'
++  | 'frequency_change';
++
++export type VarianceReasonCode =
++  | 'clinical_contraindication'
++  | 'patient_intolerance'
++  | 'supply_unavailable'
++  | 'provider_verbal_order'
++  | 'wound_bed_improved'
++  | 'wound_bed_deteriorated'
++  | 'infection_escalation'
++  | 'other';
++
++export type VarianceSeverity = 'none' | 'low' | 'moderate' | 'high_clinical_divergence';
++
++export interface MobileStepVariance {
++  stepCategory: JadeStepCategory;
++  stepLabel: string;
++  prescribed: string[];
++  actual: string[];
++  varianceType: StepVarianceType;
++  reasonCode?: VarianceReasonCode | null;
++  reasonExplanation?: string | null;
++  varianceSeverity: VarianceSeverity;
++  reviewedByClinicalRole?: string | null;
++}
++
++export interface JadeAlgorithmStepOption {
++  id: string;
++  label: string;
++  category: JadeStepCategory;
++  required?: boolean;
++  selectedByDefault?: boolean;
++  contraindications?: string[];
++  rationale?: string;
++}
++
++export interface JadeCareAlgorithm {
++  id: string;
++  orgId: string;
++  name: string;
++  code: string;
++  category: string; // e.g. 'venous', 'arterial_neuropathic', 'wet', 'dry', 'wet_necrotic', 'dry_necrotic', 'skin_tear', 'pressure_injury', 'surgical'
++  version: number;
++  active: boolean;
++  description: string;
++  evidenceBase?: string;
++  inclusionCriteria: {
++    woundTypes?: string[];
++    exudateLevels?: string[];
++    tissueTypes?: string[];
++    minAbpi?: number;
++    maxAbpi?: number;
++  };
++  recommendedDefaults: {
++    frequency: string;
++    duration: string;
++    priority: 'routine' | 'urgent' | 'stat';
++  };
++  steps: {
++    specialInstructions?: JadeAlgorithmStepOption[];
++    cleanse: JadeAlgorithmStepOption[];
++    prep: JadeAlgorithmStepOption[];
++    fillApply: JadeAlgorithmStepOption[];
++    cover: JadeAlgorithmStepOption[];
++    secureWith: JadeAlgorithmStepOption[];
++    compression?: JadeAlgorithmStepOption[];
++    offloading?: JadeAlgorithmStepOption[];
++  };
++  safetyCautions: string[];
++}
++
++export interface MobileOrderExecutionInput {
++  orderId: string;
++  patientId: string;
++  woundId?: string | null;
++  visitId?: string | null;
++  fieldEncounterVisitId?: string | null;
++  episodeId?: string | null;
++  performedAt: Date | string;
++  actualSteps: {
++    specialInstructions?: string[];
++    cleanse: string[];
++    prep: string[];
++    fillApply: string[];
++    cover: string[];
++    secureWith: string[];
++    compression?: string[];
++    offloading?: string[];
++    frequency?: string | null;
++  };
++  suppliesUsed?: Array<{ supplyId?: string; name: string; quantity: number; unit?: string }>;
++  variances: MobileStepVariance[];
++  overallVarianceStatus: 'fully_concordant' | 'minor_variance' | 'significant_variance';
++  clinicianNotes?: string | null;
++  patientTolerated: 'well' | 'moderate_pain' | 'severe_discomfort' | 'refused_partial';
++  painScoreBefore?: number | null;
++  painScoreAfter?: number | null;
++}
++
++/**
++ * Standard JADE Care Algorithm Library
++ * Fallback & reference algorithms built to wound care guidelines (WOCN, NPUAP, EWMA)
++ */
++export const BUILT_IN_JADE_ALGORITHMS: JadeCareAlgorithm[] = [
++  {
++    id: 'jade-alg-venous-wet',
++    orgId: 'shared-canonical',
++    name: 'JADE Venous Leg Ulcer - Exudate Control & Multi-Layer Compression',
++    code: 'JADE-VLU-01',
++    category: 'venous',
++    version: 2,
++    active: true,
++    description: 'Evidence-based management for venous hypertension ulcers with moderate to heavy drainage and verified arterial safety (ABPI >= 0.8).',
++    evidenceBase: 'WOCN Venous Ulcer Clinical Practice Guideline (Grade 1A for multi-layer sustained compression)',
++    inclusionCriteria: {
++      woundTypes: ['venous', 'venous stasis', 'stasis ulcer'],
++      exudateLevels: ['moderate', 'heavy'],
++      minAbpi: 0.8,
++    },
++    recommendedDefaults: {
++      frequency: '2-3 times per week',
++      duration: '4-6 weeks with re-evaluation',
++      priority: 'routine',
++    },
++    steps: {
++      specialInstructions: [
++        { id: 'inst-elevate', label: 'Elevate lower extremities above heart level 30 min tid', category: 'specialInstructions' },
++        { id: 'inst-emollient', label: 'Apply fragrance-free emollient to intact calf skin', category: 'specialInstructions' },
++      ],
++      cleanse: [
++        { id: 'cl-saline', label: 'Normal saline 0.9% irrigation with gentle mechanical rinse', category: 'cleanse', selectedByDefault: true },
++        { id: 'cl-phmb', label: 'PHMB surfactant soak for 10-15 minutes if bioburden suspected', category: 'cleanse' },
++      ],
++      prep: [
++        { id: 'pr-skin-protect', label: 'Zinc oxide moisture barrier paste to peri-wound edge', category: 'prep', selectedByDefault: true },
++        { id: 'pr-cavilon', label: 'No-sting barrier film (acrylic terpolymer) circumferentially', category: 'prep' },
++      ],
++      fillApply: [
++        { id: 'fa-cadex', label: 'Cadexomer iodine paste / ointment 3mm thick layer', category: 'fillApply' },
++        { id: 'fa-silver-alginate', label: 'Silver calcium alginate pad packed to depth without overlap', category: 'fillApply', selectedByDefault: true },
++        { id: 'fa-honey', label: 'Medical grade Leptospermum honey dressing', category: 'fillApply' },
++      ],
++      cover: [
++        { id: 'cv-foam', label: 'Hydrocellular polyurethane foam non-adhesive pad', category: 'cover', selectedByDefault: true },
++        { id: 'cv-superabsorb', label: 'Super-absorbent polymer pad for high exudate', category: 'cover' },
++      ],
++      secureWith: [
++        { id: 'sec-tubular', label: 'Conforming tubular elastic stockinette layer', category: 'secureWith', selectedByDefault: true },
++        { id: 'sec-cohesive', label: 'Cohesive flexible self-adherent bandage (no tension)', category: 'secureWith' },
++      ],
++      compression: [
++        { id: 'comp-4layer', label: '4-layer multi-component compression bandage system (40 mmHg at ankle)', category: 'compression', selectedByDefault: true },
++        { id: 'comp-shortstretch', label: 'Short-stretch zinc paste bandage (Unna boot) with self-adherent wrap', category: 'compression' },
++        { id: 'comp-velcro', label: 'Inelastic adjustable compression wrap with hook-and-loop closures', category: 'compression' },
++      ],
++    },
++    safetyCautions: [
++      'STRICT SAFETY RULE: Do NOT apply compression if ABPI is below 0.8 without vascular surgery authorization.',
++      'Check peripheral pulse and capillary refill prior to and immediately following compression application.',
++      'Instruct patient to immediately remove bandages if sudden severe foot/toe pain, numbness, or cyanosis occurs.',
++    ],
++  },
++  {
++    id: 'jade-alg-arterial-dry',
++    orgId: 'shared-canonical',
++    name: 'JADE Arterial / Ischemic / Neuropathic - Moisture Protection & Non-Debridement',
++    code: 'JADE-ART-01',
++    category: 'arterial_neuropathic',
++    version: 2,
++    active: true,
++    description: 'Protective protocol for poorly perfused or neuropathic ulcers. Emphasizes dry protective dressing and strictly forbids aggressive sharp debridement on dry eschar without perfusion.',
++    evidenceBase: 'IWGDF Diabetic Foot Ulcer Guidelines; SVS Arterial Wound Standards',
++    inclusionCriteria: {
++      woundTypes: ['arterial', 'ischemic', 'neuropathic', 'diabetic foot ulcer'],
++      exudateLevels: ['none', 'light'],
++      maxAbpi: 0.8,
++    },
++    recommendedDefaults: {
++      frequency: 'Every 2 to 3 days and prn strike-through',
++      duration: '4 weeks with urgent vascular consult',
++      priority: 'urgent',
++    },
++    steps: {
++      specialInstructions: [
++        { id: 'inst-no-comp', label: 'DO NOT APPLY COMPRESSION - severe arterial compromise', category: 'specialInstructions', required: true },
++        { id: 'inst-offload', label: 'Total offloading boot or therapeutic diabetic footwear mandatory', category: 'specialInstructions' },
++      ],
++      cleanse: [
++        { id: 'cl-povidone', label: 'Povidone-iodine 10% swab to maintain dry, sterile eschar', category: 'cleanse', selectedByDefault: true },
++        { id: 'cl-saline-dry', label: 'Sterile saline rinse; thoroughly pat dry with sterile gauze', category: 'cleanse' },
++      ],
++      prep: [
++        { id: 'pr-skin-prep', label: 'Non-sting skin protective wipe to surrounding intact skin', category: 'prep', selectedByDefault: true },
++      ],
++      fillApply: [
++        { id: 'fa-dry-gauze', label: 'Dry sterile non-adherent petrolatum gauze contact layer', category: 'fillApply', selectedByDefault: true },
++        { id: 'fa-iodophor', label: 'Dry iodophor impregnated gauze (do not moisten dry gangrene)', category: 'fillApply' },
++      ],
++      cover: [
++        { id: 'cv-dry-gauze-pad', label: 'Dry sterile 4x4 woven gauze sponges (fluffed)', category: 'cover', selectedByDefault: true },
++      ],
++      secureWith: [
++        { id: 'sec-roll-gauze', label: 'Rolled tubular gauze loosely wrapped, tape to itself only (no skin tape)', category: 'secureWith', selectedByDefault: true },
++      ],
++      offloading: [
++        { id: 'off-boot', label: 'Removable cast walker / offloading healing shoe', category: 'offloading', selectedByDefault: true },
++      ],
++    },
++    safetyCautions: [
++      'CONTRAINDICATION: Sharp or surgical debridement of dry stable eschar is strictly contraindicated without arterial revascularization.',
++      'CONTRAINDICATION: Compression wraps and tight circumferential taping are contraindicated.',
++    ],
++  },
++  {
++    id: 'jade-alg-wet-necrotic',
++    orgId: 'shared-canonical',
++    name: 'JADE Wet Necrotic Debridement & Bioburden Suppression',
++    code: 'JADE-WET-NEC-01',
++    category: 'wet_necrotic',
++    version: 2,
++    active: true,
++    description: 'Targeted bio-enzymatic and autolytic debridement protocol for wounds with devitalized slough/eschar with moderate to heavy exudate.',
++    evidenceBase: 'WOCN Wound Debridement & Moisture Balance Framework',
++    inclusionCriteria: {
++      exudateLevels: ['moderate', 'heavy'],
++      tissueTypes: ['slough', 'soft eschar'],
++    },
++    recommendedDefaults: {
++      frequency: 'Daily to every other day',
++      duration: '2 to 3 weeks until clean granulation bed achieved',
++      priority: 'routine',
++    },
++    steps: {
++      specialInstructions: [
++        { id: 'inst-sharp', label: 'Assess for bedside cross-hatching or conservative sharp debridement if certified', category: 'specialInstructions' },
++      ],
++      cleanse: [
++        { id: 'cl-hypochlorous', label: 'Hypochlorous acid (HOCl) antimicrobial wound cleanser soak 10 min', category: 'cleanse', selectedByDefault: true },
++        { id: 'cl-pulsed', label: 'Sterile water/saline irrigation with 35mL syringe and 19G angiocatheter', category: 'cleanse' },
++      ],
++      prep: [
++        { id: 'pr-zinc', label: 'Zinc oxide / dimethicone barrier cream to entire periwound zone', category: 'prep', selectedByDefault: true },
++      ],
++      fillApply: [
++        { id: 'fa-collagenase', label: 'Collagenase enzymatic debriding ointment nickel-thick layer', category: 'fillApply', selectedByDefault: true },
++        { id: 'fa-silver-collagenase', label: 'Silver nitrate cautery to hypergranulation if prescribed', category: 'fillApply' },
++        { id: 'fa-iodosorb', label: 'Cadexomer iodine gel (debridement + sustained antimicrobial)', category: 'fillApply' },
++      ],
++      cover: [
++        { id: 'cv-foam-silver', label: 'Silver-impregnated polyurethane foam dressing', category: 'cover', selectedByDefault: true },
++        { id: 'cv-absorb-pad', label: 'Non-bordered hydrocellular absorption pad', category: 'cover' },
++      ],
++      secureWith: [
++        { id: 'sec-tubular-net', label: 'Tubular elastic retention bandage netting', category: 'secureWith', selectedByDefault: true },
++        { id: 'sec-hypo-tape', label: 'Hypoallergenic microporous surgical paper tape', category: 'secureWith' },
++      ],
++    },
++    safetyCautions: [
++      'Do NOT use silver dressings simultaneously with collagenase enzymatic ointment as heavy metals inactivate the enzyme.',
++      'Protect peri-wound skin aggressively against maceration caused by enzymatic liquefaction of slough.',
++    ],
++  },
++  {
++    id: 'jade-alg-pressure-granulating',
++    orgId: 'shared-canonical',
++    name: 'JADE Pressure Injury - Granulation Promotion & Cell Proliferation',
++    code: 'JADE-PI-01',
++    category: 'pressure_injury',
++    version: 2,
++    active: true,
++    description: 'Protocol for clean Stage 3/4 or unstageable recovering pressure injuries focusing on granulation proliferation, depth filling, and moisture equilibrium.',
++    evidenceBase: 'NPUAP/EPUAP/PPPIA International Clinical Practice Guideline for Pressure Injuries',
++    inclusionCriteria: {
++      woundTypes: ['pressure injury', 'pressure ulcer', 'decubitus'],
++      tissueTypes: ['granulation', 'clean wound bed'],
++    },
++    recommendedDefaults: {
++      frequency: 'Every 2 to 3 days',
++      duration: '4-8 weeks',
++      priority: 'routine',
++    },
++    steps: {
++      specialInstructions: [
++        { id: 'inst-turn', label: 'Patient repositioning schedule q2h with 30-degree lateral tilt', category: 'specialInstructions', required: true },
++        { id: 'inst-surface', label: 'Dynamic low air loss or alternating pressure mattress verified', category: 'specialInstructions' },
++      ],
++      cleanse: [
++        { id: 'cl-gentle-saline', label: 'Warm sterile 0.9% normal saline gentle irrigation', category: 'cleanse', selectedByDefault: true },
++      ],
++      prep: [
++        { id: 'pr-cavilon-film', label: 'Advanced moisture barrier film to intact peri-wound', category: 'prep', selectedByDefault: true },
++      ],
++      fillApply: [
++        { id: 'fa-collagen-matrix', label: 'Native bovine collagen extracellular matrix powder / sheet', category: 'fillApply', selectedByDefault: true },
++        { id: 'fa-hydrogel', label: 'Amorphous hydrogel dressing for gentle autolysis and hydration', category: 'fillApply' },
++      ],
++      cover: [
++        { id: 'cv-bordered-sacral', label: 'Silicone-bordered 5-layer foam sacral/heel dressing with redistribution core', category: 'cover', selectedByDefault: true },
++      ],
++      secureWith: [
++        { id: 'sec-silicone-border', label: 'Self-adherent silicone adhesive border (no secondary tape)', category: 'secureWith', selectedByDefault: true },
++      ],
++    },
++    safetyCautions: [
++      'Avoid massage over bony prominences.',
++      'Ensure dead space is loosely packed; over-packing creates capillary pressure and causes ischemic necrosis of the wound base.',
++    ],
++  },
++];
++
++/**
++ * Evaluates clinical step variance between what was ordered/prescribed by JADE algorithm
++ * and what was executed at the bedside by the clinician.
++ */
++export function evaluateStepVariances(params: {
++  prescribedRoutine: {
++    cleanse?: string[];
++    prep?: string[];
++    fillApply?: string[];
++    cover?: string[];
++    secureWith?: string[];
++    compression?: string[];
++    offloading?: string[];
++    frequency?: string | null;
++    specialInstructions?: string[];
++  };
++  actualSteps: {
++    cleanse?: string[];
++    prep?: string[];
++    fillApply?: string[];
++    cover?: string[];
++    secureWith?: string[];
++    compression?: string[];
++    offloading?: string[];
++    frequency?: string | null;
++    specialInstructions?: string[];
++  };
++  clinicianReasons?: Record<string, { code: VarianceReasonCode; explanation: string }>;
++}): { variances: MobileStepVariance[]; overallStatus: 'fully_concordant' | 'minor_variance' | 'significant_variance' } {
++  const variances: MobileStepVariance[] = [];
++  const categories: Array<{ key: JadeStepCategory; label: string }> = [
++    { key: 'cleanse', label: 'Cleanse' },
++    { key: 'prep', label: 'Peri-wound Prep' },
++    { key: 'fillApply', label: 'Fill / Topical Application' },
++    { key: 'cover', label: 'Cover Dressing' },
++    { key: 'secureWith', label: 'Securement' },
++    { key: 'compression', label: 'Compression Therapy' },
++    { key: 'offloading', label: 'Offloading Device' },
++    { key: 'specialInstructions', label: 'Special Instructions' },
++  ];
++
++  let hasHighSeverity = false;
++  let hasModerateSeverity = false;
++
++  for (const cat of categories) {
++    const prescribed = (params.prescribedRoutine as any)[cat.key] || [];
++    const actual = (params.actualSteps as any)[cat.key] || [];
++    const prescribedNorm = prescribed.map((s: string) => s.trim().toLowerCase());
++    const actualNorm = actual.map((s: string) => s.trim().toLowerCase());
++
++    const reason = params.clinicianReasons?.[cat.key];
++
++    // Check for Omission: prescribed items not present in actual
++    const omitted = prescribed.filter((p: string) => !actualNorm.includes(p.trim().toLowerCase()));
++    // Check for Addition: actual items not present in prescribed
++    const added = actual.filter((a: string) => !prescribedNorm.includes(a.trim().toLowerCase()));
++
++    if (omitted.length > 0 && added.length === 0) {
++      // Pure omission
++      const isCriticalCat = ['fillApply', 'compression', 'cover'].includes(cat.key);
++      const severity: VarianceSeverity = isCriticalCat ? 'high_clinical_divergence' : 'moderate';
++      if (severity === 'high_clinical_divergence') hasHighSeverity = true;
++      else hasModerateSeverity = true;
++
++      variances.push({
++        stepCategory: cat.key,
++        stepLabel: cat.label,
++        prescribed,
++        actual,
++        varianceType: 'omission',
++        reasonCode: reason?.code || 'supply_unavailable',
++        reasonExplanation: reason?.explanation || `Prescribed ${cat.label} step(s) omitted during bedside encounter: ${omitted.join(', ')}`,
++        varianceSeverity: severity,
++      });
++    } else if (omitted.length > 0 && added.length > 0) {
++      // Substitution
++      const severity: VarianceSeverity = cat.key === 'compression' ? 'high_clinical_divergence' : 'moderate';
++      if (severity === 'high_clinical_divergence') hasHighSeverity = true;
++      else hasModerateSeverity = true;
++
++      variances.push({
++        stepCategory: cat.key,
++        stepLabel: cat.label,
++        prescribed,
++        actual,
++        varianceType: 'substitution',
++        reasonCode: reason?.code || 'clinical_contraindication',
++        reasonExplanation: reason?.explanation || `Bedside substitution for ${cat.label}: replaced [${omitted.join(', ')}] with [${added.join(', ')}]`,
++        varianceSeverity: severity,
++      });
++    } else if (omitted.length === 0 && added.length > 0) {
++      // Supplementary addition
++      hasModerateSeverity = true;
++      variances.push({
++        stepCategory: cat.key,
++        stepLabel: cat.label,
++        prescribed,
++        actual,
++        varianceType: 'addition',
++        reasonCode: reason?.code || 'wound_bed_deteriorated',
++        reasonExplanation: reason?.explanation || `Additional bedside intervention added to ${cat.label}: ${added.join(', ')}`,
++        varianceSeverity: 'low',
++      });
++    }
++  }
++
++  // Check frequency variance
++  const prescribedFreq = params.prescribedRoutine.frequency;
++  const actualFreq = params.actualSteps.frequency;
++  if (prescribedFreq && actualFreq && prescribedFreq.trim().toLowerCase() !== actualFreq.trim().toLowerCase()) {
++    hasModerateSeverity = true;
++    const reason = params.clinicianReasons?.['frequency'];
++    variances.push({
++      stepCategory: 'frequency',
++      stepLabel: 'Dressing Frequency',
++      prescribed: [prescribedFreq],
++      actual: [actualFreq],
++      varianceType: 'frequency_change',
++      reasonCode: reason?.code || 'provider_verbal_order',
++      reasonExplanation: reason?.explanation || `Dressing frequency adjusted from "${prescribedFreq}" to "${actualFreq}"`,
++      varianceSeverity: 'moderate',
++    });
++  }
++
++  const overallStatus = hasHighSeverity
++    ? 'significant_variance'
++    : variances.length > 0
++    ? 'minor_variance'
++    : 'fully_concordant';
++
++  return { variances, overallStatus };
++}
++
++/**
++ * Dynamically resolves the best JADE algorithm recommendation based on patient clinical parameters.
++ */
++export function recommendJadeAlgorithm(
++  input: MobileWoundGuidanceInput | null | undefined,
++  abpi?: number | null,
++  availableAlgorithms: JadeCareAlgorithm[] = BUILT_IN_JADE_ALGORITHMS
++): {
++  recommendedAlgorithm: JadeCareAlgorithm | null;
++  alternatives: JadeCareAlgorithm[];
++  matchedCriteria: string[];
++  clinicalCautions: string[];
++  contraindications: string[];
++} {
++  if (!input) {
++    return {
++      recommendedAlgorithm: availableAlgorithms[0] || null,
++      alternatives: availableAlgorithms.slice(1),
++      matchedCriteria: ['No specific assessment provided; showing default care protocol.'],
++      clinicalCautions: ['Perform formal wound assessment before initiating therapy.'],
++      contraindications: [],
++    };
++  }
++
++  const type = String(input.woundType || '').toLowerCase();
++  const exudate = String(input.exudateAmount || '').toLowerCase();
++  const necrotic = input.sloughPresent === true || input.escharPresent === true;
++  const wet = exudate === 'moderate' || exudate === 'heavy';
++  const dry = exudate === 'none' || exudate === 'light';
++
++  const matchedCriteria: string[] = [];
++  const clinicalCautions: string[] = [];
++  const contraindications: string[] = [];
++
++  // ABPI safety check
++  if (abpi !== null && abpi !== undefined) {
++    if (abpi < 0.5) {
++      contraindications.push('ABPI < 0.5 indicates critical limb ischemia. STRICT CONTRAINDICATION TO COMPRESSION AND SHARP DEBRIDEMENT.');
++      clinicalCautions.push('Urgent vascular surgical referral mandated.');
++    } else if (abpi < 0.8) {
++      contraindications.push('ABPI < 0.8 indicates arterial insufficiency. Standard high-compression bandages contraindicated.');
++      clinicalCautions.push('Use protective, non-compressive or reduced modified (<20 mmHg) compression only.');
++    } else if (abpi > 1.3) {
++      clinicalCautions.push('ABPI > 1.3 indicates calcified incompressible vessels (common in diabetes/CKD). ABPI may be falsely normal/elevated; verify with TBI.');
++    }
++  }
++
++  let targetCategory = 'wet';
++
++  if (type.includes('arterial') || type.includes('ischemic') || type.includes('neuropathic') || (abpi !== null && abpi !== undefined && abpi < 0.8)) {
++    targetCategory = 'arterial_neuropathic';
++    matchedCriteria.push('Arterial/ischemic etiology detected');
++  } else if (type.includes('venous') || type.includes('stasis')) {
++    targetCategory = 'venous';
++    matchedCriteria.push('Venous etiology detected');
++    if (abpi !== null && abpi !== undefined && abpi < 0.8) {
++      clinicalCautions.push('Mixed arterial-venous disease: standard venous compression is contraindicated.');
++    }
++  } else if (type.includes('pressure') || type.includes('decubitus') || type.includes('sacral')) {
++    targetCategory = 'pressure_injury';
++    matchedCriteria.push('Pressure injury etiology detected');
++  } else if (necrotic && wet) {
++    targetCategory = 'wet_necrotic';
++    matchedCriteria.push('Necrotic devitalized slough/eschar with moderate/heavy moisture');
++  } else if (necrotic && dry) {
++    targetCategory = 'arterial_neuropathic';
++    matchedCriteria.push('Dry necrotic eschar requiring protective management');
++  } else if (wet) {
++    targetCategory = 'venous';
++    matchedCriteria.push('Exudative wound bed requiring moisture balance');
++  } else {
++    targetCategory = 'pressure_injury';
++    matchedCriteria.push('Standard wound bed proliferation protocol');
++  }
++
++  // Find best match in algorithms
++  const match = availableAlgorithms.find(a => a.category === targetCategory && a.active);
++  const alternatives = availableAlgorithms.filter(a => a.id !== match?.id && a.active);
++
++  if (match) {
++    clinicalCautions.push(...match.safetyCautions);
++  }
++
++  return {
++    recommendedAlgorithm: match || availableAlgorithms[0] || null,
++    alternatives,
++    matchedCriteria,
++    clinicalCautions,
++    contraindications,
++  };
++}
+diff --git a/src/app/shared/push-score.spec.ts b/src/app/shared/push-score.spec.ts
+new file mode 100644
+index 0000000..ffbcdd2
+--- /dev/null
++++ b/src/app/shared/push-score.spec.ts
+@@ -0,0 +1,99 @@
++// src/app/shared/push-score.spec.ts
++import {
++  calculatePushScore,
++  calculatePushAreaScore,
++  computeHealingTrajectory,
++} from './push-score';
++
++describe('PUSH Tool 3.0 & Healing Trajectory Engine', () => {
++  describe('calculatePushAreaScore', () => {
++    it('calculates accurate subscores according to NPIAP PUSH Tool', () => {
++      expect(calculatePushAreaScore(0)).toBe(0);
++      expect(calculatePushAreaScore(0.25)).toBe(1);
++      expect(calculatePushAreaScore(0.5)).toBe(2);
++      expect(calculatePushAreaScore(0.9)).toBe(3);
++      expect(calculatePushAreaScore(1.8)).toBe(4);
++      expect(calculatePushAreaScore(2.5)).toBe(5);
++      expect(calculatePushAreaScore(3.8)).toBe(6);
++      expect(calculatePushAreaScore(6.0)).toBe(7);
++      expect(calculatePushAreaScore(10.5)).toBe(8);
++      expect(calculatePushAreaScore(18.0)).toBe(9);
++      expect(calculatePushAreaScore(30.0)).toBe(10);
++    });
++  });
++
++  describe('calculatePushScore', () => {
++    it('calculates full PUSH score (0 to 17)', () => {
++      // Area = 2 x 3 = 6 cm² -> Area score: 7
++      // Exudate = Moderate -> Exudate score: 2
++      // Tissue = Slough -> Tissue score: 3
++      // Total = 7 + 2 + 3 = 12
++      const res = calculatePushScore({
++        length: 2,
++        width: 3,
++        depth: 0.5,
++        exudateAmount: 'Moderate',
++        sloughPresent: true,
++      });
++
++      expect(res.areaCm2).toBe(6);
++      expect(res.areaScore).toBe(7);
++      expect(res.exudateScore).toBe(2);
++      expect(res.tissueScore).toBe(3);
++      expect(res.totalPushScore).toBe(12);
++    });
++  });
++
++  describe('computeHealingTrajectory', () => {
++    it('classifies rapidly healing wounds when area reduction is >= 40%', () => {
++      const now = new Date();
++      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
++
++      const assessments = [
++        {
++          id: 'a1',
++          assessedAt: twoWeeksAgo,
++          measurements: { length: 4, width: 4, depth: 1 }, // 16 cm²
++          exudate: { amount: 'Heavy' },
++        },
++        {
++          id: 'a2',
++          assessedAt: now,
++          measurements: { length: 2, width: 2, depth: 0.2 }, // 4 cm² (-75% area reduction)
++          exudate: { amount: 'Light' },
++        },
++      ];
++
++      const traj = computeHealingTrajectory('w1', assessments);
++
++      expect(traj.points.length).toBe(2);
++      expect(traj.overallPercentAreaReduction).toBe(75);
++      expect(traj.trajectoryClassification).toBe('rapidly_healing');
++      expect(traj.weeklyHealingRateCm2).toBeGreaterThan(0);
++    });
++
++    it('identifies deteriorating wounds when surface area increases', () => {
++      const now = new Date();
++      const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
++
++      const assessments = [
++        {
++          id: 'a1',
++          assessedAt: past,
++          measurements: { length: 2, width: 2, depth: 0.5 }, // 4 cm²
++        },
++        {
++          id: 'a2',
++          assessedAt: now,
++          measurements: { length: 3, width: 3, depth: 1.0 }, // 9 cm² (+125% increase)
++        },
++      ];
++
++      const traj = computeHealingTrajectory('w1', assessments);
++
++      expect(traj.overallPercentAreaReduction).toBeLessThan(0);
++      expect(traj.trajectoryClassification).toBe('deteriorating');
++      expect(traj.clinicalRecommendations.some(r => r.includes('CRITICAL: Wound is deteriorating'))).toBe(true);
++    });
++  });
++});
+diff --git a/src/app/shared/push-score.ts b/src/app/shared/push-score.ts
+new file mode 100644
+index 0000000..5792c35
+--- /dev/null
++++ b/src/app/shared/push-score.ts
+@@ -0,0 +1,331 @@
++// src/app/shared/push-score.ts
++/**
++ * Pressure Ulcer Scale for Healing (PUSH Tool 3.0) & Trajectory Calculation Engine
++ * Developed by the National Pressure Injury Advisory Panel (NPIAP).
++ */
++
++export interface PushScoreBreakdown {
++  lengthCm: number;
++  widthCm: number;
++  depthCm?: number;
++  areaCm2: number;
++  areaScore: number; // 0 to 10
++  exudateAmount: string;
++  exudateScore: number; // 0 to 3
++  tissueType: string;
++  tissueScore: number; // 0 to 4
++  totalPushScore: number; // 0 to 17
++}
++
++export interface TrajectoryDataPoint {
++  assessmentId: string;
++  date: Date;
++  dateLabel: string;
++  areaCm2: number;
++  volumeCm3?: number;
++  depthCm?: number;
++  pushScore: number;
++  pushBreakdown: PushScoreBreakdown;
++  percentChangeFromBaseline?: number; // e.g. -35% (healed 35%)
++  percentChangeFromPrevious?: number;
++  status: 'progressing' | 'stagnant' | 'deteriorating' | 'baseline';
++  stage?: string;
++  type?: string;
++  hasInfectionMarkers?: boolean;
++}
++
++export interface BedsideHealingTrajectory {
++  woundId: string;
++  points: TrajectoryDataPoint[];
++  baselinePoint: TrajectoryDataPoint | null;
++  latestPoint: TrajectoryDataPoint | null;
++  overallPercentAreaReduction: number; // positive = healed, negative = increased
++  overallPushReduction: number;
++  trajectoryClassification:
++    | 'rapidly_healing'
++    | 'healing_on_target'
++    | 'stalled_delayed'
++    | 'deteriorating'
++    | 'insufficient_data';
++  daysTracked: number;
++  weeklyHealingRateCm2: number;
++  projectedWeeksToClosure: number | null;
++  clinicalRecommendations: string[];
++}
++
++/**
++ * Calculates PUSH score length x width subscore (0 to 10)
++ */
++export function calculatePushAreaScore(areaCm2: number): number {
++  if (areaCm2 <= 0) return 0;
++  if (areaCm2 < 0.3) return 1;
++  if (areaCm2 <= 0.6) return 2;
++  if (areaCm2 <= 1.0) return 3;
++  if (areaCm2 <= 2.0) return 4;
++  if (areaCm2 <= 3.0) return 5;
++  if (areaCm2 <= 4.0) return 6;
++  if (areaCm2 <= 8.0) return 7;
++  if (areaCm2 <= 12.0) return 8;
++  if (areaCm2 <= 24.0) return 9;
++  return 10;
++}
++
++/**
++ * Calculates PUSH score exudate subscore (0 to 3)
++ */
++export function calculatePushExudateScore(exudateAmount: string | null | undefined): number {
++  const norm = String(exudateAmount || '').toLowerCase();
++  if (norm === 'heavy' || norm === 'large' || norm === 'copious') return 3;
++  if (norm === 'moderate' || norm === 'medium') return 2;
++  if (norm === 'light' || norm === 'scant' || norm === 'small') return 1;
++  return 0; // none
++}
++
++/**
++ * Calculates PUSH score tissue type subscore (0 to 4)
++ */
++export function calculatePushTissueScore(tissueInput: {
++  isClosed?: boolean;
++  epithelialPercent?: number;
++  granulationPercent?: number;
++  sloughPercent?: number;
++  escharPresent?: boolean;
++  rawTissue?: string | null;
++}): number {
++  if (tissueInput.isClosed) return 0;
++  if (tissueInput.escharPresent || (tissueInput.rawTissue && tissueInput.rawTissue.toLowerCase().includes('eschar'))) {
++    return 4; // Necrotic / Eschar
++  }
++  if ((tissueInput.sloughPercent && tissueInput.sloughPercent > 0) || (tissueInput.rawTissue && tissueInput.rawTissue.toLowerCase().includes('slough'))) {
++    return 3; // Slough
++  }
++  if ((tissueInput.granulationPercent && tissueInput.granulationPercent > 0) || (tissueInput.rawTissue && tissueInput.rawTissue.toLowerCase().includes('granulation'))) {
++    return 2; // Granulation
++  }
++  if (tissueInput.epithelialPercent && tissueInput.epithelialPercent > 0) {
++    return 1; // Epithelial
++  }
++  return 2; // Default clean granulation
++}
++
++/**
++ * Calculates full PUSH Tool 3.0 score for a single assessment.
++ */
++export function calculatePushScore(params: {
++  length?: number | null;
++  width?: number | null;
++  depth?: number | null;
++  exudateAmount?: string | null;
++  tissueType?: string | null;
++  sloughPresent?: boolean;
++  escharPresent?: boolean;
++  isClosed?: boolean;
++}): PushScoreBreakdown {
++  const l = Number(params.length) || 0;
++  const w = Number(params.width) || 0;
++  const d = Number(params.depth) || 0;
++  const areaCm2 = Math.round(l * w * 100) / 100;
++
++  const areaScore = calculatePushAreaScore(areaCm2);
++  const exudateScore = calculatePushExudateScore(params.exudateAmount);
++  const tissueScore = calculatePushTissueScore({
++    isClosed: params.isClosed,
++    escharPresent: params.escharPresent,
++    sloughPercent: params.sloughPresent ? 25 : 0,
++    rawTissue: params.tissueType,
++  });
++
++  const totalPushScore = areaScore + exudateScore + tissueScore;
++
++  return {
++    lengthCm: l,
++    widthCm: w,
++    depthCm: d,
++    areaCm2,
++    areaScore,
++    exudateAmount: params.exudateAmount || 'None',
++    exudateScore,
++    tissueType: params.tissueType || (params.escharPresent ? 'Eschar' : params.sloughPresent ? 'Slough' : 'Granulation'),
++    tissueScore,
++    totalPushScore,
++  };
++}
++
++/**
++ * Computes full bedside healing trajectory from a list of chronological assessments.
++ */
++export function computeHealingTrajectory(
++  woundId: string,
++  rawAssessments: any[]
++): BedsideHealingTrajectory {
++  if (!rawAssessments || !rawAssessments.length) {
++    return {
++      woundId,
++      points: [],
++      baselinePoint: null,
++      latestPoint: null,
++      overallPercentAreaReduction: 0,
++      overallPushReduction: 0,
++      trajectoryClassification: 'insufficient_data',
++      daysTracked: 0,
++      weeklyHealingRateCm2: 0,
++      projectedWeeksToClosure: null,
++      clinicalRecommendations: ['Record at least two wound assessments to establish healing trajectory.'],
++    };
++  }
++
++  // Sort chronological ascending (oldest first)
++  const sorted = [...rawAssessments].sort((a, b) => {
++    const da = a.assessedAt instanceof Date ? a.assessedAt.getTime() : new Date(a.assessedAt || a.createdAt).getTime();
++    const db = b.assessedAt instanceof Date ? b.assessedAt.getTime() : new Date(b.assessedAt || b.createdAt).getTime();
++    return da - db;
++  });
++
++  const points: TrajectoryDataPoint[] = [];
++
++  for (let i = 0; i < sorted.length; i++) {
++    const a = sorted[i];
++    const m = a.measurements || {};
++    const describe = a.describe || {};
++    const woundBed = a.woundBed || {};
++    const exudate = a.exudate || {};
++
++    const l = Number(m.length) || Number(a.length) || 0;
++    const w = Number(m.width) || Number(a.width) || 0;
++    const d = Number(m.depth) || Number(a.depth) || 0;
++    const area = Math.round(l * w * 100) / 100;
++    const volume = Math.round(l * w * d * 100) / 100;
++
++    const date = a.assessedAt instanceof Date ? a.assessedAt : new Date(a.assessedAt || a.createdAt || Date.now());
++
++    const push = calculatePushScore({
++      length: l,
++      width: w,
++      depth: d,
++      exudateAmount: exudate.amount || a.exudateAmount,
++      tissueType: describe.tissueType || woundBed.primaryTissue,
++      sloughPresent: woundBed.slough?.present === true || a.sloughPresent === true,
++      escharPresent: woundBed.eschar === true || a.escharPresent === true,
++      isClosed: a.status === 'healed' || a.status === 'closed',
++    });
++
++    const hasInfection = Array.isArray(woundBed.infection) && woundBed.infection.length > 0;
++
++    let percentChangeFromBaseline: number | undefined;
++    let percentChangeFromPrevious: number | undefined;
++    let status: TrajectoryDataPoint['status'] = 'baseline';
++
++    if (i === 0) {
++      status = 'baseline';
++      percentChangeFromBaseline = 0;
++    } else {
++      const baselineArea = points[0].areaCm2;
++      const prevArea = points[i - 1].areaCm2;
++
++      if (baselineArea > 0) {
++        // Positive reduction means area decreased (healed)
++        percentChangeFromBaseline = Math.round(((baselineArea - area) / baselineArea) * 100);
++      } else {
++        percentChangeFromBaseline = 0;
++      }
++
++      if (prevArea > 0) {
++        percentChangeFromPrevious = Math.round(((prevArea - area) / prevArea) * 100);
++      }
++
++      if (percentChangeFromPrevious !== undefined) {
++        if (percentChangeFromPrevious >= 10) status = 'progressing';
++        else if (percentChangeFromPrevious <= -10) status = 'deteriorating';
++        else status = 'stagnant';
++      }
++    }
++
++    points.push({
++      assessmentId: a.id,
++      date,
++      dateLabel: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
++      areaCm2: area,
++      volumeCm3: volume,
++      depthCm: d,
++      pushScore: push.totalPushScore,
++      pushBreakdown: push,
++      percentChangeFromBaseline,
++      percentChangeFromPrevious,
++      status,
++      stage: describe.stage || a.stage,
++      type: describe.type || a.type,
++      hasInfectionMarkers: hasInfection,
++    });
++  }
++
++  const baseline = points[0];
++  const latest = points[points.length - 1];
++
++  let overallPercentAreaReduction = 0;
++  if (baseline.areaCm2 > 0) {
++    overallPercentAreaReduction = Math.round(((baseline.areaCm2 - latest.areaCm2) / baseline.areaCm2) * 100);
++  }
++
++  const overallPushReduction = baseline.pushScore - latest.pushScore;
++
++  const msElapsed = latest.date.getTime() - baseline.date.getTime();
++  const daysTracked = Math.max(1, Math.round(msElapsed / (1000 * 60 * 60 * 24)));
++  const weeksTracked = daysTracked / 7;
++
++  const areaReductionAbs = baseline.areaCm2 - latest.areaCm2;
++  const weeklyHealingRateCm2 = weeksTracked > 0 ? Math.round((areaReductionAbs / weeksTracked) * 100) / 100 : 0;
++
++  let projectedWeeksToClosure: number | null = null;
++  if (weeklyHealingRateCm2 > 0 && latest.areaCm2 > 0) {
++    projectedWeeksToClosure = Math.ceil(latest.areaCm2 / weeklyHealingRateCm2);
++  }
++
++  // Classification based on Sheehan et al. validated 20-40% 2-4 week milestone
++  let trajectoryClassification: BedsideHealingTrajectory['trajectoryClassification'] = 'insufficient_data';
++  const recommendations: string[] = [];
++
++  if (points.length < 2) {
++    trajectoryClassification = 'insufficient_data';
++    recommendations.push('Baseline established. Conduct follow-up assessment in 7 days to evaluate trajectory.');
++  } else if (overallPercentAreaReduction >= 40 || (weeksTracked <= 2 && overallPercentAreaReduction >= 20)) {
++    trajectoryClassification = 'rapidly_healing';
++    recommendations.push(
++      'Wound is progressing rapidly (>20-40% area reduction). Maintain current JADE protocol and dressing schedule.',
++      'Protect delicate neo-epithelium at wound margins.'
++    );
++  } else if (overallPercentAreaReduction >= 15) {
++    trajectoryClassification = 'healing_on_target';
++    recommendations.push(
++      'Wound is healing on target. Continue active moisture balance and bioburden suppression.',
++      projectedWeeksToClosure ? `Estimated closure in ~${projectedWeeksToClosure} weeks at current progression.` : 'Monitor weekly.'
++    );
++  } else if (overallPercentAreaReduction > -10 && overallPercentAreaReduction < 15) {
++    trajectoryClassification = 'stalled_delayed';
++    recommendations.push(
++      'HEALING STALLED (<15% reduction over tracked period).',
++      'Re-evaluate etiology: check for unrecognized bioburden, pressure/shearing, edema, or arterial compromise.',
++      'Consider advancing JADE algorithm to cellular / tissue-based product (CTP) or active enzymatic debridement.'
++    );
++  } else {
++    trajectoryClassification = 'deteriorating';
++    recommendations.push(
++      'CRITICAL: Wound is deteriorating (surface area or depth enlarging).',
++      'Trigger immediate provider bedside review and order co-signature.',
++      'Screen immediately using STONEES criteria for deep compartment infection or osteomyelitis.'
++    );
++  }
++
++  return {
++    woundId,
++    points,
++    baselinePoint: baseline,
++    latestPoint: latest,
++    overallPercentAreaReduction,
++    overallPushReduction,
++    trajectoryClassification,
++    daysTracked,
++    weeklyHealingRateCm2,
++    projectedWeeksToClosure,
++    clinicalRecommendations: recommendations,
++  };
++}
+-- 
+2.34.1
+

@@ -1,0 +1,84 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Patients</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goAddPatient()" aria-label="Add patient">
+        <ion-icon name="person-add-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="patients-page" [fullscreen]="true">
+
+  <!-- Pull to refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-wrapper">
+
+    <!-- Barre de recherche -->
+    <ion-searchbar
+      placeholder="Search by name or DOB"
+      [(ngModel)]="search"
+      (ionInput)="load()"
+      showCancelButton="focus"
+      class="searchbar"
+    ></ion-searchbar>
+
+    <!-- États de chargement / erreur / vide -->
+    <div *ngIf="loading" class="state state-loading">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading patients…</p>
+    </div>
+
+    <div *ngIf="!loading && errorMsg" class="state state-error">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <p>{{ errorMsg }}</p>
+    </div>
+
+    <div *ngIf="!loading && !errorMsg && !filteredPatients.length" class="state state-empty">
+      <ion-icon name="people-circle-outline"></ion-icon>
+      <p>No patients found for this search.</p>
+    </div>
+
+    <!-- Liste de patients -->
+    <ion-list *ngIf="!loading && !errorMsg && filteredPatients.length">
+  <ion-item
+    button
+    detail="true"
+    *ngFor="let p of filteredPatients"
+    class="patient-item"
+    (click)="openPatient(p)"
+  >
+    <ion-avatar slot="start" class="patient-avatar">
+      <img *ngIf="p.photoURL; else initialsAvatar" [src]="p.photoURL" alt="" />
+      <ng-template #initialsAvatar>
+        <span class="avatar-initials"
+              [style.background]="'hsl(' + avatarHue(p) + ', 62%, 92%)'"
+              [style.color]="'hsl(' + avatarHue(p) + ', 58%, 32%)'">
+          {{ initials(p) }}
+        </span>
+      </ng-template>
+    </ion-avatar>
+
+    <ion-label>
+      <h2 class="patient-name">
+        {{ p.name || p.displayName || 'Patient' }}
+      </h2>
+
+      <p class="patient-meta">
+        <ng-container *ngIf="toDate(p.dob) as dob">
+          <span class="meta-dob">{{ dob | date: 'MM/dd/yyyy' }}</span>
+          <span *ngIf="age(p) !== null" class="meta-age">· {{ age(p) }} yrs</span>
+        </ng-container>
+        <span *ngIf="p.mrn">· MRN {{ p.mrn }}</span>
+        <span *ngIf="p.room">· Room {{ p.room }}</span>
+      </p>
+    </ion-label>
+  </ion-item>
+</ion-list>
+
+  </div>
+</ion-content>

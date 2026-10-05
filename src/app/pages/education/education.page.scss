@@ -1,0 +1,82 @@
+.education-page ion-list {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Which wound this teaching was about, when the page was opened from an
+   assessment. Said once, at the top. */
+.wound {
+  display: block;
+  max-width: 720px;
+  margin: 0 auto var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-muted, #f5f6f8);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+/* The organization's own guidance on what to teach for this topic. Set
+   apart from the nurse's own note below, which is about how the session
+   went -- they are different things and must not read as one. */
+.instruction {
+  display: block;
+  margin: calc(var(--app-space-2) * -1) var(--app-space-1) var(--app-space-3);
+  padding: var(--app-space-3);
+  border-left: 3px solid rgba(30, 96, 165, 0.4);
+  border-radius: 0 var(--app-radius) var(--app-radius) 0;
+  background: #f3f6fb;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--app-ink);
+}
+
+.hint,
+.refused-note {
+  display: block;
+  margin: var(--app-space-2) var(--app-space-1) var(--app-space-3);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--app-ink-muted);
+}
+
+/* A reminder above the button that saves anyway -- amber, not red. */
+.gaps {
+  display: block;
+  max-width: 720px;
+  margin: var(--app-space-4) auto 0;
+  padding: var(--app-space-3);
+  border: 1px solid rgba(191, 138, 0, 0.28);
+  border-radius: var(--app-radius);
+  background: #fff8e1;
+  font-size: 0.82rem;
+  color: #7a5b00;
+}
+
+.error {
+  max-width: 720px;
+  margin: var(--app-space-3) auto 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-danger);
+}
+
+.education-page ion-button {
+  max-width: 720px;
+  margin: var(--app-space-4) auto 0;
+}
+
+.history {
+  max-width: 720px;
+  margin: var(--app-space-6) auto 0;
+}
+
+.history h2 {
+  margin: 0 var(--app-space-1) var(--app-space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}

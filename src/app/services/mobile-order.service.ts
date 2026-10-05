@@ -1,0 +1,656 @@
+import { Injectable, inject } from '@angular/core';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { TenantService } from './tenant.service';
+import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
+import { ClinicalAuditService } from './clinical-audit.service';
+import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
+import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
+import {
+  BUILT_IN_JADE_ALGORITHMS,
+  evaluateStepVariances,
+  JadeCareAlgorithm,
+  MobileOrderExecutionInput,
+  MobileStepVariance,
+  recommendJadeAlgorithm,
+} from '../shared/jade-care-algorithm';
+
+export interface MobileTreatmentProtocolOption {
+  id: string;
+  label: string;
+  required?: boolean;
+  selectedByDefault?: boolean;
+  requiresComment?: boolean;
+  order?: number;
+}
+
+export interface MobileTreatmentProtocolSections {
+  specialInstructions?: MobileTreatmentProtocolOption[];
+  cleanse: MobileTreatmentProtocolOption[];
+  prep: MobileTreatmentProtocolOption[];
+  fillApply: MobileTreatmentProtocolOption[];
+  cover: MobileTreatmentProtocolOption[];
+  secureWith: MobileTreatmentProtocolOption[];
+  changePrn: MobileTreatmentProtocolOption[];
+}
+
+export interface MobileTreatmentProtocolTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  active: boolean;
+  version: number;
+  orderDefaults: {
+    priority?: string | null;
+    frequency?: string | null;
+    durationMode?: string | null;
+    durationValue?: number | null;
+    woundManagement?: string | null;
+  };
+  sections: MobileTreatmentProtocolSections;
+}
+
+export interface MobileAppliedTreatmentProtocol {
+  templateId: string;
+  templateName: string;
+  templateCategory: string;
+  templateVersion: number;
+  snapshot: {
+    templateId: string;
+    name: string;
+    category: string;
+    version: number;
+    description?: string | null;
+    orderDefaults: MobileTreatmentProtocolTemplate['orderDefaults'];
+    sections: MobileTreatmentProtocolSections;
+  };
+}
+
+export interface MobilePrescriber {
+  uid: string;
+  displayName: string;
+  role: string;
+  credentials?: string | null;
+  npi?: string | null;
+}
+
+export interface MobileWoundOption {
+  woundId: string;
+  label: string;
+  guidanceInput: MobileWoundGuidanceInput;
+}
+
+export interface MobileTreatmentRoutine {
+  woundManagement: string | null;
+  specialInstructions: string[];
+  cleanse: string[];
+  prep: string[];
+  fillApply: string[];
+  cover: string[];
+  secureWith: string[];
+  frequency: string | null;
+  startDate: string | null;
+  duration: string | null;
+  changePrn: string[];
+  comments: string | null;
+}
+
+export interface MobileClinicalOrderRow {
+  id: string;
+  orderType: string;
+  description: string;
+  generatedOrderText?: string | null;
+  visitId?: string | null;
+  fieldEncounterVisitId?: string | null;
+  woundId?: string | null;
+  orderedAt?: any;
+  treatmentProtocol?: MobileAppliedTreatmentProtocol | null;
+  workflow?: { state?: string | null } | null;
+  archivedAt?: any;
+}
+
+export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
+
+@Injectable({ providedIn: 'root' })
+export class MobileOrderService {
+  private tenant = inject(TenantService);
+  private identity = inject(ClinicalIdentityService);
+  private audit = inject(ClinicalAuditService);
+
+  async listPublishedTreatmentProtocols(): Promise<MobileTreatmentProtocolTemplate[]> {
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) return [];
+    const snap = await getDocs(collection(db, `organizations/${orgId}/treatmentProtocolTemplates`));
+    return snap.docs
+      .map(d => ({ id: d.id, ...(d.data() as any) } as MobileTreatmentProtocolTemplate))
+      .filter(t => t.orgId === orgId && t.active === true && !((t as any).archivedAt))
+      .sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  }
+
+  treatmentCategoryForWoundType(woundType: string): string | null {
+    if (['arterial', 'neuropathic', 'arterial_neuropathic'].includes(woundType)) return 'arterial_neuropathic';
+    if (['wet', 'dry', 'wet_necrotic', 'dry_necrotic', 'venous', 'skin_tear', 'compression'].includes(woundType)) return woundType;
+    return null;
+  }
+
+  snapshotTreatmentProtocol(template: MobileTreatmentProtocolTemplate): MobileAppliedTreatmentProtocol {
+    return {
+      templateId: template.id,
+      templateName: template.name,
+      templateCategory: template.category,
+      templateVersion: template.version || 1,
+      snapshot: {
+        templateId: template.id,
+        name: template.name,
+        category: template.category,
+        version: template.version || 1,
+        description: template.description ?? null,
+        orderDefaults: JSON.parse(JSON.stringify(template.orderDefaults || {})),
+        sections: JSON.parse(JSON.stringify(template.sections || {})),
+      },
+    };
+  }
+
+  async listPrescribers(): Promise<MobilePrescriber[]> {
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) return [];
+    const snap = await getDocs(query(collection(db, 'staffPublic'), where('orgId', '==', orgId)));
+    return snap.docs
+      .map(d => ({ uid: d.id, ...(d.data() as any) }))
+      .filter((s: any) => s.orgId === orgId && s.active !== false && ['provider', 'np'].includes(String(s.role || '').toLowerCase()) && !!String(s.displayName || '').trim())
+      .map((s: any) => ({ uid: s.uid || s.id, displayName: String(s.displayName).trim(), role: String(s.role || ''), credentials: s.credentials || null, npi: s.npi || null }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+
+  async listWounds(patientId: string): Promise<MobileWoundOption[]> {
+    const snap = await getDocs(collection(db, `patients/${patientId}/woundAssessments`));
+    const byWound = new Map<string, any>();
+    for (const d of snap.docs) {
+      const data: any = d.data();
+      const woundId = data.woundId || d.id;
+      const existing = byWound.get(woundId);
+      const at = this.toMillis(data.assessedAt || data.createdAt);
+      if (!existing || at >= existing.at) byWound.set(woundId, { id: woundId, data, at });
+    }
+    return Array.from(byWound.values()).map(item => {
+      const data = item.data;
+      const type = data.describe?.type || data.type || 'Wound';
+      const location = data.describe?.location || data.location || '';
+      return {
+        woundId: item.id,
+        label: location ? `${type} — ${location}` : type,
+        guidanceInput: {
+          woundType: type,
+          exudateAmount: data.exudate?.amount ?? null,
+          sloughPresent: data.woundBed?.slough?.present === true,
+          escharPresent: data.woundBed?.eschar === true,
+          infectionFindings: Array.isArray(data.woundBed?.infection) ? data.woundBed.infection : [],
+          infectionStatus: data.progress?.infection ?? null,
+        },
+      };
+    }).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  async listOrders(
+    patientId: string,
+    link?: ClinicalVisitLink | null
+  ): Promise<MobileClinicalOrderRow[]> {
+    if (!patientId) return [];
+    const snap = await getDocs(collection(db, `patients/${patientId}/orders`));
+    const rows = snap.docs
+      .map(d => ({ id: d.id, ...(d.data() as any) } as MobileClinicalOrderRow))
+      .filter(order => !order.archivedAt);
+
+    const visitId = String(link?.visitId || '').trim();
+    const woundId = String(link?.woundId || '').trim();
+
+    return rows
+      .filter(order => {
+        if (!visitId) return true;
+        if (order.visitId === visitId) return true;
+        if (order.fieldEncounterVisitId === visitId) return true;
+        if (!order.visitId && woundId && order.woundId === woundId) return true;
+        return false;
+      })
+      .sort((a, b) => this.toMillis(b.orderedAt) - this.toMillis(a.orderedAt));
+  }
+
+  private async resolveOrderVisitLink(
+    patientId: string,
+    woundId: string | null,
+    link?: ClinicalVisitLink | null
+  ): Promise<ClinicalVisitLink> {
+    const baseLink: ClinicalVisitLink = { ...(link || {}) };
+    const requestedVisitId = String(baseLink.visitId || '').trim() || null;
+    const fieldEncounterVisitId =
+      String(baseLink.fieldEncounterVisitId || requestedVisitId || '').trim() || null;
+
+    if (!requestedVisitId || !woundId) {
+      return {
+        ...baseLink,
+        visitId: requestedVisitId,
+        fieldEncounterVisitId,
+        woundId,
+      };
+    }
+
+    const requestedRef = doc(db, `patients/${patientId}/woundVisits/${requestedVisitId}`);
+    const requestedSnap = await getDoc(requestedRef);
+    if (requestedSnap.exists()) {
+      const requested = requestedSnap.data() as Record<string, unknown>;
+      const requestedWoundId = String(requested['woundId'] || '').trim();
+      const visitScope = String(requested['visitScope'] || '').trim();
+      const linkedWoundIds = Array.from(new Set([
+        ...((Array.isArray(requested['woundIds']) ? requested['woundIds'] : []) as unknown[]),
+        ...((Array.isArray(requested['fieldWoundIds']) ? requested['fieldWoundIds'] : []) as unknown[]),
+      ].map(value => String(value || '').trim()).filter(Boolean)));
+
+      if (requestedWoundId === woundId || (visitScope === 'patient_visit' && linkedWoundIds.includes(woundId))) {
+        let resolvedEpisodeId = String(requested['episodeId'] || baseLink.episodeId || '').trim() || null;
+        if (!resolvedEpisodeId) {
+          try {
+            const woundSnap = await getDoc(doc(db, `patients/${patientId}/wounds/${woundId}`));
+            resolvedEpisodeId = woundSnap.exists()
+              ? String((woundSnap.data() as any).activeEpisodeId || '').trim() || null
+              : null;
+          } catch {
+            resolvedEpisodeId = null;
+          }
+        }
+        return {
+          ...baseLink,
+          // patient_visit stays the one physical encounter; never manufacture
+          // a per-wound visit id to make an order fit.
+          visitId: requestedVisitId,
+          fieldEncounterVisitId,
+          woundId,
+          episodeId: resolvedEpisodeId,
+        };
+      }
+    }
+
+    if (fieldEncounterVisitId) {
+      const childVisitId = `${fieldEncounterVisitId}__${woundId}`;
+      const childRef = doc(db, `patients/${patientId}/woundVisits/${childVisitId}`);
+      const childSnap = await getDoc(childRef);
+      if (childSnap.exists()) {
+        const child = childSnap.data() as Record<string, unknown>;
+        const childWoundId = String(child['woundId'] || '').trim();
+        if (childWoundId === woundId) {
+          return {
+            ...baseLink,
+            visitId: childVisitId,
+            fieldEncounterVisitId,
+            woundId,
+            episodeId: String(child['episodeId'] || baseLink.episodeId || '').trim() || null,
+          };
+        }
+      }
+    }
+
+    // Do not create a shadow wound visit from the Order screen. When the
+    // assessment has not established a wound-specific child visit yet, keep
+    // the physical encounter link separately and leave visitId unscoped.
+    // JADE's active Order List can then match this order by woundId while
+    // preserving the real field encounter for audit.
+    return {
+      ...baseLink,
+      visitId: null,
+      fieldEncounterVisitId,
+      woundId,
+    };
+  }
+
+  async createTreatmentProtocolOrder(patientId: string, input: {
+    treatmentProtocol: MobileTreatmentProtocolTemplate;
+    woundId?: string | null;
+    woundLabel?: string | null;
+    selectedCategory: string;
+    receiptMethod: MobileOrderReceiptMethod;
+    prescriberUid?: string | null;
+    readBackConfirmed?: boolean;
+    guidance?: MobileAlgorithmGuidance | null;
+    selectedTypeMatchedGuidance?: boolean;
+    routine: MobileTreatmentRoutine;
+    visitLink?: ClinicalVisitLink | null;
+  }): Promise<string> {
+    if (!patientId) throw new Error('Patient is required.');
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sign in required.');
+
+    const actor = await this.identity.requireCurrentIdentity();
+    this.assertClinicalAuthor(actor);
+
+    const orgId = await this.tenant.currentOrgId();
+    const treatment = input.treatmentProtocol;
+    if (!orgId || treatment.orgId !== orgId || treatment.active !== true) {
+      throw new Error('This treatment protocol is not published for your organization.');
+    }
+
+    const mappedCategory = this.treatmentCategoryForWoundType(input.selectedCategory) || input.selectedCategory;
+    if (mappedCategory && treatment.category !== mappedCategory) {
+      throw new Error('Selected treatment protocol does not match the provider-selected wound category.');
+    }
+
+    const isPrescriber = ['provider', 'np'].includes(actor.role.toLowerCase());
+    let receiptMethod: MobileOrderReceiptMethod = input.receiptMethod;
+    let coSignature: any = null;
+
+    if (isPrescriber) {
+      receiptMethod = 'direct';
+    } else {
+      if (!['telephone', 'verbal'].includes(receiptMethod)) {
+        throw new Error('Nursing staff must record how the prescriber order was received.');
+      }
+      if (!input.readBackConfirmed) {
+        throw new Error('Confirm read-back before recording a telephone or verbal order.');
+      }
+      const prescribers = await this.listPrescribers();
+      const prescriber = prescribers.find(p => p.uid === input.prescriberUid);
+      if (!prescriber) throw new Error('Select the prescriber who gave the order.');
+      coSignature = {
+        status: 'pending',
+        provider: {
+          uid: prescriber.uid,
+          displayName: prescriber.displayName,
+          role: prescriber.role,
+          credentials: prescriber.credentials || null,
+          npi: prescriber.npi || null,
+        },
+        requestedAt: Timestamp.now(),
+        signedAt: null,
+        signedBy: null,
+      };
+    }
+
+    const routine = input.routine;
+    const startAt = routine.startDate
+      ? Timestamp.fromDate(new Date(`${routine.startDate}T00:00:00`))
+      : null;
+    const treatmentLines = [
+      `Treatment protocol: ${treatment.name} (v${treatment.version || 1})`,
+      routine.woundManagement ? `Wound management: ${routine.woundManagement}` : null,
+      routine.specialInstructions.length ? `Special instructions: ${routine.specialInstructions.join(', ')}` : null,
+      routine.cleanse.length ? `Cleanse: ${routine.cleanse.join(', ')}` : null,
+      routine.prep.length ? `Prep/periwound: ${routine.prep.join(', ')}` : null,
+      routine.fillApply.length ? `Fill/apply: ${routine.fillApply.join(', ')}` : null,
+      routine.cover.length ? `Cover: ${routine.cover.join(', ')}` : null,
+      routine.secureWith.length ? `Secure: ${routine.secureWith.join(', ')}` : null,
+      routine.frequency ? `Frequency: ${routine.frequency}` : null,
+      routine.startDate ? `Start date: ${routine.startDate}` : null,
+      routine.duration ? `Duration: ${routine.duration}` : null,
+      routine.changePrn.length ? `Change/PRN: ${routine.changePrn.join(', ')}` : null,
+      routine.comments ? `Provider comments: ${routine.comments}` : null,
+    ].filter((line): line is string => !!line);
+
+    const description = [
+      input.woundLabel ? `Wound: ${input.woundLabel}` : null,
+      ...treatmentLines,
+    ].filter((line): line is string => !!line).join('\n');
+
+    const selectedWoundId = input.woundId || input.visitLink?.woundId || null;
+    const resolvedVisitLink = await this.resolveOrderVisitLink(
+      patientId,
+      selectedWoundId,
+      input.visitLink
+    );
+
+    const ref = doc(collection(db, `patients/${patientId}/orders`));
+    const now = serverTimestamp();
+
+    await setDoc(ref, {
+      orgId,
+      patientId,
+      ...clinicalVisitLinkFields(resolvedVisitLink),
+      woundId: selectedWoundId,
+      episodeId: resolvedVisitLink.episodeId || null,
+      facilityId: null,
+      orderType: 'wound_care_protocol',
+      description,
+      generatedOrderText: treatmentLines.join(' '),
+      treatmentProtocol: this.snapshotTreatmentProtocol(treatment),
+      orderedAt: now,
+      orderedBy: actor,
+      receiptMethod,
+      readBackConfirmed: receiptMethod === 'direct' ? null : true,
+      coSignature,
+      schemaVersion: 3,
+      source: {
+        mode: 'treatment_protocol',
+        guidance: input.guidance ? {
+          suggestedWoundTypes: input.guidance.suggestedTypes,
+          rationale: input.guidance.rationale,
+          cautions: input.guidance.cautions,
+          selectedTypeMatchedGuidance: input.selectedTypeMatchedGuidance === true,
+        } : null,
+      },
+      clinical: {
+        woundType: treatment.category,
+        woundLocation: input.woundLabel ?? null,
+        woundManagement: routine.woundManagement,
+        specialInstructions: routine.specialInstructions,
+        schedule: {
+          frequency: routine.frequency,
+          startAt,
+          duration: routine.duration,
+          prn: routine.changePrn,
+        },
+        cleanse: routine.cleanse,
+        prep: routine.prep,
+        apply: routine.fillApply,
+        cover: routine.cover,
+        secure: routine.secureWith,
+        comments: routine.comments,
+        contingencies: [],
+      },
+      workflow: {
+        state: 'created',
+        history: [{
+          fromState: null,
+          toState: 'created',
+          occurredAt: Timestamp.now(),
+          actor,
+          comment: 'Order placed from admin-published treatment protocol in mobile field workflow.',
+        }],
+      },
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor,
+      updatedBy: actor,
+    });
+
+    await this.audit.record({
+      action: 'order_created',
+      patientId,
+      entityType: 'order',
+      entityId: ref.id,
+      metadata: {
+        receiptMethod,
+        treatmentTemplateId: treatment.id,
+        treatmentTemplateVersion: treatment.version ?? 1,
+        treatmentCategory: treatment.category,
+        visitId: resolvedVisitLink.visitId ?? null,
+        fieldEncounterVisitId: resolvedVisitLink.fieldEncounterVisitId ?? null,
+        woundId: selectedWoundId,
+      },
+    });
+    return ref.id;
+  }
+
+  /**
+   * Lists published JADE algorithms from organization repository merged with built-in guidelines.
+   */
+  async listJadeAlgorithms(): Promise<JadeCareAlgorithm[]> {
+    const orgId = await this.tenant.currentOrgId();
+    const result: JadeCareAlgorithm[] = [...BUILT_IN_JADE_ALGORITHMS];
+
+    if (orgId) {
+      try {
+        const snap = await getDocs(collection(db, `organizations/${orgId}/careAlgorithms`));
+        const remoteAlgs = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) } as JadeCareAlgorithm))
+          .filter(a => a.active === true);
+        if (remoteAlgs.length) {
+          result.unshift(...remoteAlgs);
+        }
+      } catch {
+        // Fallback gracefully to built-in standard algorithms
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Recommends a tailored JADE Care Algorithm for a specific wound assessment.
+   */
+  async recommendAlgorithmForWound(
+    patientId: string,
+    woundId: string,
+    abpi?: number | null
+  ): Promise<ReturnType<typeof recommendJadeAlgorithm>> {
+    const wounds = await this.listWounds(patientId);
+    const wound = wounds.find(w => w.woundId === woundId);
+    const algorithms = await this.listJadeAlgorithms();
+    return recommendJadeAlgorithm(wound?.guidanceInput, abpi, algorithms);
+  }
+
+  /**
+   * Calculates clinical step variance between what was ordered and what was executed at the bedside.
+   */
+  evaluateExecutionStepVariances(
+    order: MobileClinicalOrderRow,
+    actualSteps: MobileOrderExecutionInput['actualSteps'],
+    clinicianReasons?: Record<string, { code: any; explanation: string }>
+  ): { variances: MobileStepVariance[]; overallStatus: 'fully_concordant' | 'minor_variance' | 'significant_variance' } {
+    const clinical = (order as any).clinical || {};
+    const prescribedRoutine = {
+      cleanse: clinical.cleanse || [],
+      prep: clinical.prep || [],
+      fillApply: clinical.apply || [],
+      cover: clinical.cover || [],
+      secureWith: clinical.secure || [],
+      compression: clinical.compression || [],
+      offloading: clinical.offloading || [],
+      frequency: clinical.schedule?.frequency || null,
+      specialInstructions: clinical.specialInstructions || [],
+    };
+    return evaluateStepVariances({
+      prescribedRoutine,
+      actualSteps,
+      clinicianReasons,
+    });
+  }
+
+  /**
+   * Records execution of an order at the bedside, capturing step-level compliance,
+   * deviations, supplies consumed, and variance audit trail under:
+   * patients/{patientId}/orders/{orderId}/executions/{executionId}
+   */
+  async recordOrderExecution(
+    patientId: string,
+    orderId: string,
+    input: MobileOrderExecutionInput
+  ): Promise<string> {
+    if (!patientId || !orderId) throw new Error('Patient and Order ID are required to record execution.');
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sign in required.');
+
+    const actor = await this.identity.requireCurrentIdentity();
+    const orgId = await this.tenant.currentOrgId();
+
+    const executionsCol = collection(db, `patients/${patientId}/orders/${orderId}/executions`);
+    const executionRef = doc(executionsCol);
+    const now = serverTimestamp();
+
+    const payload = {
+      id: executionRef.id,
+      orderId,
+      patientId,
+      orgId,
+      woundId: input.woundId || null,
+      visitId: input.visitId || null,
+      fieldEncounterVisitId: input.fieldEncounterVisitId || null,
+      episodeId: input.episodeId || null,
+      performedAt: input.performedAt ? Timestamp.fromDate(new Date(input.performedAt)) : now,
+      performedBy: actor,
+      actualSteps: input.actualSteps,
+      suppliesUsed: input.suppliesUsed || [],
+      variances: input.variances,
+      overallVarianceStatus: input.overallVarianceStatus,
+      clinicianNotes: input.clinicianNotes || null,
+      patientTolerated: input.patientTolerated,
+      painScoreBefore: input.painScoreBefore ?? null,
+      painScoreAfter: input.painScoreAfter ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await setDoc(executionRef, payload);
+
+    // Update order workflow state and audit trail
+    try {
+      const orderRef = doc(db, `patients/${patientId}/orders/${orderId}`);
+      await setDoc(orderRef, {
+        lastExecutedAt: now,
+        lastExecutedBy: actor,
+        executionCount: ((orderRef as any).executionCount || 0) + 1,
+        workflow: {
+          state: 'active',
+          lastAction: 'bedside_execution_recorded',
+          lastVarianceStatus: input.overallVarianceStatus,
+        },
+        updatedAt: now,
+      }, { merge: true });
+    } catch {
+      // Non-fatal if order status update is restricted by rule
+    }
+
+    await this.audit.record({
+      action: 'order_execution_recorded',
+      patientId,
+      entityType: 'orderExecution',
+      entityId: executionRef.id,
+      metadata: {
+        orderId,
+        woundId: input.woundId ?? null,
+        visitId: input.visitId ?? null,
+        varianceCount: input.variances.length,
+        overallVarianceStatus: input.overallVarianceStatus,
+      },
+    });
+
+    return executionRef.id;
+  }
+
+  /**
+   * Retrieves previous bedside executions for a given order.
+   */
+  async listOrderExecutions(patientId: string, orderId: string): Promise<any[]> {
+    if (!patientId || !orderId) return [];
+    try {
+      const snap = await getDocs(collection(db, `patients/${patientId}/orders/${orderId}/executions`));
+      return snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => this.toMillis(b.performedAt || b.createdAt) - this.toMillis(a.performedAt || a.createdAt));
+    } catch {
+      return [];
+    }
+  }
+
+  private assertClinicalAuthor(identity: ClinicalIdentitySnapshot): void {
+    const roles = new Set([identity.role, ...(identity.roles || [])].map(r => String(r || '').toLowerCase()));
+    if (![...roles].some(r => ['provider', 'np', 'nurse', 'rn', 'wound_nurse_internal'].includes(r))) {
+      throw new Error('Your role cannot author patient orders in the mobile clinical workspace.');
+    }
+  }
+
+  private toMillis(value: any): number {
+    if (!value) return 0;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    const d = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+}

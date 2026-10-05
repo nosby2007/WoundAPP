@@ -1,0 +1,47 @@
+form {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Which wound this plan belongs to, said once at the top: the screen is
+   reached from an assessment, and by the time the nurse has scrolled to the
+   goals there is nothing else on it that says which wound. */
+.wound {
+  display: block;
+  max-width: 720px;
+  margin: 0 auto var(--app-space-3);
+  padding: var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-muted, #f5f6f8);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+.goals {
+  margin: var(--app-space-4) 0;
+}
+
+.goals h2 {
+  margin: 0 var(--app-space-1) var(--app-space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-ink-muted);
+}
+
+.hint {
+  display: block;
+  margin: 0 var(--app-space-1) var(--app-space-3);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--app-ink-muted);
+}
+
+.error {
+  margin: var(--app-space-3) var(--app-space-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-danger);
+}

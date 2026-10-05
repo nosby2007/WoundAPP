@@ -2,15 +2,6 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    /* Skips type-checking of .d.ts files in node_modules -- our own
-       sources stay fully checked. Needed because @types/node arrives
-       transitively at a version built for a newer TypeScript than this
-       project's 4.7 ("ReadableStreamBYOBReader is referenced directly or
-       indirectly in its own type annotation"). Pinning @types/node was
-       tried first and only moved the incompatibility around; Angular's
-       own scaffolding has shipped this flag by default since v15 for
-       exactly this class of problem. */
-    "skipLibCheck": true,
     "baseUrl": "./",
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
@@ -25,12 +16,14 @@
     "experimentalDecorators": true,
     "moduleResolution": "node",
     "importHelpers": true,
-    "target": "es2020",
+    "target": "es2022",
     "module": "es2020",
     "lib": [
-      "es2020",
+      "es2022",
       "dom"
-    ]
+    ],
+    "skipLibCheck": true,
+    "useDefineForClassFields": false
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
