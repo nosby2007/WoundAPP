@@ -111,6 +111,26 @@
         />
       </ion-card-content>
     </ion-card>
+    <ion-card *ngIf="canReview">
+      <ion-card-header><ion-card-title>Provider review of existing findings</ion-card-title></ion-card-header>
+      <ion-card-content>
+        <p>Recorded by {{ assessment.authorIdentity?.displayName || assessment.createdByName || 'Clinical team' }}. Review does not overwrite the original evaluation.</p>
+        <div *ngIf="assessment.providerReview?.reviewed; else reviewForm">
+          <p>{{ assessment.providerReview.reviewedByName }} · {{ assessment.providerReview.decision }}</p>
+          <p>{{ assessment.providerReview.providerNote }}</p>
+          <p>For an additional review or new clinical findings, create a separate clinical note or reassessment.</p>
+        </div>
+        <ng-template #reviewForm>
+          <label>Decision <select [(ngModel)]="reviewDecision"><option>Concur</option><option>Modified</option></select></label>
+          <p><label>Clinical review <textarea [(ngModel)]="reviewNote" rows="5" style="width:100%"></textarea></label></p>
+          <p><label><input type="checkbox" [(ngModel)]="reviewAttestation"> I reviewed the existing findings and attest to my own documented clinical decision.</label></p>
+          <ion-button (click)="saveReview()" [disabled]="reviewBusy || !reviewAttestation || !reviewNote.trim()">Save provider review</ion-button>
+        </ng-template>
+        <p>{{ reviewMessage }}</p>
+        <ion-button *ngIf="canAcceptEpisode && assessment.episodeId" fill="outline" (click)="acceptEpisode()">Accept episode responsibility</ion-button>
+        <p>{{ episodeMessage }}</p>
+      </ion-card-content>
+    </ion-card>
   </ng-container>
 </ion-content>
 
@@ -133,7 +153,7 @@
       </ion-button>
     </ion-buttons>
     <ion-buttons slot="end">
-      <ion-button (click)="editAssessment()">
+      <ion-button *ngIf="canEditAssessment" (click)="editAssessment()">
         <ion-icon slot="start" name="create-outline"></ion-icon>
         Edit
       </ion-button>

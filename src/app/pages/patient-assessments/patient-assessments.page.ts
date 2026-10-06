@@ -58,6 +58,7 @@ import {
   MobileAssessment,
 } from '../../services/assessments.service';
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
+import { matchesClinicalVisitLink } from '../../shared/clinical-visit-link';
 import { FieldVisit, VisitService } from '../../services/visit.service';
 import { FieldWorkService } from '../../services/field-work.service';
 import { ClinicalDocumentExportService, ClinicalDocumentKind } from '../../services/clinical-document-export.service';
@@ -180,6 +181,7 @@ export class PatientAssessmentsPage implements OnInit {
       if (visit) this.evvCompleted.set(false);
       if (visit?.id && !this.woundVisitId) {
         this.woundVisitId = visit.id;
+        this.assessmentVisitLink.set({visitId:this.woundVisitId,appointmentId:this.appointmentId});
         if (this.appointmentId) {
           void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, visit.id).catch((error) => {
             console.warn('[ClinicalCommand] unable to self-heal appointment visit linkage', error);
@@ -212,6 +214,7 @@ export class PatientAssessmentsPage implements OnInit {
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
       this.woundVisitId = result.visitId;
+      this.assessmentVisitLink.set({visitId:this.woundVisitId,appointmentId:this.appointmentId});
       this.evvCompleted.set(false);
       const { location } = result;
       if (result.syncStatus === 'queued') {
@@ -404,6 +407,9 @@ export class PatientAssessmentsPage implements OnInit {
   /** Every assessment document, ungrouped. The screen shows wounds, not
    *  documents -- see `wounds` below. */
   assessments = signal<MobileAssessment[]>([]);
+  private assessmentVisitLink = signal({visitId:this.woundVisitId,appointmentId:this.appointmentId});
+  visitAssessments = computed(() => this.assessments().filter(a => matchesClinicalVisitLink(a,
+    this.assessmentVisitLink())));
 
   search = signal('');
 
@@ -443,9 +449,10 @@ export class PatientAssessmentsPage implements OnInit {
       this.appointmentId = params.get('appointmentId') || '';
       // Schedule is the canonical physical encounter. A woundVisitId query
       // parameter is only a compatibility alias from older links.
-      this.woundVisitId = this.appointmentId || params.get('woundVisitId') || '';
+      this.woundVisitId = params.get('fieldEncounterVisitId') || params.get('woundVisitId') || this.appointmentId || '';
       this.contextWoundId = params.get('woundId') || '';
       this.contextEpisodeId = params.get('episodeId') || '';
+      this.assessmentVisitLink.set({visitId:this.woundVisitId,appointmentId:this.appointmentId});
       if (this.patientId && this.woundVisitId) {
         void this.trackVisitStep('clinical_command', `/tabs/skin-wound/${this.patientId}/assessments`);
       }
@@ -674,9 +681,18 @@ export class PatientAssessmentsPage implements OnInit {
   }
 
   /** 🔁 Nouvelle évaluation pour cette même plaie */
-  reEvaluate(a: MobileAssessment) {
+  async reEvaluate(a: MobileAssessment) {
     const woundId = resolveWoundId(a as any);
     if (!woundId) return;
+    if (this.woundVisitId || this.appointmentId) {
+      try {
+        const existing = await this.assessmentsSvc.assessmentForVisit(this.patientId,woundId,
+          {visitId:this.woundVisitId,appointmentId:this.appointmentId});
+        if (existing && window.confirm('An assessment already exists for this wound and visit. Open it for review instead of entering the same findings again?')) {
+          this.openAssessment(existing); return;
+        }
+      } catch { this.errorMsg.set('Unable to check this visit’s existing assessment. Retry before creating another.'); return; }
+    }
 
     // The label rides along so the form can say WHICH wound is being
     // re-evaluated without a second read. It is display only -- `woundId`

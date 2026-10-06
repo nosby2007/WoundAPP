@@ -16,4 +16,12 @@ describe('AssessmentDetailPage', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+  it('never edits signed RN findings via the provider review screen', () => {
+    component.canReview = true; component.assessment = {createdByUid:'rn',locked:true,esign:{signed:true}};
+    expect(component.canEditAssessment).toBeFalse();
+  });
+  it('keeps surveyor/facility read-only views read only', () => {
+    component.readOnly = true; component.assessment = {};
+    expect(component.canEditAssessment).toBeFalse();
+  });
 });
