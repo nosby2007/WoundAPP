@@ -111,7 +111,7 @@
         />
       </ion-card-content>
     </ion-card>
-    <ion-card *ngIf="canReview">
+    <ion-card *ngIf="canReview || assessment.providerReview?.reviewed">
       <ion-card-header><ion-card-title>Provider review of existing findings</ion-card-title></ion-card-header>
       <ion-card-content>
         <p>Recorded by {{ assessment.authorIdentity?.displayName || assessment.createdByName || 'Clinical team' }}. Review does not overwrite the original evaluation.</p>
@@ -121,10 +121,13 @@
           <p>For an additional review or new clinical findings, create a separate clinical note or reassessment.</p>
         </div>
         <ng-template #reviewForm>
+          <p *ngIf="canReview && !canRecordReview">Awaiting the author's signed and locked assessment before provider review.</p>
+          <div *ngIf="canRecordReview">
           <label>Decision <select [(ngModel)]="reviewDecision"><option>Concur</option><option>Modified</option></select></label>
           <p><label>Clinical review <textarea [(ngModel)]="reviewNote" rows="5" style="width:100%"></textarea></label></p>
           <p><label><input type="checkbox" [(ngModel)]="reviewAttestation"> I reviewed the existing findings and attest to my own documented clinical decision.</label></p>
           <ion-button (click)="saveReview()" [disabled]="reviewBusy || !reviewAttestation || !reviewNote.trim()">Save provider review</ion-button>
+          </div>
         </ng-template>
         <p>{{ reviewMessage }}</p>
         <ion-button *ngIf="canAcceptEpisode && assessment.episodeId" fill="outline" (click)="acceptEpisode()">Accept episode responsibility</ion-button>

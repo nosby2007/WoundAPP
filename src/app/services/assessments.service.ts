@@ -23,6 +23,7 @@ import { map } from 'rxjs/operators';
 import { Storage, ref, uploadString, getDownloadURL } from '@angular/fire/storage';
 import { ClinicalIdentityService } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { normalizeFieldRole } from './field-role-policy.service';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 
 export interface FieldAssessmentContext {
@@ -126,7 +127,7 @@ export class AssessmentsService {
 
   async recordProviderReview(patientId: string, assessmentId: string, note: string, decision: 'Concur' | 'Modified', attestation: boolean): Promise<void> {
     const actor = await this.clinicalIdentity.requireCurrentIdentity();
-    if (![actor.role, ...actor.roles].some(r => ['np','provider','md','do','physician'].includes(r))) throw new Error('Provider role required.');
+    if (![actor.role, ...actor.roles].map(normalizeFieldRole).some(r => ['np','provider','md','do','physician'].includes(r))) throw new Error('Provider role required.');
     if (!attestation || !note.trim() || !['Concur','Modified'].includes(decision)) throw new Error('Enter your clinical review and accept the attestation.');
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     await runTransaction(this.firestore, async tx => {
@@ -137,6 +138,7 @@ export class AssessmentsService {
       const evidenceOrg = d?.['orgId'] || d?.['orgID'] || d?.['authorIdentity']?.orgId || patientOrg;
       if (!d || patientOrg !== actor.orgId || evidenceOrg !== actor.orgId || (d['patientId'] && d['patientId'] !== patientId)) throw new Error('Assessment is unavailable in your organization.');
       if (d['providerReview']?.reviewed) throw new Error('Already reviewed. Use a separate clinical note for an additional review.');
+      if (!d['locked'] || !(d['esign']?.signed === true || d['signed'] === true)) throw new Error('The assessment must be signed and locked before provider review.');
       tx.update(assessmentRef, {providerReview:{reviewed:true,reviewedAt:serverTimestamp(),reviewedByUid:actor.uid,
         reviewedByName:actor.displayName,providerNote:note.trim(),decision,attestationAccepted:true},updatedAt:serverTimestamp()});
     });
@@ -146,7 +148,7 @@ export class AssessmentsService {
 
   async acceptEpisodeResponsibility(patientId: string, assessmentId: string): Promise<void> {
     const actor = await this.clinicalIdentity.requireCurrentIdentity({requireNpi:true});
-    if (![actor.role, ...actor.roles].includes('np') || !/^\d{10}$/.test(actor.npi || '')) throw new Error('An NP with a valid NPI must accept episode responsibility.');
+    if (![actor.role, ...actor.roles].map(normalizeFieldRole).includes('np') || !/^\d{10}$/.test(actor.npi || '')) throw new Error('An NP with a valid NPI must accept episode responsibility.');
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     await runTransaction(this.firestore, async tx => {
       const assessment = (await tx.get(assessmentRef)).data();

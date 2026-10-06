@@ -3,6 +3,11 @@ import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-id
 
 export type FieldAccessLevel = 'clinical' | 'support' | 'administrative' | 'unknown';
 
+export function normalizeFieldRole(value: unknown): string {
+  const role = String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return role === 'nurse_practitioner' ? 'np' : role;
+}
+
 const CLINICAL_ROLES = new Set([
   'rn', 'registered_nurse', 'registered nurse',
   'lpn', 'lvn', 'licensed_practical_nurse', 'licensed practical nurse',
@@ -129,6 +134,6 @@ export class FieldRolePolicyService {
   }
 
   private normalize(value: unknown): string {
-    return String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return normalizeFieldRole(value);
   }
 }
