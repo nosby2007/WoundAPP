@@ -2,6 +2,8 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ClinicalIdentityService } from '../../services/clinical-identity.service';
 import {
   IonButton,
   IonButtons,
@@ -39,7 +41,7 @@ import { WoundRoundMobileService } from '../../services/wound-round.service';
    selector: 'app-assessments-details',
   templateUrl: './assessments-details.page.html',
   styleUrls: ['./assessments-details.page.scss'],
-  imports: [ CommonModule, RouterModule,
+  imports: [ CommonModule, RouterModule, FormsModule,
     // Ionic standalone resolves ion-* through these component classes.
     // IonicModule (the NgModule API) sat here instead, which registers
     // nothing for a standalone component: the tags fell through as
@@ -80,6 +82,34 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   private router = inject(Router);
   private assessmentsService = inject(AssessmentsService);
   private woundRounds = inject(WoundRoundMobileService);
+  private identity = inject(ClinicalIdentityService);
+  canReview = false;
+  canAcceptEpisode = false;
+  reviewNote = '';
+  reviewDecision: 'Concur' | 'Modified' = 'Concur';
+  reviewAttestation = false;
+  reviewBusy = false;
+  reviewMessage = '';
+  episodeMessage = '';
+  get canEditAssessment(): boolean {
+    return !this.readOnly && !this.canReview && !this.assessment?.locked && !this.assessment?.esign?.signed && !this.assessment?.signed;
+  }
+
+  async saveReview(): Promise<void> {
+    if (!this.canReview || this.reviewBusy) return;
+    this.reviewBusy = true; this.reviewMessage = '';
+    try {
+      await this.assessmentsService.recordProviderReview(this.patientId,this.assessmentId,this.reviewNote,this.reviewDecision,this.reviewAttestation);
+      this.reviewMessage = 'Review saved. Original RN findings and signature are unchanged.';
+    } catch (e: any) { this.reviewMessage = e.message || 'Review could not be saved.'; }
+    finally { this.reviewBusy = false; }
+  }
+
+  async acceptEpisode(): Promise<void> {
+    if (!this.canAcceptEpisode || !window.confirm('Accept clinical responsibility for this linked wound episode? This does not change the billing provider or certify that you performed the RN visit.')) return;
+    try { await this.assessmentsService.acceptEpisodeResponsibility(this.patientId,this.assessmentId); this.episodeMessage = 'Episode responsibility assigned to your clinical profile.'; }
+    catch (e: any) { this.episodeMessage = e.message || 'Episode assignment failed.'; }
+  }
 
   patientId!: string;
   assessmentId!: string;
@@ -111,6 +141,10 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.readOnly = this.route.snapshot.data['readOnly'] === true;
+    void this.identity.currentIdentity().then(actor => {
+      this.canReview = !this.readOnly && !!actor && [actor.role,...actor.roles].some(r => ['np','provider','md','do','physician'].includes(r));
+      this.canAcceptEpisode = this.canReview && !!actor && [actor.role,...actor.roles].includes('np');
+    }).catch(() => {});
     this.roundId = this.route.snapshot.paramMap.get('roundId') || '';
     this.sub = this.route.paramMap.subscribe(params => {
       this.patientId = params.get('patientId') || '';
@@ -183,6 +217,7 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   }
   // src/app/pages/assessment-detail/assessment-detail.page.ts
 editAssessment() {
+  if (!this.canEditAssessment) return;
   if (!this.patientId || !this.assessmentId) return;
 
   this.router.navigate([

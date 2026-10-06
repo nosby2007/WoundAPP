@@ -32,6 +32,8 @@ jobs:
       # Running it here is the only thing that keeps it from drifting back.
       - name: Unit tests
         run: npm run test:ci
+      - name: Verify shared provider review and episode acceptance
+        run: node scripts/verify-shared-provider-review.cjs
       - name: Verify staff onboarding and persisted session
         run: node scripts/verify-staff-onboarding-session.js
       - name: Verify mobile claims preflight

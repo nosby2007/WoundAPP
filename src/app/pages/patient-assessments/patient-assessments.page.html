@@ -187,6 +187,13 @@
       </div>
     </section>
 
+    <section *ngIf="visitAssessments().length">
+      <h2>Assessments already captured for this visit</h2>
+      <p>Review the existing findings. A separate reassessment is needed only when clinically indicated.</p>
+      <ion-button fill="outline" *ngFor="let assessment of visitAssessments()" (click)="openAssessment(assessment)">
+        {{ assessment.location }} · {{ assessment.authorName || 'Clinical team' }} · {{ assessment.reviewed ? 'Reviewed' : 'Open / provider review' }}
+      </ion-button>
+    </section>
     <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)"></ion-searchbar>
 
     <div *ngIf="loading()" class="center"><ion-spinner name="crescent"></ion-spinner></div>

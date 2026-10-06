@@ -49,6 +49,8 @@ export function matchesClinicalVisitLink(row: any, link?: ClinicalVisitLink | nu
       row.mobileWorkflow?.woundVisitId,
     ].filter(Boolean).map(String);
     if (visitRefs.includes(visitId)) return true;
+    // A different explicit encounter must not be counted via appointment alone.
+    if (visitRefs.some(ref => ref !== String(row.id))) return false;
   }
 
   if (appointmentId) {
