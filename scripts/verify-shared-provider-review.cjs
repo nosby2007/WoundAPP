@@ -37,6 +37,9 @@ async function blocked(fn){writes=[];await assert.rejects(fn);assert.equal(write
   records[episode].providerOfRecordUid='other';await blocked(()=>service.acceptEpisodeResponsibility('p','a'));
   records[episode].providerOfRecordUid=null;records[episode].status='closed';await blocked(()=>service.acceptEpisodeResponsibility('p','a'));
   records[episode].status='active';records[episode].orgId='FOREIGN';await blocked(()=>service.acceptEpisodeResponsibility('p','a'));
+  records[episode].orgId='ORG';actor={...actor,npi:'invalid'};await blocked(()=>service.acceptEpisodeResponsibility('p','a'));
+  actor={...actor,npi:'1234567890'};records[assessment].patientId='different';await blocked(()=>service.recordProviderReview('p','a','Mismatch','Concur',true));
+  records[assessment].patientId='p';
   records[assessment].orgId='FOREIGN';await blocked(()=>service.recordProviderReview('p','a','Foreign','Concur',true));
   console.log('PASS real provider review/assignment transactions: immutable RN evidence, actor, tenant, role, closed episode and no billing overwrite');
 })().catch(e=>{console.error(e);process.exitCode=1});

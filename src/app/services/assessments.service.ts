@@ -132,7 +132,7 @@ export class AssessmentsService {
     await runTransaction(this.firestore, async tx => {
       const snap = await tx.get(assessmentRef);
       const d = snap.data();
-      if (!d || (d['orgId'] || d['orgID']) !== actor.orgId) throw new Error('Assessment is unavailable in your organization.');
+      if (!d || (d['orgId'] || d['orgID']) !== actor.orgId || (d['patientId'] && d['patientId'] !== patientId)) throw new Error('Assessment is unavailable in your organization.');
       if (d['providerReview']?.reviewed) throw new Error('Already reviewed. Use a separate clinical note for an additional review.');
       tx.update(assessmentRef, {providerReview:{reviewed:true,reviewedAt:serverTimestamp(),reviewedByUid:actor.uid,
         reviewedByName:actor.displayName,providerNote:note.trim(),decision,attestationAccepted:true},updatedAt:serverTimestamp()});
@@ -147,7 +147,7 @@ export class AssessmentsService {
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     await runTransaction(this.firestore, async tx => {
       const assessment = (await tx.get(assessmentRef)).data();
-      if (!assessment || assessment['orgId'] !== actor.orgId || !assessment['episodeId']) throw new Error('No eligible linked episode.');
+      if (!assessment || assessment['orgId'] !== actor.orgId || !assessment['episodeId'] || (assessment['patientId'] && assessment['patientId'] !== patientId)) throw new Error('No eligible linked episode.');
       const episodeRef = doc(this.firestore, `patients/${patientId}/woundEpisodes/${assessment['episodeId']}`);
       const episode = (await tx.get(episodeRef)).data();
       if (!episode || (episode['orgId'] || episode['orgID']) !== actor.orgId || episode['patientId'] !== patientId ||
@@ -328,6 +328,8 @@ export class AssessmentsService {
         assignedClinicianName: identity.displayName,
         episodeOwnerType: identity.role === 'np' ? 'np' : null,
         fieldOpenedByRole: identity.role,
+        primaryRnUid: identity.role === 'nurse' ? identity.uid : null,
+        primaryRnName: identity.role === 'nurse' ? identity.displayName : null,
         providerOfRecordUid: identity.role === 'np' ? identity.uid : null,
         providerOfRecordName: identity.role === 'np' ? identity.displayName : null,
         providerOfRecordNpi: identity.role === 'np' ? identity.npi : null,
