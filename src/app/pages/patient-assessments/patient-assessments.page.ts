@@ -181,6 +181,7 @@ export class PatientAssessmentsPage implements OnInit {
       if (visit) this.evvCompleted.set(false);
       if (visit?.id && !this.woundVisitId) {
         this.woundVisitId = visit.id;
+        this.assessmentVisitLink.set({visitId:this.woundVisitId,appointmentId:this.appointmentId});
         if (this.appointmentId) {
           void this.fieldWork.linkWoundVisit(this.appointmentId, this.patientId, visit.id).catch((error) => {
             console.warn('[ClinicalCommand] unable to self-heal appointment visit linkage', error);
@@ -213,6 +214,7 @@ export class PatientAssessmentsPage implements OnInit {
         'Check-in did not finish in time. The app released the EVV controls so you can retry safely.'
       );
       this.woundVisitId = result.visitId;
+      this.assessmentVisitLink.set({visitId:this.woundVisitId,appointmentId:this.appointmentId});
       this.evvCompleted.set(false);
       const { location } = result;
       if (result.syncStatus === 'queued') {
