@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
+import { normalizeFieldRole } from '../../services/field-role-policy.service';
 import {
   IonButton,
   IonButtons,
@@ -84,6 +85,7 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   private woundRounds = inject(WoundRoundMobileService);
   private identity = inject(ClinicalIdentityService);
   canReview = false;
+  actorUid = '';
   canAcceptEpisode = false;
   reviewNote = '';
   reviewDecision: 'Concur' | 'Modified' = 'Concur';
@@ -92,11 +94,16 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   reviewMessage = '';
   episodeMessage = '';
   get canEditAssessment(): boolean {
-    return !this.readOnly && !this.canReview && !this.assessment?.locked && !this.assessment?.esign?.signed && !this.assessment?.signed;
+    const authorUid = this.assessment?.authorIdentity?.uid || this.assessment?.createdByUid || this.assessment?.createdBy;
+    return !this.readOnly && (!this.canReview || (!!this.actorUid && authorUid === this.actorUid)) && !this.assessment?.locked && !this.assessment?.esign?.signed && !this.assessment?.signed;
+  }
+
+  get canRecordReview(): boolean {
+    return this.canReview && this.assessment?.locked === true && (this.assessment?.esign?.signed === true || this.assessment?.signed === true);
   }
 
   async saveReview(): Promise<void> {
-    if (!this.canReview || this.reviewBusy) return;
+    if (!this.canRecordReview || this.reviewBusy) return;
     this.reviewBusy = true; this.reviewMessage = '';
     try {
       await this.assessmentsService.recordProviderReview(this.patientId,this.assessmentId,this.reviewNote,this.reviewDecision,this.reviewAttestation);
@@ -142,8 +149,10 @@ export class AssessmentDetailPage implements OnInit, OnDestroy {
   ngOnInit() {
     this.readOnly = this.route.snapshot.data['readOnly'] === true;
     void this.identity.currentIdentity().then(actor => {
-      this.canReview = !this.readOnly && !!actor && [actor.role,...actor.roles].some(r => ['np','provider','md','do','physician'].includes(r));
-      this.canAcceptEpisode = this.canReview && !!actor && [actor.role,...actor.roles].includes('np');
+      this.actorUid = actor?.uid || '';
+      const roles = actor ? [actor.role,...actor.roles].map(normalizeFieldRole) : [];
+      this.canReview = !this.readOnly && roles.some(r => ['np','provider','md','do','physician'].includes(r));
+      this.canAcceptEpisode = this.canReview && roles.includes('np');
     }).catch(() => {});
     this.roundId = this.route.snapshot.paramMap.get('roundId') || '';
     this.sub = this.route.paramMap.subscribe(params => {

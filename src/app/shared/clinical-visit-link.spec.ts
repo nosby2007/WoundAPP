@@ -1,5 +1,10 @@
 import { matchesClinicalVisitLink } from './clinical-visit-link';
 describe('shared clinical encounter linkage', () => {
+  it('recognizes appointment aliases without overriding an explicit encounter', () => {
+    const row = {id:'a',fieldEncounterVisitId:'v',appointmentId:'appt'};
+    expect(matchesClinicalVisitLink(row,{visitId:'appt',appointmentId:'appt'})).toBeTrue();
+    expect(matchesClinicalVisitLink(row,{visitId:'appt',appointmentId:'appt',fieldEncounterVisitId:'other'})).toBeFalse();
+  });
   it('uses the same visit regardless of RN/NP author', () => {
     for (const uid of ['rn','np']) expect(matchesClinicalVisitLink({id:'assessment',visitId:'visit',createdByUid:uid},{visitId:'visit'})).toBeTrue();
   });

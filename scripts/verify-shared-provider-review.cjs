@@ -11,7 +11,8 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/app/services/assessme
   {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,experimentalDecorators:true}}).outputText,
   {exports:exportsObject,require:n=> n==='@angular/core'?{Injectable:()=>target=>target,inject:token=>token?.name==='ClinicalIdentityService'?identity:token?.name==='ClinicalAuditService'?audit:{}}:
     n==='@angular/fire/firestore'?sdk:n.includes('clinical-identity')?{ClinicalIdentityService:class ClinicalIdentityService{}}:
-    n.includes('clinical-audit')?{ClinicalAuditService:class ClinicalAuditService{}}:{},Date});
+    n.includes('clinical-audit')?{ClinicalAuditService:class ClinicalAuditService{}}:
+    n.includes('field-role-policy')?{normalizeFieldRole:r=>String(r).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^nurse_practitioner$/,'np')}:{},Date});
 const service=new exportsObject.AssessmentsService();
 const assessment='patients/p/woundAssessments/a',episode='patients/p/woundEpisodes/e';
 async function blocked(fn){writes=[];await assert.rejects(fn);assert.equal(writes.length,0);}
@@ -22,6 +23,13 @@ async function blocked(fn){writes=[];await assert.rejects(fn);assert.equal(write
   assert.deepEqual(Object.keys(writes[0].data).sort(),['providerReview','updatedAt']);
   assert.equal(writes[0].data.providerReview.reviewedByUid,'np');
   assert.equal(records[assessment].measurements.area,7);
+  records[assessment].locked=false;
+  await blocked(()=>service.recordProviderReview('p','a','Unsigned findings','Concur',true));
+  records[assessment].locked=true;records[assessment].esign.signed=false;
+  await blocked(()=>service.recordProviderReview('p','a','Missing signature','Concur',true));
+  records[assessment].esign.signed=true;
+  actor={...actor,role:'nurse practitioner',roles:['nurse_practitioner']};
+  writes=[];await service.recordProviderReview('p','a','Alias review','Concur',true);assert.equal(writes.length,1);
   await blocked(()=>service.recordProviderReview('p','a','', 'Concur',true));
   records[assessment].providerReview={reviewed:true};
   await blocked(()=>service.recordProviderReview('p','a','Second','Concur',true));
