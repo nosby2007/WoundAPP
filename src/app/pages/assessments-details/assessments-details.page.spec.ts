@@ -26,6 +26,13 @@ describe('AssessmentDetailPage', () => {
     expect(component.canRecordReview).toBeFalse();
     component.assessment.esign={signed:true};expect(component.canRecordReview).toBeTrue();
   });
+  it('shows an existing provider review to an authorized read-only reader without write controls', () => {
+    component.loading=false;component.canReview=false;component.readOnly=true;
+    component.assessment={providerReview:{reviewed:true,reviewedByName:'Example NP',decision:'Concur',providerNote:'Reviewed existing wound findings'}};
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Reviewed existing wound findings');
+    expect(fixture.nativeElement.textContent).not.toContain('Save provider review');
+  });
   it('never edits signed RN findings via the provider review screen', () => {
     component.canReview = true; component.assessment = {createdByUid:'rn',locked:true,esign:{signed:true}};
     expect(component.canEditAssessment).toBeFalse();
