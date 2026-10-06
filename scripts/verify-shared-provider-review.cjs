@@ -16,6 +16,7 @@ const service=new exportsObject.AssessmentsService();
 const assessment='patients/p/woundAssessments/a',episode='patients/p/woundEpisodes/e';
 async function blocked(fn){writes=[];await assert.rejects(fn);assert.equal(writes.length,0);}
 (async()=>{
+  records['patients/p']={orgId:'ORG'};
   records[assessment]={orgId:'ORG',patientId:'p',woundId:'w',episodeId:'e',locked:true,esign:{signed:true},measurements:{area:7}};
   await service.recordProviderReview('p','a','Reviewed findings','Concur',true);
   assert.deepEqual(Object.keys(writes[0].data).sort(),['providerReview','updatedAt']);
@@ -40,6 +41,10 @@ async function blocked(fn){writes=[];await assert.rejects(fn);assert.equal(write
   records[episode].orgId='ORG';actor={...actor,npi:'invalid'};await blocked(()=>service.acceptEpisodeResponsibility('p','a'));
   actor={...actor,npi:'1234567890'};records[assessment].patientId='different';await blocked(()=>service.recordProviderReview('p','a','Mismatch','Concur',true));
   records[assessment].patientId='p';
+  delete records[assessment].orgId;records[assessment].authorIdentity={orgId:'ORG'};
+  writes=[];await service.recordProviderReview('p','a','Legacy evidence','Concur',true);assert.equal(writes.length,1);
+  records['patients/p'].orgId='FOREIGN';await blocked(()=>service.recordProviderReview('p','a','Foreign parent','Concur',true));
+  records['patients/p'].orgId='ORG';
   records[assessment].orgId='FOREIGN';await blocked(()=>service.recordProviderReview('p','a','Foreign','Concur',true));
   console.log('PASS real provider review/assignment transactions: immutable RN evidence, actor, tenant, role, closed episode and no billing overwrite');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -132,7 +132,10 @@ export class AssessmentsService {
     await runTransaction(this.firestore, async tx => {
       const snap = await tx.get(assessmentRef);
       const d = snap.data();
-      if (!d || (d['orgId'] || d['orgID']) !== actor.orgId || (d['patientId'] && d['patientId'] !== patientId)) throw new Error('Assessment is unavailable in your organization.');
+      const patient = (await tx.get(doc(this.firestore, `patients/${patientId}`))).data();
+      const patientOrg = patient?.['orgId'] || patient?.['orgID'];
+      const evidenceOrg = d?.['orgId'] || d?.['orgID'] || d?.['authorIdentity']?.orgId || patientOrg;
+      if (!d || patientOrg !== actor.orgId || evidenceOrg !== actor.orgId || (d['patientId'] && d['patientId'] !== patientId)) throw new Error('Assessment is unavailable in your organization.');
       if (d['providerReview']?.reviewed) throw new Error('Already reviewed. Use a separate clinical note for an additional review.');
       tx.update(assessmentRef, {providerReview:{reviewed:true,reviewedAt:serverTimestamp(),reviewedByUid:actor.uid,
         reviewedByName:actor.displayName,providerNote:note.trim(),decision,attestationAccepted:true},updatedAt:serverTimestamp()});
@@ -147,7 +150,10 @@ export class AssessmentsService {
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     await runTransaction(this.firestore, async tx => {
       const assessment = (await tx.get(assessmentRef)).data();
-      if (!assessment || assessment['orgId'] !== actor.orgId || !assessment['episodeId'] || (assessment['patientId'] && assessment['patientId'] !== patientId)) throw new Error('No eligible linked episode.');
+      const patient = (await tx.get(doc(this.firestore, `patients/${patientId}`))).data();
+      const patientOrg = patient?.['orgId'] || patient?.['orgID'];
+      const evidenceOrg = assessment?.['orgId'] || assessment?.['orgID'] || assessment?.['authorIdentity']?.orgId || patientOrg;
+      if (!assessment || patientOrg !== actor.orgId || evidenceOrg !== actor.orgId || !assessment['episodeId'] || (assessment['patientId'] && assessment['patientId'] !== patientId)) throw new Error('No eligible linked episode.');
       const episodeRef = doc(this.firestore, `patients/${patientId}/woundEpisodes/${assessment['episodeId']}`);
       const episode = (await tx.get(episodeRef)).data();
       if (!episode || (episode['orgId'] || episode['orgID']) !== actor.orgId || episode['patientId'] !== patientId ||
