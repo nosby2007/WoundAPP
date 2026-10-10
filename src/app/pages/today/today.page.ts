@@ -1,5 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
+import {TelehealthConsultListComponent} from '../telehealth/telehealth-consult-list.component';
+import {FieldRolePolicyService} from '../../services/field-role-policy.service';
+import {canFacilitateTelehealth} from '../../shared/telehealth-policy';
 import { Router } from '@angular/router';
 import { IonBadge, IonButton, IonCard, IonCardContent, IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonNote, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { arrowForwardOutline, checkmarkCircleOutline, locationOutline, navigateOutline, timeOutline } from 'ionicons/icons';
@@ -12,11 +15,12 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
 @Component({
   selector: 'app-today',
   standalone: true,
-  imports: [CommonModule, IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent, IonButton, IonIcon, IonItem, IonLabel, IonBadge, IonNote, IonSpinner],
+  imports: [CommonModule, IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent, IonButton, IonIcon, IonItem, IonLabel, IonBadge, IonNote, IonSpinner, TelehealthConsultListComponent],
   template: `
     <ion-header class="ion-no-border"><ion-toolbar><ion-title>Today</ion-title></ion-toolbar></ion-header>
     <ion-content>
       <div class="page">
+        <app-telehealth-consult-list *ngIf="showTelehealth" [openOnly]="true"></app-telehealth-consult-list>
         <ng-container *ngIf="day$ | async as day; else loading">
           <section class="hero">
             <div class="hero-head">
@@ -75,6 +79,14 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
   `],
 })
 export class TodayPage {
+  @ViewChild(TelehealthConsultListComponent) consultations?: TelehealthConsultListComponent;
+  showTelehealth = false;
+  async ionViewWillEnter(): Promise<void> {
+    this.showTelehealth = false;
+    const identity = await this.rolePolicy.currentIdentity();
+    this.showTelehealth = !!identity && canFacilitateTelehealth([identity.role, ...(identity.roles || [])]);
+    if (this.showTelehealth) void this.consultations?.refresh();
+  }
   readonly arrowForwardOutline = arrowForwardOutline;
   readonly checkmarkCircleOutline = checkmarkCircleOutline;
   readonly locationOutline = locationOutline;
@@ -90,6 +102,7 @@ export class TodayPage {
     public network: NetworkStatusService,
     public sync: ClinicalSyncQueueService,
     public durable: DurableClinicalMutationService,
+    private rolePolicy: FieldRolePolicyService,
   ) { this.day$ = work.today$(); }
   address(v: FieldVisit): string { return v.patient?.address || v.homeAddress || ''; }
   openVisit(v: FieldVisit): void { void this.router.navigate(['/tabs/today/visit', v.id]); }

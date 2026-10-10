@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
+import {TelehealthConsultListComponent} from './telehealth-consult-list.component';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonSelect, IonSelectOption,
@@ -11,10 +12,11 @@ import { TelehealthService } from '../../services/telehealth.service';
   standalone: true,
   selector: 'app-field-telehealth',
   imports: [CommonModule, FormsModule, IonHeader, IonToolbar, IonTitle, IonContent, IonButton,
-    IonSelect, IonSelectOption, IonTextarea, IonItem, IonLabel, IonSpinner],
+    IonSelect, IonSelectOption, IonTextarea, IonItem, IonLabel, IonSpinner, TelehealthConsultListComponent],
   template: `
-    <ion-header><ion-toolbar><ion-title>New Telehealth</ion-title></ion-toolbar></ion-header>
+    <ion-header><ion-toolbar><ion-title>Telehealth</ion-title></ion-toolbar></ion-header>
     <ion-content><main>
+      <app-telehealth-consult-list></app-telehealth-consult-list>
       <h1>Call the NP from the patient's side</h1>
       <p>Use an existing patient and documented wound. The assigned NP opens the same consultation in JADE.</p>
       <p role="alert" *ngIf="error">{{ error }}</p><ion-spinner *ngIf="busy"></ion-spinner>
@@ -36,6 +38,8 @@ import { TelehealthService } from '../../services/telehealth.service';
   styles: [`main{max-width:700px;margin:auto;padding:20px}p[role=alert]{color:var(--ion-color-danger)}ion-textarea{margin:18px 0}`],
 })
 export class TelehealthPage implements OnInit {
+  @ViewChild(TelehealthConsultListComponent) consultations?: TelehealthConsultListComponent;
+  ionViewWillEnter(): void { void this.consultations?.refresh(); }
   patients: Patient[] = []; providers: {uid: string; name: string}[] = [];
   wounds: {id: string; label: string}[] = [];
   patientId = ''; woundId = ''; providerUid = ''; reason = ''; busy = false; error = '';

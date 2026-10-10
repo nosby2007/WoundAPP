@@ -15,6 +15,11 @@ export interface MobileTelehealthSession {
   clinicalContext?: {patientName?: string; woundLabel?: string};
 }
 
+export interface FieldTelehealthAppointment {
+  id: string; patientName: string; providerName: string; woundLabel?: string;
+  reason: string; startIso?: string; status: string; sessionState: string;
+}
+
 /** Client of JADE's canonical API; no independent clinical/session persistence. */
 @Injectable({providedIn: 'root'})
 export class TelehealthService {
@@ -44,6 +49,10 @@ export class TelehealthService {
 
   async create(input: {patientId: string; woundId: string; providerUid: string; reason: string}) {
     return this.call<{appointmentId: string}>('telehealthCreateFieldConsultV1', input);
+  }
+  listFacilitatorAppointments(cursor?: string) {
+    return this.call<{appointments: FieldTelehealthAppointment[]; nextCursor: string | null}>(
+      'telehealthListFacilitatorAppointmentsV1', {cursor: cursor || null});
   }
   async session(appointmentId: string): Promise<MobileTelehealthSession> {
     return (await this.call<{session: MobileTelehealthSession}>('telehealthCreateOrGetSessionV1', {appointmentId})).session;
