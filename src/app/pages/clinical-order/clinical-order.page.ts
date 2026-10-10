@@ -15,6 +15,8 @@ import {
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
 import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
+import { ClinicalDocumentExportService } from '../../services/clinical-document-export.service';
+import { normalizeFieldRole } from '../../services/field-role-policy.service';
 
 @Component({
   selector: 'app-clinical-order',
@@ -41,6 +43,7 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
             <p class="eyebrow dark">CURRENT ORDERS</p>
             <div class="current-orders" *ngIf="orders.length; else noCurrentOrders">
               <div class="order-row" *ngFor="let order of orders">
+                <div><button type="button" (click)="printOrder(order)">Print</button><button type="button" *ngIf="canManageOrders && order.status!=='discontinued'" (click)="reviseOrder(order,false)">Discontinue</button><button type="button" *ngIf="canManageOrders && order.status!=='discontinued' && !order.clinical && !order.treatmentProtocol && order.coSignature?.status!=='signed'" (click)="reviseOrder(order,true)">Edit</button><p *ngIf="order.status==='discontinued'">Discontinued — {{order.discontinueReason}}</p></div>
                 <div>
                   <strong>{{ order.treatmentProtocol?.templateName || order.orderType }}</strong>
                   <span>{{ order.description }}</span>
@@ -245,6 +248,14 @@ export class ClinicalOrderPage implements OnInit {
   loading = true; saving = false; error = '';
   treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = []; orders: MobileClinicalOrderRow[] = [];
   identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
+  private documents=inject(ClinicalDocumentExportService);
+  get canManageOrders():boolean{return !!this.identity && [this.identity.role,...this.identity.roles].map(normalizeFieldRole).some(r=>['np','provider','md','do','physician','admin','org_admin','clinical_admin','super_admin'].includes(r));}
+  async printOrder(order:MobileClinicalOrderRow){try{await this.documents.printSection(this.patientId,'order',order.id);}catch(e:any){this.error=e.message;}}
+  async reviseOrder(order:MobileClinicalOrderRow,edit:boolean){
+    const description=edit ? window.prompt('Revised order instructions',order.description):undefined;if(edit && description===null)return;
+    const reason=window.prompt(edit?'Clinical reason for revision':'Clinical reason to discontinue this order');if(!reason)return;
+    try{await this.orderService.reviseOrder(this.patientId,order.id,reason,description ?? undefined);await this.refreshOrders();}catch(e:any){this.error=e.message;}
+  }
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
   routineWoundManagement = 'Wound care per specified treatment protocol/order';

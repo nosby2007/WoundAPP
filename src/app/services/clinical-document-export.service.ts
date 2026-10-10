@@ -190,7 +190,7 @@ export class ClinicalDocumentExportService {
     const clinicianLicenseState = clinicianProfile?.licenseState || clinicianProfile?.licenseJurisdiction || null;
 
     const readiness = this.packetReadiness(visit, sections);
-    const sectionHtml = sections.map((section) => this.renderClinicalSection(section)).join('');
+    const sectionHtml = await this.loadClinicalBackground(patientId) + sections.map((section) => this.renderClinicalSection(section)).join('');
     const manifestRows = [
       { title: 'Clinical encounter', count: 1 },
       ...sections.map((section) => ({ title: section.title, count: section.records.length })),
@@ -220,7 +220,7 @@ export class ClinicalDocumentExportService {
   .card-title { font-size:8pt; font-weight:700; letter-spacing:.08em; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
   .kv { padding:5px 0; }
   .kv h3 { color:#176b54; font-size:10pt; margin:6px 0 3px; break-after:avoid; }
-  .kv p { margin:0 0 6px; orphans:3; widows:3; }
+  .kv p { margin:0 0 6px; orphans:3; widows:3; text-align:justify; hyphens:auto; overflow-wrap:break-word; }
   .kv:last-child { border-bottom:0; }
   .k { font-weight:700; color:#334155; }
   .section { margin:0 0 16px; }
@@ -419,12 +419,19 @@ export class ClinicalDocumentExportService {
       );
     } else if (kind === 'order') {
       lines.push(
-        ['Order', d.description || d.orderText || d.order || d.orderType],
+        ['Order', d.generatedOrderText || d.description || d.orderText || d.order || d.orderType],
         ['Instructions', d.instructions || d.directions],
         ['Frequency', d.frequency],
         ['Duration', d.duration || d.routine?.duration],
         ['Status', d.status || d.workflow?.state],
-        ['Prescriber', d.orderedBy?.displayName || d.prescriberName || d.providerName]
+        ['Prescriber', d.coSignature?.provider?.displayName || d.orderedBy?.displayName || d.prescriberName || d.providerName],
+        ['Order date', this.dateText(d.orderedAt)],
+        ['Discontinued', this.dateText(d.discontinuedAt)],
+        ['Reason for discontinuation', d.discontinueReason],
+        ['Discontinued by', d.discontinuedBy?.displayName],
+        ['Signature status', d.coSignature?.status],
+        ['Signed by', d.coSignature?.signedBy?.displayName],
+        ['Signed at', this.dateText(d.coSignature?.signedAt)]
       );
     } else if (kind === 'education') {
       lines.push(
@@ -547,7 +554,7 @@ export class ClinicalDocumentExportService {
     const location = String(d.describe?.location || d.location || 'Wound');
     // Only the assessment's existing photograph, never patient profile images.
     const url = typeof d.photoURL === 'string' && /^https:\/\//i.test(d.photoURL) ? d.photoURL : null;
-    const photo = url ? `<figure style="margin:8px 0;break-inside:avoid"><img src="${this.escape(url)}" alt="${this.escape(location)}" width="100" height="100" style="width:100px;height:100px;object-fit:contain;border:1px solid #dbe3e9"><figcaption>${this.escape(location)} · ${this.escape(this.dateText(d.assessedAt) || 'Date not documented')}</figcaption></figure>` : '';
+    const photo = url ? `<figure style="margin:8px 0;break-inside:avoid"><img src="${this.escape(url)}" alt="${this.escape(location)}" width="300" height="300" style="width:300px;height:300px;object-fit:contain;border:1px solid #dbe3e9"><figcaption>${this.escape(location)} · ${this.escape(this.dateText(d.assessedAt) || 'Date not documented')}</figcaption></figure>` : '';
     const history = Array.isArray(d.printMeasurementHistory) ? d.printMeasurementHistory : [];
     const number = (v: unknown): number | null => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
     const charts = [['area', 'Area (cm²)'], ['depth', 'Depth (cm)']].map(([field, title]) => {
@@ -609,10 +616,28 @@ export class ClinicalDocumentExportService {
       if (section.records.length) sections.push(section);
     }
 
-    return this.documentHtml(patient, sections);
+    return this.documentHtml(patient, sections, await this.loadClinicalBackground(patientId));
   }
 
-  private documentHtml(patient: any, sections: ClinicalPacketSection[]): string {
+  private async loadClinicalBackground(patientId: string): Promise<string> {
+    const records: Record<string, any[]> = {};
+    for (const kind of ['diagnostic', 'allergy', 'medicalHistory']) {
+      records[kind] = (await getDocs(collection(db, `patients/${patientId}/${kind}`))).docs.map(row => row.data());
+    }
+    return this.renderClinicalBackground(records);
+  }
+
+  private renderClinicalBackground(records: Record<string, any[]>): string {
+    const sections = [['diagnostic','Reviewed diagnoses'],['medicalHistory','Medical history'],['allergy','Allergies']];
+    const content = sections.map(([kind,title]) => {
+      const rows = (records[kind] || []).filter(row => row.status !== 'entered_in_error' && (kind !== 'diagnostic' || row.reviewStatus === 'approved'));
+      if (!rows.length) return '';
+      return `<h3>${title}</h3>` + rows.map(row => `<p>${this.escape([row.code, row.description || row.name || row.diagnostic].filter(Boolean).join(' — '))}${row.reaction ? `; reaction: ${this.escape(row.reaction)}` : ''}${row.status === 'resolved' ? '; resolved' : ''}${row.reviewStatus === 'needs_review' ? '; awaiting clinical review' : ''}</p>`).join('');
+    }).join('');
+    return content ? `<section class="section"><h2>Current clinical background</h2><p>As of ${this.escape(new Date().toLocaleDateString())}</p>${content}</section>` : '';
+  }
+
+  private documentHtml(patient: any, sections: ClinicalPacketSection[], background = ''): string {
     const patientName = patient.name || patient.displayName || 'Patient name not recorded';
     return `<!doctype html>
 <html>
@@ -652,7 +677,7 @@ export class ClinicalDocumentExportService {
   ${patient.dob || patient.dateOfBirth ? `<p>Date of birth: ${this.escape(this.dateOnly(patient.dob || patient.dateOfBirth))}</p>` : ''}
 </header>
 </td></tr></thead><tbody><tr><td>
-${sections.map((section) => this.renderClinicalSection(section)).join('')}
+${background}${sections.map((section) => this.renderClinicalSection(section)).join('')}
 </td></tr></tbody></table>
 </body>
 </html>`;

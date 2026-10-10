@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "public": "www",
+    "site": "phwc-mobile-dev",
+    "ignore": ["firebase.json", "firebase.dev.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{"source": "**", "destination": "/index.html"}]
+  }
+}

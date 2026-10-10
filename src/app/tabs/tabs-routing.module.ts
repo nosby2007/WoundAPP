@@ -13,6 +13,7 @@ import { BradenFormPage } from '../pages/braden-form/braden-form.page';
 import { WoundCarePlanPage } from '../pages/wound-care-plan/wound-care-plan.page';
 import { PatientCarePlanPage } from '../pages/patient-care-plan/patient-care-plan.page';
 import { ClinicalOrderPage } from '../pages/clinical-order/clinical-order.page';
+import { PatientClinicalContextPage } from '../pages/patient-clinical-context/patient-clinical-context.page';
 import { SystemicAssessmentPage } from '../pages/systemic-assessment/systemic-assessment.page';
 import { GeneralClinicalAssessmentPage } from '../pages/general-clinical-assessment/general-clinical-assessment.page';
 import { EducationPage } from '../pages/education/education.page';
@@ -44,6 +45,7 @@ const routes: Routes = [
       { path: 'telehealth/session/:appointmentId', loadComponent: () => import('../pages/telehealth/telehealth-session.page').then(m => m.TelehealthSessionPage), canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'telehealth', loadComponent: () => import('../pages/telehealth/telehealth.page').then(m => m.TelehealthPage), canActivate: [telehealthFacilitatorGuard] },
       { path: 'patients', component: PatientsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'patients/:patientId/clinical-background', component: PatientClinicalContextPage, canActivate: [fieldAccessGuard], data: {access:'clinical'} },
       { path: 'today', component: TodayPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'sync-review', component: SyncReviewPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'today/visit/:appointmentId/complete', component: VisitCompletePage, canActivate: [fieldAccessGuard], data: { access: 'field' } },

@@ -5,6 +5,19 @@ import { ClinicalDocumentSnapshotService } from './clinical-document-snapshot.se
 
 describe('external clinical document presentation', () => {
   let service: any;
+  it('only prints reviewed diagnoses, excludes erroneous facts and never prints linkage IDs', () => {
+    const html = service.renderClinicalBackground({diagnostic:[
+      {code:'E11.9',description:'Reviewed diagnosis',reviewStatus:'approved',patientId:'PRIVATE_PATIENT'},
+      {description:'Unreviewed diagnosis',reviewStatus:'needs_review'},
+      {description:'Erroneous diagnosis',reviewStatus:'approved',status:'entered_in_error'}
+    ],allergy:[{description:'<latex>',reaction:'Rash'}]});
+    expect(html).toContain('Reviewed diagnosis');
+    expect(html).not.toContain('Unreviewed diagnosis');
+    expect(html).not.toContain('Erroneous diagnosis');
+    expect(html).not.toContain('PRIVATE_PATIENT');
+    expect(html).toContain('&lt;latex&gt;');
+    expect(html).toContain('Current clinical background');
+  });
   beforeEach(() => {
     TestBed.configureTestingModule({providers: [ClinicalDocumentExportService,
       {provide: ClinicalAuditService, useValue: {}},
@@ -57,9 +70,10 @@ describe('external clinical document presentation', () => {
   it('does not shift a birth date to the previous day in US time zones', () => {
     expect(service.dateOnly('1970-01-01')).toBe('01/01/1970');
   });
-  it('prints only HTTPS wound photos at 100x100, escapes captions and preserves proportions', () => {
+  it('prints only HTTPS wound photos at 300x300, escapes captions and preserves proportions', () => {
     const html = service.woundMedia({photoURL:'https://firebasestorage.googleapis.com/photo?token=example&x=1',describe:{location:'Heel <right>'}});
-    expect(html).toContain('width="100" height="100"');
+    expect(html).toContain('width="300" height="300"');
+    expect(html).toContain('width:300px;height:300px');
     expect(html).toContain('object-fit:contain'); expect(html).toContain('Heel &lt;right&gt;');
     expect(service.woundMedia({photoURL:'javascript:alert(1)'})).not.toContain('<img');
     expect(service.woundMedia({photoURL:'http://unsafe.example/photo'})).not.toContain('<img');

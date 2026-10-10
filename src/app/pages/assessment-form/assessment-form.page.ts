@@ -67,6 +67,7 @@ import {
   WOUND_TYPES,
 } from 'src/app/shared/wound-vocabulary';
 import { buildWoundTreatment } from 'src/app/shared/wound-treatment';
+import { assessmentDebridementGroup, assessmentDebridementPayload } from '../../shared/assessment-debridement';
 import {
   stripWoundIdForUpdate,
   woundIdForCreate,
@@ -284,6 +285,7 @@ export class AssessmentFormPage implements OnInit {
     orders: this.fb.group({
       goalOfCare: [''],
     }),
+    debridementProcedure: assessmentDebridementGroup(this.fb),
     treatment: this.fb.group({
       dressingAppearance: [''],
       cleansing: [''],
@@ -504,6 +506,10 @@ export class AssessmentFormPage implements OnInit {
             },
           });
 
+          if (data.debridementProcedure) {
+            this.form.controls.debridementProcedure.patchValue(data.debridementProcedure);
+          }
+
           if (data.photoURL) {
             this.photoPreview = data.photoURL;
           }
@@ -691,6 +697,8 @@ export class AssessmentFormPage implements OnInit {
       // entirely rather than stored as a row of blanks, so a reader can tell
       // "no dressing recorded" from "no dressing applied".
       const treatment = buildWoundTreatment(v.treatment);
+      const procedure = assessmentDebridementPayload(v.debridementProcedure);
+      if (procedure) basePayload.debridementProcedure = procedure;
       if (treatment) basePayload.treatment = treatment;
       if (v.orders.goalOfCare) basePayload.orders = { goalOfCare: v.orders.goalOfCare };
 

@@ -1,0 +1,21 @@
+main { padding:16px; max-width:950px; margin:auto; }
+p[role=alert] { color:var(--ion-color-danger); }
+ion-checkbox { margin:10px 0; }
+.video-stage { position:relative; height:clamp(390px,65vh,720px); border-radius:20px; background:#10251d; overflow:hidden; isolation:isolate; margin:20px 0; }
+.media { width:100%; height:100%; overflow:hidden; }
+.media ::ng-deep video { width:100%; height:100%; object-fit:contain; display:block; }
+.media ::ng-deep audio { display:none; }
+.remote { display:flex; align-items:center; }
+.remote ::ng-deep video { flex:1; min-width:0; }
+.stage-label,.self-preview>span { position:absolute; top:12px; left:12px; background:#10251dcc; color:white; padding:6px 10px; border-radius:8px; font-size:.75rem; }
+.waiting-video { position:absolute; top:42%; width:100%; text-align:center; color:#e4efeb; }
+.self-preview { position:absolute; top:16px; right:16px; width:clamp(105px,23%,200px); height:clamp(135px,24vh,210px); background:#263d34; border:2px solid #ffffffaa; border-radius:14px; overflow:hidden; box-shadow:0 6px 24px #0005; }
+.self-preview .media ::ng-deep video { object-fit:cover; }
+.self-preview.front-facing ::ng-deep video { transform:scaleX(-1); }
+.self-preview>span { top:auto; bottom:6px; left:6px; }
+.call-controls { position:absolute; bottom:max(16px,env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); display:flex; justify-content:center; flex-wrap:wrap; gap:8px; padding:10px; width:max-content; max-width:calc(100% - 24px); border-radius:20px; background:#10251de8; box-shadow:0 6px 24px #0005; }
+.call-controls button { min-height:44px; padding:10px 14px; border-radius:22px; background:#ffffff18; border:1px solid #ffffff70; color:white; font:inherit; font-size:.85rem; cursor:pointer; }
+.call-controls button.leave { background:#b92e3e; border-color:#b92e3e; }
+.call-controls button[aria-pressed=true] { background:#94621c; }
+.call-controls button:disabled { opacity:.5; cursor:not-allowed; }
+@media(max-width:600px) { main { padding:12px; } .call-controls { gap:6px; padding:8px; } .call-controls button { padding:10px; font-size:.78rem; } }

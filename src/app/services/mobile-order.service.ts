@@ -1,11 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
 import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
+import { normalizeFieldRole } from './field-role-policy.service';
 
 export interface MobileTreatmentProtocolOption {
   id: string;
@@ -101,6 +102,11 @@ export interface MobileClinicalOrderRow {
   treatmentProtocol?: MobileAppliedTreatmentProtocol | null;
   workflow?: { state?: string | null } | null;
   archivedAt?: any;
+  status?: string;
+  discontinueReason?: string;
+  source?: {mode?:string};
+  clinical?: any;
+  coSignature?: {status?:string};
 }
 
 export type MobileOrderReceiptMethod = 'direct' | 'telephone' | 'verbal';
@@ -110,6 +116,26 @@ export class MobileOrderService {
   private tenant = inject(TenantService);
   private identity = inject(ClinicalIdentityService);
   private audit = inject(ClinicalAuditService);
+
+  async reviseOrder(patientId:string,orderId:string,reason:string,description?:string):Promise<void> {
+    const actor=await this.identity.requireCurrentIdentity();
+    if(![actor.role,...actor.roles].map(normalizeFieldRole).some(r=>['np','provider','md','do','physician','admin','org_admin','clinical_admin','super_admin'].includes(r)))throw Error('Provider authorization required.');
+    if(reason.trim().length<5)throw Error('A clinical reason of at least five characters is required.');
+    const ref=doc(db,`patients/${patientId}/orders/${orderId}`),auditRef=doc(collection(db,'clinicalAuditEvents'));
+    await runTransaction(db,async tx=>{
+      const order=(await tx.get(ref)).data();
+      if(!order || order['orgId']!==actor.orgId || order['patientId']!==patientId || order['archivedAt'] || order['status']==='discontinued' || order['status']==='completed')throw Error('Order unavailable or already inactive.');
+      const now=serverTimestamp();const identity={uid:actor.uid,displayName:actor.displayName,role:actor.role,credentials:actor.credentials,npi:actor.npi};
+      let patch:any;
+      if(description!==undefined){
+        if(!description.trim())throw Error('Order instructions are required.');
+        if(order['generatedOrderText'] || order['coSignature']?.status==='signed' || ['completed','locked','archived'].includes(order['workflow']?.state) || order['clinical'] || order['treatmentProtocol'] || ['algorithm','treatment_protocol'].includes(order['source']?.mode))throw Error('Signed or structured prescriptions must be replaced, not edited in place.');
+        patch={description:description.trim(),revisionNumber:(order['revisionNumber'] || 1)+1,lastEditReason:reason.trim(),lastEditedAt:now,lastEditedBy:identity,lastEditAuditCode:auditRef.id};
+      }else patch={status:'discontinued',discontinuedAt:now,discontinuedBy:identity,discontinueReason:reason.trim(),discontinueAuditCode:auditRef.id};
+      tx.update(ref,{...patch,updatedAt:now,updatedBy:identity});
+      tx.set(auditRef,{orgId:actor.orgId,patientId,documentId:orderId,actorUid:actor.uid,actorName:actor.displayName,actorRole:actor.role,action:description===undefined?'order.discontinued':'order.updated',occurredAt:now,source:'ui',summary:'Provider revised the order.',metadata:{reason:reason.trim(),previous:order,revision:patch}});
+    });
+  }
 
   async listPublishedTreatmentProtocols(): Promise<MobileTreatmentProtocolTemplate[]> {
     const orgId = await this.tenant.currentOrgId();

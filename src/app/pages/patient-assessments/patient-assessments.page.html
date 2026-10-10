@@ -17,6 +17,7 @@
   </ion-refresher>
 
   <div class="page">
+    <ion-button fill="outline" [routerLink]="['/tabs/patients',patientId,'clinical-background']">Diagnoses, history &amp; allergies</ion-button>
 
     <div class="evv-card" [class.evv-on]="openVisit()">
       <div class="evv-row">
