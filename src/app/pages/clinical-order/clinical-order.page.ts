@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DoCheck, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
@@ -14,6 +14,7 @@ import {
   MobilePrescriber, MobileTreatmentProtocolSections, MobileTreatmentProtocolTemplate, MobileWoundOption,
 } from '../../services/mobile-order.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
 
 @Component({
@@ -224,6 +225,7 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
           </ion-card-content>
         </ion-card>
 
+        <ion-note *ngIf="draftStatus">{{ draftStatus }}</ion-note>
         <ion-button expand="block" size="large" [disabled]="saving || !selectedWoundType || !selectedTreatmentTemplate || (!isPrescriber && (!prescriberUid || !readBackConfirmed))" (click)="save()">
           <ion-spinner *ngIf="saving" name="crescent"></ion-spinner><span *ngIf="!saving">Place order</span>
         </ion-button>
@@ -234,15 +236,19 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
     .page{max-width:820px;margin:0 auto;padding:16px 14px 40px;background:#f4f7f9;min-height:100%}.hero{padding:22px;border-radius:24px;background:linear-gradient(145deg,#0d7657,#173f60);color:#fff;margin-bottom:14px}.hero h1{font-size:25px;margin:5px 0}.hero p{margin:0;opacity:.82;line-height:1.45}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;margin:0}.eyebrow.dark{color:#63788e;margin-bottom:8px}ion-card{border-radius:20px;box-shadow:0 5px 22px rgba(18,46,67,.06);margin:12px 0}.preview{background:#f4f8fa;border-radius:16px;padding:13px;margin-top:14px}.preview-head{display:flex;gap:8px;align-items:center;color:#173f60}.preview-head ion-badge{margin-left:auto}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.5;color:#334155}.identity{display:flex;gap:10px;align-items:center;padding:12px;background:#eef7f3;border-radius:14px}.identity ion-icon{font-size:24px;color:#087455}.identity small{display:block;color:#64748b}.notice,.empty,.error{padding:12px;border-radius:12px;margin-top:10px}.template-preview{margin-top:14px;border:1px solid #dce8e3;border-radius:16px;padding:12px}.template-section{margin-top:12px}.template-section h3{font-size:13px;color:#173f60;margin:8px 4px}.template-section ion-item{--padding-start:0;font-size:13px}.template-default{font-size:12px;color:#52687c}.routine-preview{margin-top:16px;padding:14px;border-radius:14px;background:#eef7f3;color:#244c3c}.routine-preview strong{display:block;margin-bottom:6px}.routine-preview p{margin:0;white-space:pre-wrap;line-height:1.45;font-size:13px}.current-orders{display:grid;gap:8px}.order-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 12px;border:1px solid #e2e8ee;border-radius:14px;background:#fff}.order-row strong{display:block;color:#173f60;font-size:13px}.order-row span{display:block;color:#64748b;font-size:11px;line-height:1.4;margin-top:3px;white-space:pre-wrap}.notice{background:#eef7f3;color:#245d49}.guidance{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.guidance-chip{border:1px solid #8fb8d8;background:#fff;color:#173f60;border-radius:999px;padding:7px 10px;font-size:12px}.guidance-chip.active{background:#e8f3fb;border-color:#2d78b7}.guidance-reason{width:100%;font-size:12px;color:#42566b}.guidance-caution{width:100%;font-size:11px;background:#fff7e8;color:#7a4a0d;padding:8px 10px;border-radius:10px}.empty{background:#f8fafc;color:#64748b}.error{background:#fff1f0;color:#9d2b25}.center{display:flex;gap:10px;align-items:center}
   `],
 })
-export class ClinicalOrderPage implements OnInit {
+export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
   private route = inject(ActivatedRoute);
   private orderService = inject(MobileOrderService); private identityService = inject(ClinicalIdentityService);
   private toast = inject(ToastController);
+  private drafts = inject(ClinicalDraftService);
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
   woundVisitId = this.route.snapshot.queryParamMap.get('woundVisitId') || '';
   episodeId = this.route.snapshot.queryParamMap.get('episodeId') || '';
-  loading = true; saving = false; error = '';
+  loading = true; saving = false; error = ''; draftStatus = '';
+  private draftTimer?: ReturnType<typeof setTimeout>;
+  private lastDraftFingerprint = '';
+  private restoringDraft = false;
   treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = []; orders: MobileClinicalOrderRow[] = [];
   identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
@@ -313,8 +319,23 @@ export class ClinicalOrderPage implements OnInit {
         this.orderService.listWounds(this.patientId)
       ]);
       await this.refreshOrders();
+      await this.restoreDraft();
     } catch(e:any){ this.error = e?.message || 'Clinical ordering workspace could not be loaded.'; }
     finally { this.loading = false; }
+  }
+
+  ngDoCheck(): void {
+    if (this.loading || this.restoringDraft) return;
+    const fingerprint = JSON.stringify(this.draftPayload());
+    if (fingerprint !== this.lastDraftFingerprint) {
+      this.lastDraftFingerprint = fingerprint;
+      this.scheduleDraft();
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
   onTreatmentTemplateChanged(){
     this.selectedTreatmentTemplate = this.filteredTreatmentTemplates.find(t => t.id === this.treatmentTemplateId) || null;
@@ -363,6 +384,97 @@ export class ClinicalOrderPage implements OnInit {
     this.selectedTreatmentTemplate = null;
     this.treatmentSelections = {};
     this.resetRoutine();
+  }
+
+  private draftKey() {
+    return {
+      formKind: 'clinical_order' as const,
+      patientId: this.patientId,
+      contextKey: [
+        this.woundVisitId || this.appointmentId || 'no-visit',
+        this.woundId || 'patient-level',
+      ].join(':'),
+    };
+  }
+
+  private draftPayload() {
+    return {
+      woundId: this.woundId,
+      selectedWoundType: this.selectedWoundType,
+      treatmentTemplateId: this.treatmentTemplateId,
+      treatmentSelections: this.treatmentSelections,
+      routineWoundManagement: this.routineWoundManagement,
+      routineFrequency: this.routineFrequency,
+      routineStartDate: this.routineStartDate,
+      routineDuration: this.routineDuration,
+      routineComments: this.routineComments,
+      receiptMethod: this.receiptMethod,
+      prescriberUid: this.prescriberUid,
+      readBackConfirmed: this.readBackConfirmed,
+    };
+  }
+
+  private scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private async restoreDraft(): Promise<void> {
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      const value = saved?.payload;
+      if (!value) return;
+
+      this.restoringDraft = true;
+      this.woundId = String(value.woundId || '');
+      const wound = this.wounds.find(w => w.woundId === this.woundId) || null;
+      this.woundLabel = wound?.label || '';
+      this.guidance = deriveMobileAlgorithmGuidance(wound?.guidanceInput);
+
+      this.selectedWoundType = String(value.selectedWoundType || '');
+      this.treatmentTemplateId = String(value.treatmentTemplateId || '');
+      this.selectedTreatmentTemplate = this.filteredTreatmentTemplates.find(t => t.id === this.treatmentTemplateId) || null;
+      this.treatmentSelections = value.treatmentSelections && typeof value.treatmentSelections === 'object'
+        ? value.treatmentSelections
+        : {};
+
+      this.routineWoundManagement = String(value.routineWoundManagement || this.routineWoundManagement);
+      this.routineFrequency = String(value.routineFrequency || this.routineFrequency);
+      this.routineStartDate = String(value.routineStartDate || this.routineStartDate);
+      this.routineDuration = String(value.routineDuration || this.routineDuration);
+      this.routineComments = String(value.routineComments || '');
+      this.receiptMethod = value.receiptMethod === 'verbal' ? 'verbal' : 'telephone';
+      this.prescriberUid = String(value.prescriberUid || '');
+      this.readBackConfirmed = value.readBackConfirmed === true;
+      this.lastDraftFingerprint = JSON.stringify(this.draftPayload());
+      this.draftStatus = saved?.updatedAt
+        ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
+        : 'Draft restored';
+    } catch {
+      // Draft recovery does not block the ordering workspace.
+    } finally {
+      this.restoringDraft = false;
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId || this.loading || this.restoringDraft) return;
+    const payload = this.draftPayload();
+    const hasContent = !!(
+      payload.woundId ||
+      payload.selectedWoundType ||
+      payload.treatmentTemplateId ||
+      payload.prescriberUid ||
+      payload.routineComments.trim() ||
+      Object.values(payload.treatmentSelections || {}).some((v) => Array.isArray(v) && v.length)
+    );
+    if (!hasContent) return;
+    try {
+      await this.drafts.save(this.draftKey(), payload as any);
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
   }
 
   private normalizeTreatmentManagement(value: string | null | undefined): string {
@@ -430,6 +542,9 @@ export class ClinicalOrderPage implements OnInit {
         },
       });
       await this.refreshOrders();
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      this.draftStatus = '';
+      this.lastDraftFingerprint = '';
       const t = await this.toast.create({ message:'Order saved and added to Current Orders', duration:2200, color:'success' }); await t.present();
       this.treatmentTemplateId = '';
       this.selectedTreatmentTemplate = null;
