@@ -1,9 +1,12 @@
 <ion-content [fullscreen]="true" class="login-page">
 
-  <div class="splash-screen" *ngIf="showSplash" aria-label="WoundAPP loading">
+  <div class="login-backdrop" aria-hidden="true">
     <div class="splash-wave wave-one"></div>
     <div class="splash-wave wave-two"></div>
     <div class="splash-wave wave-three"></div>
+  </div>
+
+  <div class="splash-screen" *ngIf="showSplash" aria-label="WoundAPP loading">
     <div class="splash-brand">
       <div class="splash-mark" aria-hidden="true">
         <span class="ring ring-one"></span>
