@@ -3,13 +3,35 @@ import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 import { LoginPage } from './pages/login/login.page'; // ✅ standalone
 import { PinPage } from './pages/pin/pin.page';
 import { StaffOnboardingPage } from './pages/staff-onboarding/staff-onboarding.page';
+import { PublicSitePage } from './pages/public-site/public-site.page';
 import { pinGuard } from './guards/pin.guard';
 
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'login',
+    component: PublicSitePage,
     pathMatch: 'full',
+    data: { page: 'home' },
+  },
+  {
+    path: 'features',
+    component: PublicSitePage,
+    data: { page: 'features' },
+  },
+  {
+    path: 'solutions',
+    component: PublicSitePage,
+    data: { page: 'solutions' },
+  },
+  {
+    path: 'security',
+    component: PublicSitePage,
+    data: { page: 'security' },
+  },
+  {
+    path: 'demo',
+    component: PublicSitePage,
+    data: { page: 'demo' },
   },
   {
     path: 'login',
