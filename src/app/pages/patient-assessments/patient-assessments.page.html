@@ -92,6 +92,9 @@
         <ion-button size="small" fill="outline" [disabled]="documentBusy()" (click)="shareVisitPacket()">
           <ion-icon slot="start" name="share-outline"></ion-icon>Send clinical record
         </ion-button>
+        <ion-button size="small" fill="outline" (click)="openPatientDocuments()">
+          <ion-icon slot="start" name="documents-outline"></ion-icon>Patient documents
+        </ion-button>
       </div>
 
       <div class="document-flow">
