@@ -30,9 +30,8 @@ import {
 } from 'src/app/services/progress-note.service';
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
-import { MobileClinicalContext } from 'src/app/services/patient-clinical-context-reader.service';
-import { EncounterContext } from 'src/app/services/patient-encounter-context-reader.service';
 import { ClinicalDataService } from 'src/app/services/clinical-data.service';
+import { ClinicalContext, ClinicalEncounterContext } from 'src/app/services/clinical-data-provider';
 
 /**
  * Write a progress note on one patient.
@@ -90,8 +89,8 @@ export class ProgressNoteFormPage {
   loadingHistory = true;
   errorMsg = '';
   recent: ProgressNote[] = [];
-  clinicalContext: MobileClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
-  encounterContext: EncounterContext = { medications: [], activeOrders: [], vascular: [], systemic: [] };
+  clinicalContext: ClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+  encounterContext: ClinicalEncounterContext = { medications: [], activeOrders: [], vascular: [], systemic: [] };
   loadingClinicalContext = true;
   clinicalContextError = '';
 
