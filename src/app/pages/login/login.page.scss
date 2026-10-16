@@ -1,5 +1,23 @@
 .login-page {
-  --background: #f6f8fb;
+  --background: #0b5d45;
+}
+
+.login-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(211, 244, 230, .22), transparent 28%),
+    linear-gradient(165deg, #073e31 0%, #0b7551 43%, #2b9a72 72%, #b7e2d1 100%);
+}
+
+.login-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,45,34,.08));
 }
 
 .card-wrapper {
@@ -10,6 +28,8 @@
   padding: var(--app-space-5);
   max-width: 460px;
   margin: 0 auto;
+  position: relative;
+  z-index: 2;
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 220ms ease, transform 220ms ease;
@@ -26,7 +46,7 @@
   gap: 7px;
   width: fit-content;
   margin-bottom: 18px;
-  color: #45627a;
+  color: rgba(255,255,255,.92);
   text-decoration: none;
   font-size: 0.82rem;
   font-weight: 700;
@@ -50,11 +70,11 @@
   height: 48px;
   flex: 0 0 48px;
   border-radius: 16px;
-  background: linear-gradient(145deg, #3952d7, #6339ba);
+  background: linear-gradient(145deg, #0b7551, #124a3b);
   color: #fff;
   font-weight: 800;
   font-size: 1rem;
-  box-shadow: 0 10px 22px rgba(64, 65, 180, .2);
+  box-shadow: 0 10px 22px rgba(5, 72, 52, .24);
 }
 
 .brand-text {
@@ -62,22 +82,23 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 800;
-    color: var(--app-ink);
+    color: #fff;
     letter-spacing: -0.015em;
   }
 
   p {
     margin: 2px 0 0;
     font-size: 0.82rem;
-    color: var(--app-ink-muted);
+    color: rgba(255,255,255,.76);
   }
 }
 
 .login-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(255,255,255,.72);
   border-radius: var(--app-radius-lg);
-  box-shadow: var(--app-shadow);
+  box-shadow: 0 24px 60px rgba(3, 48, 36, .24);
+  backdrop-filter: blur(14px);
   padding: var(--app-space-5);
 }
 
@@ -163,10 +184,9 @@ ion-input::part(label) {
   overflow: hidden;
   display: grid;
   place-items: center;
-  background:
-    linear-gradient(165deg, #1d1266 0%, #2f1b7c 34%, #2858bb 71%, #70baf2 100%);
+  background: transparent;
   color: #fff;
-  animation: splash-fade 260ms ease 1.03s forwards;
+  animation: splash-fade 650ms ease 2.4s forwards;
 }
 
 .splash-wave {
@@ -182,7 +202,7 @@ ion-input::part(label) {
   left: -79vw;
   top: 8vh;
   border-width: 11vw;
-  border-color: rgba(112, 77, 176, .88);
+  border-color: rgba(6, 96, 69, .88);
   transform: rotate(-18deg);
 }
 
@@ -192,7 +212,7 @@ ion-input::part(label) {
   left: -94vw;
   top: -4vh;
   border-width: 11vw;
-  border-color: rgba(150, 115, 198, .62);
+  border-color: rgba(73, 164, 125, .62);
   transform: rotate(-18deg);
 }
 
@@ -202,7 +222,7 @@ ion-input::part(label) {
   left: -109vw;
   top: -17vh;
   border-width: 10vw;
-  border-color: rgba(204, 190, 229, .38);
+  border-color: rgba(199, 238, 221, .38);
   transform: rotate(-18deg);
 }
 
@@ -225,7 +245,7 @@ ion-input::part(label) {
 .ring {
   position: absolute;
   inset: 0;
-  border: 2px solid rgba(102, 128, 255, .9);
+  border: 2px solid rgba(220, 255, 241, .9);
   border-radius: 50%;
 }
 
@@ -247,7 +267,7 @@ ion-input::part(label) {
   font-size: clamp(28px, 7vw, 42px);
   font-weight: 800;
   letter-spacing: -0.035em;
-  color: rgba(84, 107, 255, .96);
+  color: rgba(239, 255, 248, .96);
 }
 
 .splash-tagline {
@@ -255,7 +275,7 @@ ion-input::part(label) {
   letter-spacing: .16em;
   text-transform: uppercase;
   font-weight: 800;
-  color: rgba(255,255,255,.72);
+  color: rgba(255,255,255,.78);
 }
 
 @keyframes brand-rise {
