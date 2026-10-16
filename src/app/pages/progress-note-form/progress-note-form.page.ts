@@ -31,6 +31,7 @@ import {
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
 import { ClinicalDataService } from 'src/app/services/clinical-data.service';
+import { ClinicalDraftService } from 'src/app/services/clinical-draft.service';
 
 /**
  * Write a progress note on one patient.
@@ -70,6 +71,7 @@ export class ProgressNoteFormPage {
   private notes = inject(ProgressNoteService);
   private toasts = inject(ToastController);
   private clinicalData = inject(ClinicalDataService);
+  private drafts = inject(ClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   patient: any = null;
@@ -87,7 +89,9 @@ export class ProgressNoteFormPage {
   saving = false;
   loadingHistory = true;
   errorMsg = '';
+  draftStatus = '';
   recent: ProgressNote[] = [];
+  private draftTimer?: ReturnType<typeof setTimeout>;
 
   initials = patientInitials;
   avatarHue = patientAvatarHue;
@@ -100,6 +104,12 @@ export class ProgressNoteFormPage {
 
   async ngOnInit() {
     await Promise.all([this.loadPatient(), this.loadHistory()]);
+    await this.restoreDraft();
+  }
+
+  ionViewWillLeave(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
 
   private async loadPatient() {
@@ -135,7 +145,9 @@ export class ProgressNoteFormPage {
 
     try {
       await this.notes.create(this.patientId, this.details, this.wound, null, this.visitLink);
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
       this.details = '';
+      this.draftStatus = '';
       await this.loadHistory();
 
       const toast = await this.toasts.create({
@@ -163,6 +175,42 @@ export class ProgressNoteFormPage {
    * identical, and a second copy of this page would be a second place for
    * the permission handling below to drift.
    */
+  scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private draftKey() {
+    const context = [
+      this.visitLink.appointmentId || this.visitLink.visitId || 'no-visit',
+      this.visitLink.woundId || 'no-wound',
+    ].join(':');
+    return { formKind: 'progress_note' as const, patientId: this.patientId, contextKey: context };
+  }
+
+  private async restoreDraft(): Promise<void> {
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      if (!saved?.payload) return;
+      this.details = String(saved.payload.details || '');
+      this.draftStatus = saved.updatedAt
+        ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
+        : 'Draft restored';
+    } catch {
+      // Recovery is additive; note entry remains available if draft sync is down.
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId || !this.details.trim()) return;
+    try {
+      await this.drafts.save(this.draftKey(), { details: this.details });
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
+  }
+
   private readWoundContext(): ProgressNoteWoundContext | null {
     const q = this.route.snapshot.queryParamMap;
     const woundId = q.get('woundId');

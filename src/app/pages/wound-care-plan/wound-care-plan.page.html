@@ -62,6 +62,7 @@
       <ion-textarea formControlName="description" [autoGrow]="true" [rows]="2"></ion-textarea>
     </ion-item>
 
+    <ion-note *ngIf="draftStatus">{{ draftStatus }}</ion-note>
     <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
     <ion-button expand="block" type="submit" [disabled]="form.invalid || saving">

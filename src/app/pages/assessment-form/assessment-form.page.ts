@@ -1,5 +1,5 @@
 // src/app/pages/assessment-form/assessment-form.page.ts
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ToastController,
@@ -34,6 +34,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
 import { Camera, CameraDirection, CameraResultType, CameraSource } from '@capacitor/camera';
 import { AssessmentsService } from '../../services/assessments.service';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { WoundRoundMobileService } from '../../services/wound-round.service';
 import { getAuth } from 'firebase/auth';
 import { take } from 'rxjs/operators';
@@ -121,13 +122,14 @@ import { clinicalVisitQueryParams } from 'src/app/shared/clinical-visit-link';
     IonToolbar,
   ],
 })
-export class AssessmentFormPage implements OnInit {
+export class AssessmentFormPage implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessments = inject(AssessmentsService);
   private rounds = inject(WoundRoundMobileService);
   private toastCtrl = inject(ToastController);
+  private drafts = inject(ClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId'); // undefined = NEW
@@ -211,6 +213,9 @@ export class AssessmentFormPage implements OnInit {
   additionalCareOptions = ADDITIONAL_CARE;
 
   loading = false;
+  draftStatus = '';
+  private draftTimer?: ReturnType<typeof setTimeout>;
+  private restoringDraft = false;
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
 
@@ -323,13 +328,24 @@ export class AssessmentFormPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.form.valueChanges.subscribe(() => {
+      if (!this.restoringDraft) this.scheduleDraft();
+    });
+
     if (this.assessmentId) {
       this.loadForEdit();
       return;
     }
     if (this.isReevaluation) {
       void this.loadReevaluationBaseline();
+      return;
     }
+    void this.restoreDraft();
+  }
+
+  ngOnDestroy(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
 
   private async loadReevaluationBaseline(): Promise<void> {
@@ -418,6 +434,7 @@ export class AssessmentFormPage implements OnInit {
       console.error('[AssessmentForm] re-evaluation baseline load failed', error);
     } finally {
       this.loading = false;
+      await this.restoreDraft();
     }
   }
 
@@ -515,6 +532,7 @@ export class AssessmentFormPage implements OnInit {
           }
 
           this.loading = false;
+          void this.restoreDraft();
         },
         error: (err) => {
           console.error('[AssessmentForm] loadForEdit error', err);
@@ -528,6 +546,55 @@ export class AssessmentFormPage implements OnInit {
     if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
+  }
+
+  private draftKey() {
+    const modeKey = this.assessmentId
+      ? `edit:${this.assessmentId}`
+      : this.woundId
+        ? `reeval:${this.woundId}`
+        : 'new';
+    return {
+      formKind: 'wound_assessment' as const,
+      patientId: this.patientId,
+      contextKey: [
+        modeKey,
+        this.fieldEncounterVisitId || this.appointmentId || 'no-visit',
+      ].join(':'),
+    };
+  }
+
+  private scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private async restoreDraft(): Promise<void> {
+    if (!this.patientId) return;
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      if (!saved?.payload?.form) return;
+      this.restoringDraft = true;
+      this.form.patchValue(saved.payload.form, { emitEvent: false });
+      this.draftStatus = saved.updatedAt
+        ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
+        : 'Draft restored';
+    } catch {
+      // Draft recovery is additive and must never block wound documentation.
+    } finally {
+      this.restoringDraft = false;
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId || this.loading || this.restoringDraft) return;
+    const form = this.form.getRawValue();
+    try {
+      await this.drafts.save(this.draftKey(), { form });
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
   }
 
   async takePhoto() {
@@ -770,6 +837,9 @@ export class AssessmentFormPage implements OnInit {
 
       this.loading = false;
       await savingToast.dismiss();
+
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      this.draftStatus = '';
 
       const doneToast = await this.toastCtrl.create({
         message: this.roundId

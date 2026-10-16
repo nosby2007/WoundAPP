@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -32,6 +32,7 @@ import {
 } from '../../shared/care-plan';
 import { CarePlanService } from '../../services/care-plan.service';
 import { AssessmentsService } from '../../services/assessments.service';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { take } from 'rxjs/operators';
 
 /**
@@ -60,13 +61,14 @@ import { take } from 'rxjs/operators';
     IonSpinner, IonTextarea, IonTitle, IonToolbar,
   ],
 })
-export class WoundCarePlanPage implements OnInit {
+export class WoundCarePlanPage implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private carePlans = inject(CarePlanService);
   private assessments = inject(AssessmentsService);
   private toastCtrl = inject(ToastController);
+  private drafts = inject(ClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId')!;
@@ -91,6 +93,8 @@ export class WoundCarePlanPage implements OnInit {
 
   saving = false;
   errorMsg = '';
+  draftStatus = '';
+  private draftTimer?: ReturnType<typeof setTimeout>;
 
   form = this.fb.group({
     title: ['', Validators.required],
@@ -103,6 +107,13 @@ export class WoundCarePlanPage implements OnInit {
   ngOnInit(): void {
     void this.loadCatalog();
     this.loadWound();
+    void this.restoreDraft();
+    this.form.valueChanges.subscribe(() => this.scheduleDraft());
+  }
+
+  ngOnDestroy(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
 
   /** Catalog goals for the chosen category, which is how the web filters them. */
@@ -115,6 +126,7 @@ export class WoundCarePlanPage implements OnInit {
   toggleGoal(id: string, checked: boolean): void {
     if (checked) this.selectedGoalIds.add(id);
     else this.selectedGoalIds.delete(id);
+    this.scheduleDraft();
   }
 
   isGoalSelected(id: string): boolean {
@@ -151,6 +163,47 @@ export class WoundCarePlanPage implements OnInit {
     });
   }
 
+  private draftKey() {
+    return {
+      formKind: 'care_plan' as const,
+      patientId: this.patientId,
+      contextKey: [this.assessmentId, this.fieldEncounterVisitId || this.appointmentId || 'no-visit'].join(':'),
+    };
+  }
+
+  private scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private async restoreDraft(): Promise<void> {
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      if (!saved?.payload) return;
+      this.form.patchValue(saved.payload.form || {}, { emitEvent: false });
+      this.selectedGoalIds = new Set(Array.isArray(saved.payload.goalCatalogRefs) ? saved.payload.goalCatalogRefs : []);
+      this.draftStatus = saved.updatedAt ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}` : 'Draft restored';
+    } catch {
+      // Draft recovery cannot block clinical documentation.
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId) return;
+    const value = this.form.getRawValue();
+    const hasContent = Object.values(value).some((entry) => String(entry ?? '').trim()) || this.selectedGoalIds.size > 0;
+    if (!hasContent) return;
+    try {
+      await this.drafts.save(this.draftKey(), {
+        form: value,
+        goalCatalogRefs: Array.from(this.selectedGoalIds),
+      });
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
+  }
+
   async save(): Promise<void> {
     if (this.form.invalid || this.saving) return;
 
@@ -183,7 +236,9 @@ export class WoundCarePlanPage implements OnInit {
         fieldEncounterVisitId: this.fieldEncounterVisitId || null,
       });
 
-      const toast = await this.toastCtrl.create({ message: 'Care plan saved', duration: 2000 });
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      this.draftStatus = '';
+            const toast = await this.toastCtrl.create({ message: 'Care plan saved', duration: 2000 });
       await toast.present();
       this.router.navigate(
         ['/tabs', 'skin-wound', this.patientId, 'assessments', this.assessmentId],

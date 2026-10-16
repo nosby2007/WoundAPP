@@ -40,6 +40,7 @@
     <ion-item class="note-field">
       <ion-textarea
         [(ngModel)]="details"
+        (ionInput)="scheduleDraft()"
         placeholder="What you observed, what you did, what needs following up."
         [autoGrow]="true"
         [rows]="6"
@@ -48,6 +49,8 @@
         aria-label="Progress note"
       ></ion-textarea>
     </ion-item>
+
+    <p class="draft-state" *ngIf="draftStatus">{{ draftStatus }}</p>
 
     <div class="state state-error inline-error" *ngIf="errorMsg">
       <ion-icon name="alert-circle-outline"></ion-icon>
