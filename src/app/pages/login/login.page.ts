@@ -78,7 +78,7 @@ export class LoginPage implements OnInit {
       this.splashTimer = setTimeout(() => {
         this.showSplash = false;
         this.splashTimer = null;
-      }, 1250);
+      }, 3200);
     }
 
     await authStateReady;
