@@ -643,6 +643,11 @@ export class PatientAssessmentsPage implements OnInit {
     this.navigateVisitStep('orders', ['/tabs', 'skin-wound', this.patientId, 'orders']);
   }
 
+  openPatientDocuments() {
+    if (!this.patientId) return;
+    void this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'documents']);
+  }
+
   /**
    * The wound progress note for this visit -- assembled from the
    * assessments, the Braden, the orders and the education, not retyped.
