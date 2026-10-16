@@ -63,8 +63,19 @@ jobs:
       - name: Pin dedicated mobile DEV Hosting site
         run: |
           node -e 'const fs=require("fs");const f=JSON.parse(fs.readFileSync("firebase.json","utf8"));f.hosting.site="phwc-mobile-dev";delete f.hosting.target;fs.writeFileSync("firebase.json",JSON.stringify(f,null,2)+String.fromCharCode(10))'
+      - name: Verify preview source and stamp build
+        env:
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+          RELEASE_BRANCH: pr-preview
+          RELEASE_CHANNEL: preview
+        run: node scripts/verify-release-source.js
+
       - name: Deploy mobile DEV preview
         uses: FirebaseExtended/action-hosting-deploy@v0
+        env:
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+          RELEASE_BRANCH: pr-preview
+          RELEASE_CHANNEL: preview
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JADE_DEV_5B0E3 }}
