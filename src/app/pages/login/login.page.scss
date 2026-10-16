@@ -1,135 +1,395 @@
-/* Sign-in. Light clinical shell like the rest of the app -- this page used
-   to be the only dark screen, which is what made every screen after it feel
-   like a different product. */
 .login-page {
-  --background: var(--ion-background-color);
+  --background: #f5f9fc;
 }
 
-.card-wrapper {
+.login-shell {
+  position: relative;
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--app-space-5);
-  max-width: 460px;
-  margin: 0 auto;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 16%, rgba(205, 230, 246, .46), transparent 23%),
+    linear-gradient(135deg, #f9fcff 0%, #f3f8fb 54%, #eef5f9 100%);
+  color: #10233f;
 }
 
-.brand-header {
-  display: flex;
+.blue-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blue-circle {
+  position: absolute;
+  border-radius: 50%;
+  left: -20vw;
+  bottom: -35vw;
+  mix-blend-mode: multiply;
+}
+
+.circle-1 {
+  width: 82vw;
+  height: 82vw;
+  background: #dceffc;
+}
+
+.circle-2 {
+  width: 69vw;
+  height: 69vw;
+  left: -14vw;
+  bottom: -28vw;
+  background: #b9def7;
+}
+
+.circle-3 {
+  width: 56vw;
+  height: 56vw;
+  left: -8vw;
+  bottom: -22vw;
+  background: #73b9e9;
+}
+
+.circle-4 {
+  width: 43vw;
+  height: 43vw;
+  left: -2vw;
+  bottom: -16vw;
+  background: #1f79be;
+  box-shadow: 0 0 90px rgba(30, 113, 179, .2);
+}
+
+.product-brand {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
   align-items: center;
-  gap: var(--app-space-3);
-  margin-bottom: var(--app-space-5);
+  gap: 11px;
+  margin: 28px 34px;
+  color: #10233f;
+  text-decoration: none;
 }
 
-.logo-circle {
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  border-radius: 50%;
-  background: var(--ion-color-primary);
+  background: #0f5f9f;
   color: #fff;
-  font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.02em;
+  font-weight: 900;
+  font-size: 1rem;
+  box-shadow: 0 9px 22px rgba(15, 95, 159, .22);
 }
 
-.brand-text {
-  h1 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--app-ink);
-    letter-spacing: -0.01em;
-  }
+.brand-copy strong,
+.brand-copy small {
+  display: block;
+}
 
-  p {
-    margin: 2px 0 0;
-    font-size: 0.82rem;
-    color: var(--app-ink-muted);
-  }
+.brand-copy strong {
+  font-size: 1rem;
+  letter-spacing: -.01em;
+}
+
+.brand-copy small {
+  margin-top: 1px;
+  color: #6a7f90;
+  font-size: .69rem;
+}
+
+.login-layout {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100vh - 98px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, .92fr);
+  align-items: center;
+  gap: clamp(42px, 8vw, 120px);
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 24px 0 72px;
+}
+
+.brand-panel {
+  max-width: 620px;
+  padding: 24px 0 24px 10px;
+}
+
+.eyebrow,
+.card-kicker {
+  display: inline-block;
+  font-size: .69rem;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.eyebrow {
+  color: #0b5f9b;
+}
+
+.brand-panel h1 {
+  margin: 14px 0 18px;
+  max-width: 640px;
+  font-size: clamp(2.8rem, 5vw, 5.2rem);
+  line-height: .98;
+  letter-spacing: -.052em;
+  font-weight: 760;
+  color: #112b43;
+}
+
+.brand-lead {
+  max-width: 570px;
+  margin: 0;
+  color: #5f7485;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.brand-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.brand-points span {
+  padding: 9px 12px;
+  border: 1px solid rgba(116, 165, 197, .35);
+  border-radius: 999px;
+  background: rgba(255,255,255,.6);
+  backdrop-filter: blur(8px);
+  color: #33566f;
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.login-card-wrap {
+  display: grid;
+  justify-items: stretch;
+  width: min(100%, 470px);
+  justify-self: end;
 }
 
 .login-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-lg);
-  box-shadow: var(--app-shadow);
-  padding: var(--app-space-5);
+  position: relative;
+  overflow: hidden;
+  padding: clamp(28px, 4vw, 42px);
+  border: 1px solid rgba(182, 205, 220, .8);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .93);
+  box-shadow:
+    0 30px 75px rgba(24, 67, 97, .14),
+    0 8px 20px rgba(17, 57, 87, .07);
+  backdrop-filter: blur(18px);
 }
 
-.login-card .title {
-  margin: 0 0 var(--app-space-1);
-  font-size: 1.35rem;
-  font-weight: 650;
-  color: var(--app-ink);
-  letter-spacing: -0.015em;
+.login-card::before {
+  content: '';
+  position: absolute;
+  width: 155px;
+  height: 155px;
+  border-radius: 50%;
+  right: -60px;
+  top: -62px;
+  background: #e5f3fb;
 }
 
-.login-card .subtitle {
-  margin: 0 0 var(--app-space-5);
-  font-size: 0.9rem;
-  color: var(--app-ink-muted);
+.card-heading {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 26px;
 }
 
-/* Same boxed field as the intake and assessment forms, so the first screen a
-   nurse sees already teaches the shape every other form uses. */
-ion-item {
-  margin-bottom: var(--app-space-3);
-  --background: var(--app-surface);
-  --border-color: var(--app-border);
-  --border-radius: var(--app-radius);
-  --padding-start: var(--app-space-3);
-  --inner-padding-end: var(--app-space-3);
-  --highlight-color-focused: var(--ion-color-primary);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
+.card-kicker {
+  color: #2b72a7;
 }
 
-ion-item ion-icon[slot='start'] {
-  margin-inline-end: var(--app-space-3);
+.card-heading h2 {
+  margin: 8px 0 6px;
+  font-size: 2rem;
+  letter-spacing: -.035em;
+  color: #10233f;
+}
+
+.card-heading p {
+  margin: 0;
+  color: #728494;
+  font-size: .9rem;
+}
+
+.field {
+  margin: 0 0 14px;
+  --background: #f8fbfd;
+  --border-color: transparent;
+  --border-radius: 15px;
+  --padding-start: 14px;
+  --inner-padding-end: 14px;
+  --highlight-color-focused: #1e73b7;
+  min-height: 67px;
+  border: 1px solid #dce7ed;
+  border-radius: 15px;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.field:focus-within {
+  --background: #fff;
+  border-color: #7ab7df;
+  box-shadow: 0 0 0 4px rgba(58, 137, 191, .1);
+}
+
+.field ion-icon[slot='start'] {
+  margin-inline-end: 12px;
+  color: #6f8798;
   font-size: 20px;
-  color: var(--app-ink-muted);
 }
 
-ion-item:focus-within ion-icon[slot='start'] {
-  color: var(--ion-color-primary);
+.field:focus-within ion-icon[slot='start'] {
+  color: #1f75b7;
 }
 
 ion-input {
-  --placeholder-color: var(--app-ink-muted);
-  font-size: 0.98rem;
-  color: var(--app-ink);
+  --placeholder-color: #a4b2bd;
+  font-size: .98rem;
+  color: #112b43;
 }
 
 ion-input::part(label) {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  color: #667c8c;
+  font-size: .68rem;
+  font-weight: 850;
+  letter-spacing: .085em;
   text-transform: uppercase;
-  color: var(--app-ink-muted);
 }
 
 .login-btn {
-  margin-top: var(--app-space-2);
-  --padding-top: 20px;
-  --padding-bottom: 20px;
+  margin-top: 8px;
+  height: 52px;
+  --background: #0e66a7;
+  --background-hover: #0b5d9b;
+  --background-activated: #084f86;
+  --border-radius: 14px;
+  --box-shadow: 0 12px 24px rgba(14, 102, 167, .2);
+  font-weight: 800;
+  letter-spacing: .01em;
 }
 
 .error {
-  margin: 0 0 var(--app-space-3);
-  padding: var(--app-space-3);
-  border-radius: var(--app-radius);
-  background: #fdecea;
-  color: var(--ion-color-danger);
-  font-size: 0.88rem;
+  margin: -5px 0 13px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fff2f1;
+  color: #a33636;
+  font-size: .79rem;
 }
 
-.footnote {
-  margin: var(--app-space-4) 0 0;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--app-ink-muted);
+.error.global {
+  margin-top: 4px;
+}
+
+.secure-note {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: #708391;
+  font-size: .72rem;
+}
+
+.secure-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2a9d72;
+  box-shadow: 0 0 0 4px rgba(42, 157, 114, .1);
+}
+
+.public-link {
+  justify-self: center;
+  margin-top: 18px;
+  color: #446b85;
+  text-decoration: none;
+  font-size: .76rem;
+  font-weight: 750;
+}
+
+@media (max-width: 960px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding-top: 12px;
+  }
+
+  .brand-panel {
+    max-width: 720px;
+    padding-right: 20px;
+  }
+
+  .brand-panel h1 {
+    max-width: 760px;
+  }
+
+  .login-card-wrap {
+    justify-self: stretch;
+    width: min(100%, 560px);
+  }
+
+  .blue-circle {
+    left: -34vw;
+    bottom: -28vw;
+  }
+
+  .circle-1 { width: 120vw; height: 120vw; }
+  .circle-2 { width: 100vw; height: 100vw; }
+  .circle-3 { width: 80vw; height: 80vw; }
+  .circle-4 { width: 60vw; height: 60vw; }
+}
+
+@media (max-width: 620px) {
+  .product-brand {
+    margin: 20px 20px 6px;
+  }
+
+  .login-layout {
+    width: min(100% - 28px, 520px);
+    padding-bottom: 32px;
+  }
+
+  .brand-panel {
+    padding: 16px 2px 0;
+  }
+
+  .brand-panel h1 {
+    font-size: clamp(2.35rem, 12vw, 3.25rem);
+    line-height: 1;
+  }
+
+  .brand-lead {
+    font-size: .94rem;
+  }
+
+  .brand-points {
+    gap: 7px;
+    margin-top: 21px;
+  }
+
+  .brand-points span {
+    font-size: .66rem;
+    padding: 8px 10px;
+  }
+
+  .login-card {
+    padding: 26px 20px;
+    border-radius: 24px;
+  }
+
+  .login-card-wrap {
+    width: 100%;
+  }
+
+  .circle-1 { width: 160vw; height: 160vw; left: -82vw; bottom: -55vw; }
+  .circle-2 { width: 138vw; height: 138vw; left: -68vw; bottom: -47vw; }
+  .circle-3 { width: 112vw; height: 112vw; left: -53vw; bottom: -37vw; }
+  .circle-4 { width: 85vw; height: 85vw; left: -38vw; bottom: -25vw; }
 }
