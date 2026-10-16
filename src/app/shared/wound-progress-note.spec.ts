@@ -51,6 +51,66 @@ const input = (over: Partial<WoundNoteInput> = {}): WoundNoteInput => ({
 });
 
 describe('wound progress note', () => {
+  describe('structured debridement documentation', () => {
+    it('renders the recorded procedure beside its own wound before orders', () => {
+      const note = buildWoundProgressNote(input({ wounds: [wound({
+        debridementProcedure: {
+          performed: true, type: 'Sharp', indication: 'Nonhealing wound with slough',
+          consentObtained: true, instrument: 'Curette', tissueLevel: 'Slough only',
+          areaDebridedCm2: 1.56, anesthesia: 'Topical anesthetic',
+          hemostasis: 'Direct pressure', tolerated: 'Well tolerated', complications: 'None',
+          postMeasurements: { length: 5.5, width: 5.5, depth: 0.4, area: 30.25, volume: 12.1 },
+          note: 'Slough removed; no muscle tissue removed.',
+        },
+      })] }));
+      for (const text of ['Debridement Procedure', 'Sharp', 'Nonhealing wound with slough',
+        'Consent obtained\tYes', 'Curette', 'Slough only', '1.56 cm²', 'Topical anesthetic',
+        'Direct pressure', 'Well tolerated', 'Complications\tNone',
+        'Post-debridement depth\t0.4 cm', '30.25 cm²', '12.1 cm³',
+        'Slough removed; no muscle tissue removed.']) expect(note).toContain(text);
+      expect(note.indexOf('Debridement Procedure')).toBeLessThan(note.indexOf('No associated orders.'));
+    });
+
+    it('does not infer a procedure from a legacy treatment selection', () => {
+      const note = buildWoundProgressNote(input({ wounds: [wound({ treatment: { debridement: 'Sharp' } })] }));
+      expect(note).toContain('Debridement\tSharp');
+      expect(note).not.toContain('Debridement Procedure');
+    });
+
+    it('does not print stale procedure fields when performed is false or absent', () => {
+      for (const performed of [false, undefined]) {
+        const note = buildWoundProgressNote(input({ wounds: [wound({
+          debridementProcedure: { performed, instrument: 'Stale instrument' },
+        })] }));
+        expect(note).not.toContain('Debridement Procedure');
+        expect(note).not.toContain('Stale instrument');
+      }
+    });
+
+    it('does not derive procedure area, depth, consent or outcomes from the assessment', () => {
+      const note = buildWoundProgressNote(input({ wounds: [wound({
+        stage: 'Stage 4', debridementProcedure: { performed: true, consentObtained: false },
+      })] }));
+      expect(note).toContain('Debridement performed\tYes');
+      for (const text of ['Area actually debrided', 'Documented tissue level',
+        'Post-debridement depth', 'Consent obtained', 'Complications', 'Patient tolerance']) {
+        expect(note).not.toContain(text);
+      }
+    });
+
+    it('keeps separate wounds and their procedures separate', () => {
+      const note = buildWoundProgressNote(input({ wounds: [
+        wound({ location: 'Site A', debridementProcedure: { performed: true, instrument: 'Curette' } }),
+        wound({ woundId: 'w2', location: 'Site B', debridementProcedure: { performed: true, instrument: 'Scalpel' } }),
+      ] }));
+      const sections = note.split('Wound Pressure Site B');
+      expect(sections[0]).toContain('Curette');
+      expect(sections[0]).not.toContain('Scalpel');
+      expect(sections[1]).toContain('Scalpel');
+      expect(sections[1]).not.toContain('Curette');
+    });
+  });
+
   describe('the two clinician choices', () => {
     it('says start on an admission and continue on a review', () => {
       // "Continue" on a first visit claims a plan of care that did not exist
