@@ -33,6 +33,7 @@ import {
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
 import { MobileClinicalContext, PatientClinicalContextReaderService } from 'src/app/services/patient-clinical-context-reader.service';
+import { EncounterContext, PatientEncounterContextReaderService } from 'src/app/services/patient-encounter-context-reader.service';
 
 /**
  * Write a progress note on one patient.
@@ -72,6 +73,7 @@ export class ProgressNoteFormPage {
   private notes = inject(ProgressNoteService);
   private toasts = inject(ToastController);
   private clinicalContextReader = inject(PatientClinicalContextReaderService);
+  private encounterContextReader = inject(PatientEncounterContextReaderService);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   patient: any = null;
@@ -91,6 +93,7 @@ export class ProgressNoteFormPage {
   errorMsg = '';
   recent: ProgressNote[] = [];
   clinicalContext: MobileClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+  encounterContext: EncounterContext = { medications: [], activeOrders: [], vascular: [], systemic: [] };
   loadingClinicalContext = true;
   clinicalContextError = '';
 
@@ -104,7 +107,7 @@ export class ProgressNoteFormPage {
   }
 
   async ngOnInit() {
-    await Promise.all([this.loadPatient(), this.loadHistory(), this.loadClinicalContext()]);
+    await Promise.all([this.loadPatient(), this.loadHistory(), this.loadClinicalContext(), this.loadEncounterContext()]);
   }
 
   private async loadPatient() {
@@ -115,6 +118,15 @@ export class ProgressNoteFormPage {
     } catch (err) {
       // The header is a convenience; a failure here must not block writing.
       console.error('Could not load the patient header', err);
+    }
+  }
+
+  private async loadEncounterContext() {
+    try {
+      this.encounterContext = await this.encounterContextReader.load(this.patientId);
+    } catch (err) {
+      console.error('Could not load encounter context', err);
+      this.encounterContext = { medications: [], activeOrders: [], vascular: [], systemic: [] };
     }
   }
 
