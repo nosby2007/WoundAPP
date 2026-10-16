@@ -41,6 +41,8 @@ import { provideFirestore } from '@angular/fire/firestore';
 import { getFirestore } from 'firebase/firestore';
 import { provideStorage, getStorage } from '@angular/fire/storage';
 import { ClinicalErrorHandler } from './services/clinical-error-handler.service';
+import { CLINICAL_DATA_PROVIDER } from './services/clinical-data-provider';
+import { JadeFirebaseClinicalDataProvider } from './services/jade-firebase-clinical-data-provider.service';
 
 @NgModule({
   declarations: [AppComponent],
@@ -64,6 +66,10 @@ import { ClinicalErrorHandler } from './services/clinical-error-handler.service'
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: ErrorHandler, useClass: ClinicalErrorHandler },
+
+    // Phase 1 provider seam. Production remains explicitly pinned to the
+    // existing Firebase-backed implementation.
+    { provide: CLINICAL_DATA_PROVIDER, useExisting: JadeFirebaseClinicalDataProvider },
 
     // Material Design on every platform. The app runs on Android hardware and
     // as a PWA; pinning the mode keeps one look instead of letting an iPhone

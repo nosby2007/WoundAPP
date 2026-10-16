@@ -3,7 +3,6 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { doc, getDoc } from 'firebase/firestore';
 import {
   IonBackButton,
   IonButton,
@@ -23,7 +22,6 @@ import {
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, documentTextOutline } from 'ionicons/icons';
 
-import { db } from 'src/app/firebase';
 import {
   NotAuthenticatedError,
   ProgressNote,
@@ -32,6 +30,7 @@ import {
 } from 'src/app/services/progress-note.service';
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
+import { ClinicalDataService } from 'src/app/services/clinical-data.service';
 
 /**
  * Write a progress note on one patient.
@@ -70,6 +69,7 @@ export class ProgressNoteFormPage {
   private router = inject(Router);
   private notes = inject(ProgressNoteService);
   private toasts = inject(ToastController);
+  private clinicalData = inject(ClinicalDataService);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   patient: any = null;
@@ -105,8 +105,7 @@ export class ProgressNoteFormPage {
   private async loadPatient() {
     if (!this.patientId) return;
     try {
-      const snap = await getDoc(doc(db, 'patients', this.patientId));
-      if (snap.exists()) this.patient = { id: snap.id, ...(snap.data() as any) };
+      this.patient = await this.clinicalData.getPatient(this.patientId);
     } catch (err) {
       // The header is a convenience; a failure here must not block writing.
       console.error('Could not load the patient header', err);
