@@ -51,6 +51,7 @@ import {
   printOutline,
   shareOutline,
   documentsOutline,
+  shieldCheckmarkOutline,
 } from 'ionicons/icons';
 
 import {
@@ -148,6 +149,7 @@ export class PatientAssessmentsPage implements OnInit {
       printOutline,
       shareOutline,
       documentsOutline,
+      shieldCheckmarkOutline,
     });
   }
 
@@ -646,6 +648,14 @@ export class PatientAssessmentsPage implements OnInit {
   openPatientDocuments() {
     if (!this.patientId) return;
     void this.router.navigate(['/tabs', 'skin-wound', this.patientId, 'documents']);
+  }
+
+  openSignatureCenter() {
+    if (!this.patientId) return;
+    void this.router.navigate(
+      ['/tabs', 'skin-wound', this.patientId, 'signatures'],
+      { queryParams: this.visitQueryParams() }
+    );
   }
 
   /**
