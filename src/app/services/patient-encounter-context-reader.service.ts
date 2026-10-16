@@ -21,10 +21,10 @@ export class PatientEncounterContextReaderService {
   async load(patientId: string): Promise<EncounterContext> {
     if (!patientId) throw new Error('Patient context requires a patientId.');
     const [medications, activeOrders, vascular, systemic] = await Promise.all([
-      this.medications(patientId),
-      this.orders(patientId),
-      this.vascular(patientId),
-      this.systemic(patientId),
+      this.safe(() => this.medications(patientId)),
+      this.safe(() => this.orders(patientId)),
+      this.safe(() => this.vascular(patientId)),
+      this.safe(() => this.systemic(patientId)),
     ]);
     return { medications, activeOrders, vascular, systemic };
   }
@@ -111,6 +111,14 @@ export class PatientEncounterContextReaderService {
           source: this.text(row.recordedByName || row.authorIdentity?.displayName),
         };
       });
+  }
+
+  private async safe(reader: () => Promise<EncounterContextItem[]>): Promise<EncounterContextItem[]> {
+    try {
+      return await reader();
+    } catch {
+      return [];
+    }
   }
 
   private text(value: unknown): string | null {
