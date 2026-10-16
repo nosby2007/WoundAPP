@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -36,6 +36,7 @@ import {
   educationIsRecordable,
 } from '../../shared/education';
 import { EducationRow, EducationService } from '../../services/education.service';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
 
 /**
@@ -64,11 +65,12 @@ import { clinicalVisitQueryParams } from '../../shared/clinical-visit-link';
     IonTextarea, IonTitle, IonToolbar,
   ],
 })
-export class EducationPage implements OnInit {
+export class EducationPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private education = inject(EducationService);
   private toastCtrl = inject(ToastController);
+  private drafts = inject(ClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   appointmentId = this.route.snapshot.queryParamMap.get('appointmentId') || '';
@@ -99,10 +101,18 @@ export class EducationPage implements OnInit {
   history: EducationRow[] = [];
   saving = false;
   errorMsg = '';
+  draftStatus = '';
+  private draftTimer?: ReturnType<typeof setTimeout>;
 
   ngOnInit(): void {
     void this.loadTopics();
     void this.loadHistory();
+    void this.restoreDraft();
+  }
+
+  ngOnDestroy(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
 
   get selectedTopic(): EducationTopicOption | null {
@@ -142,6 +152,66 @@ export class EducationPage implements OnInit {
 
   onTopicChange(): void {
     if (this.selectedTopicId) this.customTopic = '';
+    this.scheduleDraft();
+  }
+
+  scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private draftKey() {
+    return {
+      formKind: 'education' as const,
+      patientId: this.patientId,
+      contextKey: [
+        this.woundVisitId || this.appointmentId || 'no-visit',
+        this.woundId || 'no-wound',
+      ].join(':'),
+    };
+  }
+
+  private async restoreDraft(): Promise<void> {
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      const value = saved?.payload;
+      if (!value) return;
+      this.selectedTopicId = value.selectedTopicId || null;
+      this.customTopic = String(value.customTopic || '');
+      this.learners = Array.isArray(value.learners) ? value.learners : [];
+      this.readiness = value.readiness || null;
+      this.method = Array.isArray(value.method) ? value.method : [];
+      this.response = Array.isArray(value.response) ? value.response : [];
+      this.notes = String(value.notes || '');
+      this.draftStatus = saved?.updatedAt
+        ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
+        : 'Draft restored';
+    } catch {
+      // Draft recovery must not block bedside education documentation.
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId) return;
+    const payload = {
+      selectedTopicId: this.selectedTopicId,
+      customTopic: this.customTopic,
+      learners: this.learners,
+      readiness: this.readiness,
+      method: this.method,
+      response: this.response,
+      notes: this.notes,
+    };
+    const hasContent = Object.values(payload).some((value) =>
+      Array.isArray(value) ? value.length > 0 : String(value ?? '').trim().length > 0
+    );
+    if (!hasContent) return;
+    try {
+      await this.drafts.save(this.draftKey(), payload as any);
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
   }
 
   private async loadTopics(): Promise<void> {
@@ -177,6 +247,8 @@ export class EducationPage implements OnInit {
         episodeId: this.episodeId || null,
         fieldEncounterVisitId: this.woundVisitId || null,
       });
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      this.draftStatus = '';
       const toast = await this.toastCtrl.create({
         message: 'Education recorded.',
         duration: 2200,
