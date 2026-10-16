@@ -1,7 +1,7 @@
 import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonHeader,
   IonToolbar,
@@ -71,7 +71,8 @@ export class PatientsPage implements OnDestroy {
 
   constructor(
     private patientsFs: PatientService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {
     // Same registration the assessments page does -- without it these
     // four icons render as empty space.
@@ -151,8 +152,11 @@ openPatient(p: any) {
 
   console.log('[PatientsPage] navigate with patientId =', patientId);
 
+  const open = this.route.snapshot.queryParamMap.get('open');
   this.router.navigate(
-    ['/tabs', 'skin-wound', patientId, 'assessments'],
+    open === 'documents'
+      ? ['/tabs', 'skin-wound', patientId, 'documents']
+      : ['/tabs', 'skin-wound', patientId, 'assessments'],
   );
 }
 

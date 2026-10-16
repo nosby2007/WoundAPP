@@ -37,6 +37,7 @@ import { FieldRolePolicyService } from '../../services/field-role-policy.service
             <ion-item button detail="false" *ngIf="canSeeWoundRounds" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeField" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeClinical" (click)="visitHistory()"><div class="menu-icon featured"><ion-icon [icon]="documentTextOutline"></ion-icon></div><ion-label><strong>Visit History</strong><p>Review all saved patient visits, field outcomes, clinician, EVV checkpoints and documentation handoff.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="clinicalDocuments()"><div class="menu-icon"><ion-icon [icon]="documentAttachOutline"></ion-icon></div><ion-label><strong>Patient Documents</strong><p>Select a patient, then open referrals, authorizations, insurance, labs and other chart documents.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
@@ -139,6 +140,7 @@ export class MorePage implements OnInit {
   mySchedule(): void { void this.router.navigate(['/tabs/my-schedule']); }
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
   visitHistory(): void { void this.router.navigate(['/tabs/visit-history']); }
+  clinicalDocuments(): void { void this.router.navigate(['/tabs/patients'], { queryParams: { open: 'documents' } }); }
   schedulerWorkspace(): void { void this.router.navigate(['/tabs/scheduler']); }
   intakePatients(): void { void this.router.navigate(['/tabs/intake-patients']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }
