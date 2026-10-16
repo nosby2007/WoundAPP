@@ -202,8 +202,12 @@ export class ClinicalSignatureService {
     const receiptMethod = String(row['receiptMethod'] || 'direct').toLowerCase();
     if (receiptMethod === 'telephone' || receiptMethod === 'verbal') {
       const expectedUid = String(row['coSignature']?.provider?.uid || '');
+      const recordedByUid = String(row['orderedBy']?.uid || '');
       if (!expectedUid || expectedUid !== actor.uid) {
         throw new Error('Only the prescriber named on this telephone/verbal order can co-sign it.');
+      }
+      if (recordedByUid && recordedByUid === actor.uid) {
+        throw new Error('The clinician who recorded a telephone/verbal order cannot co-sign their own entry.');
       }
       await updateDoc(ref, {
         coSignature: {
@@ -276,7 +280,9 @@ export class ClinicalSignatureService {
       const receiptMethod = String(row['receiptMethod'] || 'direct').toLowerCase();
       if (receiptMethod === 'telephone' || receiptMethod === 'verbal') {
         signed = row['coSignature']?.status === 'signed';
-        canSign = !signed && row['coSignature']?.provider?.uid === actor.uid;
+        canSign = !signed &&
+          row['coSignature']?.provider?.uid === actor.uid &&
+          row['orderedBy']?.uid !== actor.uid;
         signerRequirement = canSign ? null : 'Awaiting the named prescriber co-signature.';
       } else {
         signed = row['esign']?.signed === true;
