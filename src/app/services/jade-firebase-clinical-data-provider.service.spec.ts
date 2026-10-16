@@ -27,6 +27,7 @@ describe('JadeFirebaseClinicalDataProvider', () => {
     expect((await provider.listPatientDocuments('p1')).length).toBe(1);
     await provider.uploadPatientDocuments('p1', [] as File[], { type: 'referral' });
     expect(documents.upload).toHaveBeenCalledWith('p1', [], { type: 'referral' });
+    expect((await provider.getClinicalContext('p1')).diagnoses).toEqual([]);
     expect(clinicalContext.load).toHaveBeenCalledWith('p1');
     expect((await provider.getEncounterContext('p1')).activeOrders).toEqual([]);
   });
