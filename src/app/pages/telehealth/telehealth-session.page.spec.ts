@@ -5,7 +5,22 @@ describe('mobile telehealth session safety', () => {
   let service: any;
   beforeEach(() => {
     service = {videoToken: jasmine.createSpy('token'), consent: jasmine.createSpy('consent'), session: jasmine.createSpy('session')};
-    page = new TelehealthSessionPage(service, {snapshot: {paramMap: {get: () => 'appointment'}}} as any);
+    const drafts = {
+      save: jasmine.createSpy('save').and.resolveTo(),
+      load: jasmine.createSpy('load').and.resolveTo(null),
+      clear: jasmine.createSpy('clear').and.resolveTo(),
+    };
+    const notes = {
+      getDraft: jasmine.createSpy('getDraft').and.resolveTo(null),
+      updateDraft: jasmine.createSpy('updateDraft').and.resolveTo(),
+      create: jasmine.createSpy('create').and.resolveTo('note-1'),
+    };
+    page = new TelehealthSessionPage(
+      service,
+      drafts as any,
+      notes as any,
+      {snapshot: {paramMap: {get: () => 'appointment'}}} as any,
+    );
     page.session = {id: 'session', state: 'waiting', consentStatus: 'pending', participant: 'facilitator'} as any;
   });
   it('does not request a token without accepted consent', async () => {
