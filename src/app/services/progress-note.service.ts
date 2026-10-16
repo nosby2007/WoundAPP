@@ -48,6 +48,17 @@ export interface TelehealthProgressNoteContext {
   appointmentId: string;
   deliveryMode: 'telehealth_video' | 'telehealth_audio';
   serviceDateIso?: string | null;
+  documentation?: {
+    modality: 'Video' | 'Audio-only';
+    consent: string;
+    patientLocation: string;
+    participants: string;
+    identityVerification: string;
+    observedFindings: string;
+    examLimitations: string;
+    assessmentAndPlan: string;
+    followUpAndPrecautions: string;
+  } | null;
 }
 
 export interface NewProgressNoteLifecycle {
@@ -142,6 +153,7 @@ export class ProgressNoteService {
         deliveryMode: telehealth.deliveryMode,
         serviceDate: telehealth.serviceDateIso || null,
         visitType: 'Telehealth',
+        telehealthDocumentation: telehealth.documentation || null,
       } : {}),
       ...newProgressNoteLifecycle(),
     };
