@@ -217,7 +217,6 @@ export class ClinicalSignatureService {
           signedBy: this.auditIdentity(actor),
           attestationText: 'I confirm this order was given by me and accurately reflects my clinical instructions.',
         },
-        locked: true,
         updatedAt: serverTimestamp(),
         updatedBy: this.auditIdentity(actor),
       });
