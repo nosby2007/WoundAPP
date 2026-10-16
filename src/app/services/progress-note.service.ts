@@ -43,6 +43,13 @@ export interface ProgressNoteVoiceProvenance {
   language?: string | null;
 }
 
+export interface TelehealthProgressNoteContext {
+  telehealthSessionId: string;
+  appointmentId: string;
+  deliveryMode: 'telehealth_video' | 'telehealth_audio';
+  serviceDateIso?: string | null;
+}
+
 export interface NewProgressNoteLifecycle {
   status: 'draft';
   draft: true;
@@ -99,6 +106,7 @@ export class ProgressNoteService {
     wound?: ProgressNoteWoundContext | null,
     voiceProvenance?: ProgressNoteVoiceProvenance | null,
     visitLink: ClinicalVisitLink = {},
+    telehealth?: TelehealthProgressNoteContext | null,
   ): Promise<string> {
     if (!patientId) throw new Error('ProgressNoteService.create(): patientId is missing.');
     const text = (details || '').trim();
@@ -128,6 +136,13 @@ export class ProgressNoteService {
       contentOrigin: voiceProvenance ? 'human_modified_voice' : 'human',
       voiceProvenance: voiceProvenance ?? null,
       humanReviewed: true,
+      ...(telehealth ? {
+        appointmentId: telehealth.appointmentId,
+        telehealthSessionId: telehealth.telehealthSessionId,
+        deliveryMode: telehealth.deliveryMode,
+        serviceDate: telehealth.serviceDateIso || null,
+        visitType: 'Telehealth',
+      } : {}),
       ...newProgressNoteLifecycle(),
     };
 
@@ -176,6 +191,33 @@ export class ProgressNoteService {
 
     await this.audit.record({ action: 'progress_note_created', patientId, entityType: 'providerNote', entityId: ref.id, metadata: { woundLinked: !!wound, physicalVisitId: physicalVisitId || null } });
     return ref.id;
+  }
+
+  async getDraft(patientId: string, noteId: string): Promise<{ id: string; details: string } | null> {
+    if (!patientId || !noteId) return null;
+    const snap = await getDoc(doc(db, `patients/${patientId}/providerNotes/${noteId}`));
+    if (!snap.exists()) return null;
+    const row: any = snap.data();
+    if (row.status !== 'draft' || row.draft !== true || row.signed === true) return null;
+    return { id: snap.id, details: String(row.details || '') };
+  }
+
+  async updateDraft(patientId: string, noteId: string, details: string): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) throw new NotAuthenticatedError();
+    const ref = doc(db, `patients/${patientId}/providerNotes/${noteId}`);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Draft note not found.');
+    const row: any = snap.data();
+    const authorUid = row.authorIdentity?.uid || row.providerUid || row.createdBy || null;
+    if (authorUid !== user.uid || row.status !== 'draft' || row.draft !== true || row.signed === true) {
+      throw new Error('Only the author may update this unsigned draft.');
+    }
+    await updateDoc(ref, {
+      details: String(details || '').trim(),
+      updatedAt: serverTimestamp(),
+      updatedByUid: user.uid,
+    });
   }
 
   async list(patientId: string, max = 20): Promise<ProgressNote[]> {
