@@ -341,11 +341,7 @@ export class TelehealthSessionPage implements OnDestroy {
         noteId = await this.notes.create(
           patientId,
           details,
-          this.session.clinicalContext?.woundId ? {
-            woundId: this.session.clinicalContext.woundId,
-            woundAssessmentId: '',
-            label: this.session.clinicalContext?.woundLabel || '',
-          } : null,
+          null,
           null,
           {
             visitId: this.session.appointmentId,
