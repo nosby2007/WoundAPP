@@ -32,6 +32,7 @@ import {
 } from 'src/app/services/progress-note.service';
 import { patientAge, patientAvatarHue, patientInitials, toDate } from 'src/app/shared/patient-display';
 import { ClinicalVisitLink } from 'src/app/shared/clinical-visit-link';
+import { MobileClinicalContext, PatientClinicalContextReaderService } from 'src/app/services/patient-clinical-context-reader.service';
 
 /**
  * Write a progress note on one patient.
@@ -70,6 +71,7 @@ export class ProgressNoteFormPage {
   private router = inject(Router);
   private notes = inject(ProgressNoteService);
   private toasts = inject(ToastController);
+  private clinicalContextReader = inject(PatientClinicalContextReaderService);
 
   patientId = this.route.snapshot.paramMap.get('patientId') || '';
   patient: any = null;
@@ -88,6 +90,9 @@ export class ProgressNoteFormPage {
   loadingHistory = true;
   errorMsg = '';
   recent: ProgressNote[] = [];
+  clinicalContext: MobileClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+  loadingClinicalContext = true;
+  clinicalContextError = '';
 
   initials = patientInitials;
   avatarHue = patientAvatarHue;
@@ -99,7 +104,7 @@ export class ProgressNoteFormPage {
   }
 
   async ngOnInit() {
-    await Promise.all([this.loadPatient(), this.loadHistory()]);
+    await Promise.all([this.loadPatient(), this.loadHistory(), this.loadClinicalContext()]);
   }
 
   private async loadPatient() {
@@ -110,6 +115,20 @@ export class ProgressNoteFormPage {
     } catch (err) {
       // The header is a convenience; a failure here must not block writing.
       console.error('Could not load the patient header', err);
+    }
+  }
+
+  private async loadClinicalContext() {
+    this.loadingClinicalContext = true;
+    this.clinicalContextError = '';
+    try {
+      this.clinicalContext = await this.clinicalContextReader.load(this.patientId);
+    } catch (err) {
+      console.error('Could not load canonical clinical context', err);
+      this.clinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+      this.clinicalContextError = 'Clinical background could not be loaded. The note can still be written.';
+    } finally {
+      this.loadingClinicalContext = false;
     }
   }
 
