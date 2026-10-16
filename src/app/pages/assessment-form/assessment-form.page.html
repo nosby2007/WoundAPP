@@ -427,6 +427,34 @@
           </div>
         </ion-accordion>
 
+        <ion-accordion value="debridementProcedure">
+          <ion-item slot="header"><ion-label>Debridement / Procedure</ion-label></ion-item>
+          <div slot="content" class="section-body" formGroupName="debridementProcedure">
+            <ion-item><ion-checkbox formControlName="performed">Debridement performed during this visit</ion-checkbox></ion-item>
+            <ng-container *ngIf="form.controls.debridementProcedure.controls.performed.value === true">
+              <ion-note>Document only what was performed today. Wound depth, tissue actually removed and area actually debrided are separate facts.</ion-note>
+              <ion-note color="danger" *ngIf="form.controls.debridementProcedure.invalid">Procedure measurements must be zero or greater.</ion-note>
+              <ion-item><ion-label position="stacked">Debridement type</ion-label><ion-select formControlName="type" placeholder="Not recorded"><ion-select-option *ngFor="let d of debridementOptions" [value]="d">{{ d }}</ion-select-option></ion-select></ion-item>
+              <ion-item><ion-label position="stacked">Indication</ion-label><ion-textarea formControlName="indication" [autoGrow]="true"></ion-textarea></ion-item>
+              <ion-item><ion-checkbox formControlName="consentObtained">Consent obtained</ion-checkbox></ion-item>
+              <ion-item><ion-label position="stacked">Instrument</ion-label><ion-input formControlName="instrument"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Tissue actually removed / debridement level</ion-label><ion-input formControlName="tissueLevel" placeholder="Document actual tissue removed"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Area actually debrided (cm²)</ion-label><ion-input type="number" min="0" formControlName="areaDebridedCm2"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Anesthesia / pain management</ion-label><ion-input formControlName="anesthesia"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Hemostasis</ion-label><ion-input formControlName="hemostasis"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Patient tolerance</ion-label><ion-input formControlName="tolerated"></ion-input></ion-item>
+              <ion-item><ion-label position="stacked">Complications</ion-label><ion-input formControlName="complications"></ion-input></ion-item>
+              <div formGroupName="postMeasurements">
+                <ion-item><ion-label position="stacked">Post-debridement length (cm)</ion-label><ion-input type="number" min="0" formControlName="length"></ion-input></ion-item>
+                <ion-item><ion-label position="stacked">Post-debridement width (cm)</ion-label><ion-input type="number" min="0" formControlName="width"></ion-input></ion-item>
+                <ion-item><ion-label position="stacked">Post-debridement depth (cm)</ion-label><ion-input type="number" min="0" formControlName="depth"></ion-input></ion-item>
+                <ion-item><ion-label position="stacked">Documented post-debridement wound area (cm²)</ion-label><ion-input type="number" min="0" formControlName="area"></ion-input></ion-item>
+                <ion-item><ion-label position="stacked">Documented post-debridement wound volume (cm³)</ion-label><ion-input type="number" min="0" formControlName="volume"></ion-input></ion-item>
+              </div>
+              <ion-item><ion-label position="stacked">Procedure note / post-debridement plan</ion-label><ion-textarea formControlName="note" [autoGrow]="true"></ion-textarea></ion-item>
+            </ng-container>
+          </div>
+        </ion-accordion>
       </ion-accordion-group>
 
       <div class="app-actions actions">
