@@ -29,6 +29,53 @@
       </div>
     </div>
 
+    <h2 class="section-title">Clinical context</h2>
+
+    <div class="clinical-context-card app-card">
+      <div class="state" *ngIf="loadingClinicalContext">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Loading chart context…</p>
+      </div>
+
+      <div class="state state-error" *ngIf="!loadingClinicalContext && clinicalContextError">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <p>{{ clinicalContextError }}</p>
+      </div>
+
+      <ng-container *ngIf="!loadingClinicalContext && !clinicalContextError">
+        <section class="context-section">
+          <h3>Approved diagnoses</h3>
+          <p class="context-empty" *ngIf="!clinicalContext.diagnoses.length">No provider-approved diagnoses are recorded in the canonical diagnosis list.</p>
+          <div class="context-row" *ngFor="let item of clinicalContext.diagnoses">
+            <strong>{{ item.code || 'No code' }} · {{ item.description }}</strong>
+            <span *ngIf="item.primary">Primary</span>
+            <small *ngIf="item.sourceReference">Source: {{ item.sourceReference }}</small>
+          </div>
+        </section>
+
+        <section class="context-section">
+          <h3>Medical history</h3>
+          <p class="context-empty" *ngIf="!clinicalContext.medicalHistory.length">No medical-history facts are recorded.</p>
+          <div class="context-row" *ngFor="let item of clinicalContext.medicalHistory">
+            <strong>{{ item.description }}</strong>
+            <small *ngIf="item.sourceReference">Source: {{ item.sourceReference }}</small>
+          </div>
+        </section>
+
+        <section class="context-section">
+          <h3>Allergies</h3>
+          <p class="context-empty" *ngIf="!clinicalContext.allergies.length">No allergy facts are recorded.</p>
+          <div class="context-row" *ngFor="let item of clinicalContext.allergies">
+            <strong>{{ item.description }}</strong>
+            <span *ngIf="item.severity">{{ item.severity }}</span>
+            <small *ngIf="item.reaction">Reaction: {{ item.reaction }}</small>
+          </div>
+        </section>
+
+        <p class="context-disclaimer">Read-only chart context. WoundAPP does not copy these facts into the note automatically; document only what you actually assessed or addressed during this encounter.</p>
+      </ng-container>
+    </div>
+
     <h2 class="section-title">Note</h2>
 
     <!-- Which wound this note is being written against, when the page was
