@@ -34,6 +34,7 @@ import { ReceptionPatientsPage } from '../pages/reception-patients/reception-pat
 import { IntakePatientPage } from '../pages/intake-patient/intake-patient.page';
 import { PatientDocumentsPage } from '../pages/patient-documents/patient-documents.page';
 import { VisitCompletePage } from '../pages/visit-complete/visit-complete.page';
+import { FieldSignatureCenterPage } from '../pages/field-signature-center/field-signature-center.page';
 import { SyncReviewPage } from '../pages/sync-review/sync-review.page';
 import { telehealthFacilitatorGuard } from '../guards/telehealth.guard';
 
@@ -65,6 +66,7 @@ const routes: Routes = [
       { path: 'progress-note', component: ProgressNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'skin-wound/:patientId/signatures', component: FieldSignatureCenterPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/documents', component: PatientDocumentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/wound-note', component: WoundNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/education', component: EducationPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },

@@ -504,13 +504,27 @@ export class ClinicalDocumentExportService {
   }
 
   private signerLabel(data: any): string {
-    const author = data.authorIdentity?.displayName || data.createdByName || data.recordedByName || data.providerName || data.deliveredBy?.displayName || data.createdBy?.displayName;
+    const author = data.authorIdentity?.displayName || data.createdByName || data.recordedByName || data.providerName || data.deliveredBy?.displayName || data.orderedBy?.displayName || data.createdBy?.displayName;
     const signature = data.esign || data.signature;
-    if (signature?.signed === true || data.signed === true) {
-      const name = signature?.signerDisplayName || signature?.signerIdentity?.displayName || signature?.signer?.displayName || data.signatureIdentity?.displayName || data.signedByName;
-      return [author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
-        name ? `Electronically signed by ${name}` : 'Electronically signed; signer name not recorded',
-        this.dateText(signature?.signedAt || signature?.signedAtIso || data.signedAt)].filter(Boolean).join(' · ');
+    const coSignature = data.coSignature?.status === 'signed' ? data.coSignature : null;
+    if (signature?.signed === true || data.signed === true || coSignature) {
+      const name =
+        coSignature?.signedBy?.displayName ||
+        signature?.signerDisplayName ||
+        signature?.signerIdentity?.displayName ||
+        signature?.signer?.displayName ||
+        data.signatureIdentity?.displayName ||
+        data.signedByName;
+      const credentials =
+        coSignature?.signedBy?.credentials ||
+        signature?.signerIdentity?.credentials ||
+        data.signatureIdentity?.credentials ||
+        null;
+      return [
+        author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
+        name ? `Electronically signed by ${name}${credentials ? ', ' + credentials : ''}` : 'Electronically signed; signer name not recorded',
+        this.dateText(coSignature?.signedAt || signature?.signedAt || signature?.signedAtIso || data.signedAt),
+      ].filter(Boolean).join(' · ');
     }
     return [author ? `Documented by ${author}${data.authorIdentity?.credentials ? ', ' + data.authorIdentity.credentials : ''}` : null,
       data.draft === true || data.status === 'draft' ? 'Draft — not signed' : 'No electronic signature recorded'].filter(Boolean).join(' · ');
