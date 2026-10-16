@@ -10,8 +10,8 @@ import {
 } from '@ionic/angular/standalone';
 import { documentAttachOutline } from 'ionicons/icons';
 
-import { MobilePatientDocument, MobilePatientDocumentService } from '../../services/mobile-patient-document.service';
-import { PatientService } from '../../services/patient.service';
+import { MobilePatientDocument } from '../../services/mobile-patient-document.service';
+import { ClinicalDataService } from '../../services/clinical-data.service';
 
 @Component({
   selector: 'app-patient-documents',
@@ -127,8 +127,7 @@ export class PatientDocumentsPage {
 
   constructor(
     private readonly route: ActivatedRoute,
-    private readonly patients: PatientService,
-    private readonly docs: MobilePatientDocumentService,
+    private readonly clinicalData: ClinicalDataService,
     private readonly sanitizer: DomSanitizer,
   ) {}
 
@@ -142,8 +141,8 @@ export class PatientDocumentsPage {
     this.error = '';
     try {
       const [patient, documents] = await Promise.all([
-        this.patients.getPatient(this.patientId),
-        this.docs.list(this.patientId),
+        this.clinicalData.getPatient(this.patientId),
+        this.clinicalData.listPatientDocuments(this.patientId),
       ]);
       this.patientName = patient?.name || 'Patient';
       this.documents = documents;
@@ -165,10 +164,10 @@ export class PatientDocumentsPage {
     this.error = '';
     this.message = '';
     try {
-      await this.docs.upload(this.patientId, this.selectedFiles, { type: this.docType, description: this.docDescription });
+      await this.clinicalData.uploadPatientDocuments(this.patientId, this.selectedFiles, { type: this.docType, description: this.docDescription });
       this.selectedFiles = [];
       this.docDescription = '';
-      this.documents = await this.docs.list(this.patientId);
+      this.documents = await this.clinicalData.listPatientDocuments(this.patientId);
       this.message = 'Document added to the patient chart.';
     } catch (error: any) {
       this.error = error?.message || 'Unable to upload document.';
