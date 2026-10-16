@@ -1,9 +1,59 @@
 import { InjectionToken } from '@angular/core';
 
-import { Patient } from './patient.service';
-import { MobilePatientDocument } from './mobile-patient-document.service';
-import { MobileClinicalContext } from './patient-clinical-context-reader.service';
-import { EncounterContext } from './patient-encounter-context-reader.service';
+export interface ClinicalPatientRecord {
+  id: string;
+  name: string;
+  [key: string]: any;
+}
+
+export type ClinicalContextKind = 'diagnostic' | 'medicalHistory' | 'allergy';
+
+export interface ClinicalContextFact {
+  id: string;
+  kind: ClinicalContextKind;
+  code: string | null;
+  description: string;
+  status: string | null;
+  reviewStatus: string | null;
+  primary: boolean;
+  rank: number | null;
+  reaction: string | null;
+  severity: string | null;
+  sourceReference: string | null;
+}
+
+export interface ClinicalContext {
+  diagnoses: ClinicalContextFact[];
+  medicalHistory: ClinicalContextFact[];
+  allergies: ClinicalContextFact[];
+}
+
+export interface ClinicalEncounterContextItem {
+  id: string;
+  label: string;
+  detail: string;
+  source: string | null;
+}
+
+export interface ClinicalEncounterContext {
+  medications: ClinicalEncounterContextItem[];
+  activeOrders: ClinicalEncounterContextItem[];
+  vascular: ClinicalEncounterContextItem[];
+  systemic: ClinicalEncounterContextItem[];
+}
+
+export interface ClinicalPatientDocument {
+  id: string;
+  name: string;
+  type?: string | null;
+  description?: string | null;
+  url: string;
+  path: string;
+  mimeType?: string | null;
+  size?: number | null;
+  createdAt?: any;
+  uploadedBy?: { uid?: string | null; email?: string | null; role?: string | null };
+}
 
 export interface PatientDocumentUploadOptions {
   type?: string;
@@ -13,16 +63,18 @@ export interface PatientDocumentUploadOptions {
 /**
  * WoundAPP-facing clinical data contract.
  *
- * Pages should depend on this contract instead of knowing whether the current
- * tenant is backed by JADE/Firebase, a standalone store, or a future EHR/FHIR
- * integration. Phase 1 intentionally exposes only workflows that already exist
- * in production so no clinical behavior or persistence semantics change.
+ * This contract owns its DTOs and does not expose Firebase types or JADE
+ * service classes. A future provider can therefore implement it without
+ * importing the current Firebase-backed services.
+ *
+ * Phase 1 intentionally exposes only workflows that already exist in
+ * production so no persistence semantics or clinical behavior change.
  */
 export interface ClinicalDataProvider {
-  getPatient(patientId: string): Promise<Patient & Record<string, any>>;
-  getClinicalContext(patientId: string): Promise<MobileClinicalContext>;
-  getEncounterContext(patientId: string): Promise<EncounterContext>;
-  listPatientDocuments(patientId: string): Promise<MobilePatientDocument[]>;
+  getPatient(patientId: string): Promise<ClinicalPatientRecord>;
+  getClinicalContext(patientId: string): Promise<ClinicalContext>;
+  getEncounterContext(patientId: string): Promise<ClinicalEncounterContext>;
+  listPatientDocuments(patientId: string): Promise<ClinicalPatientDocument[]>;
   uploadPatientDocuments(
     patientId: string,
     files: File[],
