@@ -7,12 +7,37 @@ import { PatientService } from './patient.service';
 
 export interface MobileTelehealthSession {
   id: string;
+  appointmentId: string;
   revision: number;
   participant: 'facilitator' | 'provider' | 'patient';
+  deliveryMode: 'telehealth_video' | 'telehealth_audio';
   state: 'scheduled' | 'waiting' | 'in_progress' | 'ended' | 'cancelled' | 'failed';
   consentStatus: string;
   consentVersion: string;
-  clinicalContext?: {patientName?: string; woundLabel?: string};
+  signedNoteId?: string | null;
+  draftNoteId?: string | null;
+  billingReviewStatus?: string | null;
+  clinicalContext?: {
+    patientId?: string;
+    patientName?: string;
+    woundId?: string;
+    woundLabel?: string;
+    serviceDateIso?: string | null;
+    patientReportedLocation?: string | null;
+  };
+}
+
+export interface MobileTelehealthAppointment {
+  id: string;
+  patientName: string;
+  providerName?: string | null;
+  facilitatorName?: string | null;
+  woundLabel?: string | null;
+  reason?: string | null;
+  deliveryMode: 'telehealth_video' | 'telehealth_audio';
+  status: string;
+  startIso?: string | null;
+  sessionState: 'not_started' | 'scheduled' | 'waiting' | 'in_progress' | 'ended' | 'cancelled' | 'failed' | string;
 }
 
 /** Client of JADE's canonical API; no independent clinical/session persistence. */
@@ -45,6 +70,20 @@ export class TelehealthService {
   async create(input: {patientId: string; woundId: string; providerUid: string; reason: string}) {
     return this.call<{appointmentId: string}>('telehealthCreateFieldConsultV1', input);
   }
+
+  async myConsultations(): Promise<MobileTelehealthAppointment[]> {
+    const results = await Promise.allSettled([
+      this.call<{ appointments: MobileTelehealthAppointment[] }>('telehealthListFacilitatorAppointmentsV1', {}),
+      this.call<{ appointments: MobileTelehealthAppointment[] }>('telehealthListProviderAppointmentsV1', {}),
+    ]);
+    const rows = results.flatMap((result) =>
+      result.status === 'fulfilled' ? (result.value.appointments || []) : []
+    );
+    const unique = new Map(rows.map((item) => [item.id, item]));
+    return [...unique.values()].sort((a, b) =>
+      String(b.startIso || '').localeCompare(String(a.startIso || ''))
+    );
+  }
   async session(appointmentId: string): Promise<MobileTelehealthSession> {
     return (await this.call<{session: MobileTelehealthSession}>('telehealthCreateOrGetSessionV1', {appointmentId})).session;
   }
@@ -59,6 +98,10 @@ export class TelehealthService {
     return (await this.call<{session: MobileTelehealthSession}>('telehealthTransitionSessionV1', {
       sessionId: session.id, nextState: 'cancelled', expectedRevision: session.revision,
     })).session;
+  }
+
+  async registerDraftNote(sessionId: string, noteId: string): Promise<void> {
+    await this.call('telehealthRegisterDraftNoteV1', { sessionId, noteId });
   }
   private async call<T>(name: string, data: unknown): Promise<T> {
     if (!navigator.onLine) throw new Error('Telehealth requires an online connection. No request was queued.');
