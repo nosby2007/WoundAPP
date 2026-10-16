@@ -205,16 +205,20 @@ export class ProgressNoteService {
     return ref.id;
   }
 
-  async getDraft(patientId: string, noteId: string): Promise<{ id: string; details: string } | null> {
+  async getDraft(patientId: string, noteId: string): Promise<{ id: string; details: string; telehealthDocumentation?: any } | null> {
     if (!patientId || !noteId) return null;
     const snap = await getDoc(doc(db, `patients/${patientId}/providerNotes/${noteId}`));
     if (!snap.exists()) return null;
     const row: any = snap.data();
     if (row.status !== 'draft' || row.draft !== true || row.signed === true) return null;
-    return { id: snap.id, details: String(row.details || '') };
+    return {
+      id: snap.id,
+      details: String(row.details || ''),
+      telehealthDocumentation: row.telehealthDocumentation || null,
+    };
   }
 
-  async updateDraft(patientId: string, noteId: string, details: string): Promise<void> {
+  async updateDraft(patientId: string, noteId: string, details: string, telehealthDocumentation?: Record<string, unknown> | null): Promise<void> {
     const user = auth.currentUser;
     if (!user) throw new NotAuthenticatedError();
     const ref = doc(db, `patients/${patientId}/providerNotes/${noteId}`);
@@ -227,6 +231,7 @@ export class ProgressNoteService {
     }
     await updateDoc(ref, {
       details: String(details || '').trim(),
+      ...(telehealthDocumentation ? { telehealthDocumentation } : {}),
       updatedAt: serverTimestamp(),
       updatedByUid: user.uid,
     });
