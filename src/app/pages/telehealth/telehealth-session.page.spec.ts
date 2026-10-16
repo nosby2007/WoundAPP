@@ -46,4 +46,51 @@ describe('mobile telehealth session safety', () => {
     await page.refresh();
     expect(page.connected).toBeFalse(); expect(page.error).toContain('Access denied');
   });
+  it('switches the published video track to the rear camera without leaving the room', async () => {
+    const track = {
+      restart: jasmine.createSpy('restart').and.resolveTo(),
+      disable: jasmine.createSpy('disable'),
+      stop: jasmine.createSpy('stop'),
+      attach: jasmine.createSpy('attach').and.returnValue(document.createElement('video')),
+    };
+    (page as any).video = track;
+    (page as any).room = {};
+    page.cameraCount = 2;
+    page.cameraFacing = 'user';
+    await page.switchCamera();
+    expect(track.restart).toHaveBeenCalledWith({ facingMode: { exact: 'environment' }, width: { ideal: 1280 } });
+    expect(page.cameraFacing).toBe('environment');
+    expect((page as any).room).toBeTruthy();
+  });
+
+  it('preserves camera-off state while flipping cameras', async () => {
+    const track = {
+      restart: jasmine.createSpy('restart').and.resolveTo(),
+      disable: jasmine.createSpy('disable'),
+      stop: jasmine.createSpy('stop'),
+      attach: jasmine.createSpy('attach').and.returnValue(document.createElement('video')),
+    };
+    (page as any).video = track;
+    (page as any).room = {};
+    page.cameraCount = 2;
+    page.videoEnabled = false;
+    await page.switchCamera();
+    expect(track.disable).toHaveBeenCalled();
+  });
+
+  it('keeps the consultation room open when camera switching fails', async () => {
+    const track = {
+      restart: jasmine.createSpy('restart').and.returnValues(Promise.reject(new Error('unsupported')), Promise.resolve()),
+      disable: jasmine.createSpy('disable'),
+      stop: jasmine.createSpy('stop'),
+      attach: jasmine.createSpy('attach').and.returnValue(document.createElement('video')),
+    };
+    (page as any).video = track;
+    (page as any).room = {};
+    page.cameraCount = 2;
+    await page.switchCamera();
+    expect(page.error).toContain('Unable to switch cameras');
+    expect((page as any).room).toBeTruthy();
+    expect(page.switchingCamera).toBeFalse();
+  });
 });
