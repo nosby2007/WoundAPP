@@ -72,6 +72,44 @@
           </div>
         </section>
 
+        <section class="context-section">
+          <h3>Current medications</h3>
+          <p class="context-empty" *ngIf="!encounterContext.medications.length">No current medication records were returned.</p>
+          <div class="context-row" *ngFor="let item of encounterContext.medications">
+            <strong>{{ item.label }}</strong>
+            <span *ngIf="item.detail">{{ item.detail }}</span>
+            <small *ngIf="item.source">Source / prescriber: {{ item.source }}</small>
+          </div>
+        </section>
+
+        <section class="context-section">
+          <h3>Active orders</h3>
+          <p class="context-empty" *ngIf="!encounterContext.activeOrders.length">No active orders were returned.</p>
+          <div class="context-row" *ngFor="let item of encounterContext.activeOrders">
+            <strong>{{ item.label }}</strong>
+            <span>{{ item.detail }}</span>
+            <small *ngIf="item.source">Ordered by: {{ item.source }}</small>
+          </div>
+        </section>
+
+        <section class="context-section" *ngIf="encounterContext.vascular.length">
+          <h3>Recent vascular assessment</h3>
+          <div class="context-row" *ngFor="let item of encounterContext.vascular">
+            <strong>{{ item.label }}</strong>
+            <span>{{ item.detail }}</span>
+            <small *ngIf="item.source">Assessed by: {{ item.source }}</small>
+          </div>
+        </section>
+
+        <section class="context-section" *ngIf="encounterContext.systemic.length">
+          <h3>Recent systemic assessment</h3>
+          <div class="context-row" *ngFor="let item of encounterContext.systemic">
+            <strong>{{ item.label }}</strong>
+            <span>{{ item.detail }}</span>
+            <small *ngIf="item.source">Recorded by: {{ item.source }}</small>
+          </div>
+        </section>
+
         <p class="context-disclaimer">Read-only chart context. WoundAPP does not copy these facts into the note automatically; document only what you actually assessed or addressed during this encounter.</p>
       </ng-container>
     </div>
