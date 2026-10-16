@@ -3,13 +3,22 @@ import { Component, ElementRef, HostListener, OnDestroy, ViewChild } from '@angu
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
-  IonBadge, IonButton, IonCheckbox, IonContent, IonHeader, IonInput,
+  IonBadge, IonButton, IonCheckbox, IonContent, IonHeader, IonIcon, IonInput,
   IonTextarea, IonTitle, IonToolbar,
 } from '@ionic/angular/standalone';
 import {
   connect, createLocalAudioTrack, createLocalVideoTrack,
   LocalAudioTrack, LocalVideoTrack, RemoteTrack, Room,
 } from 'twilio-video';
+import { addIcons } from 'ionicons';
+import {
+  callOutline,
+  cameraReverseOutline,
+  micOffOutline,
+  micOutline,
+  videocamOffOutline,
+  videocamOutline,
+} from 'ionicons/icons';
 import { MobileTelehealthSession, TelehealthService } from '../../services/telehealth.service';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { ProgressNoteService } from '../../services/progress-note.service';
@@ -19,7 +28,7 @@ import { ProgressNoteService } from '../../services/progress-note.service';
   selector: 'app-mobile-telehealth-session',
   imports: [
     CommonModule, FormsModule, IonBadge, IonButton, IonCheckbox, IonContent,
-    IonHeader, IonInput, IonTextarea, IonTitle, IonToolbar,
+    IonHeader, IonIcon, IonInput, IonTextarea, IonTitle, IonToolbar,
   ],
   template: `
     <ion-header><ion-toolbar><ion-title>Telehealth · Field consultation</ion-title></ion-toolbar></ion-header>
@@ -48,17 +57,67 @@ import { ProgressNoteService } from '../../services/progress-note.service';
             (click)="recordConsent()">Record facilitated consent</ion-button>
         </section>
 
-        <div class="videos" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'">
-          <section><h2>Your camera</h2><div #local class="media"></div></section>
-          <section><h2>NP / other participant</h2><div #remote class="media"></div></section>
-        </div>
+        <section class="video-stage" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'" aria-label="Telehealth video consultation">
+          <div #remote class="media remote-stage"></div>
+          <span class="remote-label">NP / other participant</span>
+          <div class="waiting-video" *ngIf="!connected">Join the secure video consultation</div>
+
+          <aside class="self-preview" [class.front-facing]="cameraFacing === 'user'">
+            <div #local class="media local-stage"></div>
+            <span>{{ videoEnabled ? 'You' : 'Camera off' }}</span>
+          </aside>
+
+          <nav class="call-controls" aria-label="Video controls">
+            <ion-button
+              *ngIf="!connected && s.state !== 'ended'"
+              class="join-call"
+              [disabled]="busy || s.consentStatus !== 'accepted' || !isOpen"
+              (click)="join()">
+              Join video
+            </ion-button>
+
+            <ng-container *ngIf="connected">
+              <button
+                type="button"
+                class="round-control"
+                [class.control-off]="!audioEnabled"
+                (click)="mute()"
+                [attr.aria-label]="audioEnabled ? 'Mute microphone' : 'Unmute microphone'">
+                <ion-icon [name]="audioEnabled ? 'mic-outline' : 'mic-off-outline'"></ion-icon>
+              </button>
+
+              <button
+                type="button"
+                class="round-control"
+                [class.control-off]="!videoEnabled"
+                [disabled]="switchingCamera"
+                (click)="camera()"
+                [attr.aria-label]="videoEnabled ? 'Turn camera off' : 'Turn camera on'">
+                <ion-icon [name]="videoEnabled ? 'videocam-outline' : 'videocam-off-outline'"></ion-icon>
+              </button>
+
+              <button
+                type="button"
+                class="round-control"
+                [disabled]="switchingCamera || cameraCount < 2"
+                (click)="switchCamera()"
+                [attr.aria-label]="cameraFacing === 'user' ? 'Use rear camera to show wound' : 'Use front camera'">
+                <ion-icon name="camera-reverse-outline"></ion-icon>
+              </button>
+
+              <button
+                type="button"
+                class="round-control hangup"
+                (click)="leave()"
+                aria-label="Leave video call">
+                <ion-icon name="call-outline"></ion-icon>
+              </button>
+            </ng-container>
+          </nav>
+        </section>
 
         <div class="video-actions">
-          <ion-button *ngIf="!connected && s.state !== 'ended'" [disabled]="busy || s.consentStatus !== 'accepted' || !isOpen" (click)="join()">Join video consultation</ion-button>
-          <ion-button *ngIf="connected" (click)="mute()">{{ audioEnabled ? 'Mute' : 'Unmute' }}</ion-button>
-          <ion-button *ngIf="connected" (click)="camera()">{{ videoEnabled ? 'Camera off' : 'Camera on' }}</ion-button>
-          <ion-button *ngIf="connected" fill="outline" (click)="leave()">Leave video</ion-button>
-          <ion-button *ngIf="s.participant === 'facilitator' && (s.state === 'scheduled' || s.state === 'waiting')" color="danger" [disabled]="busy" (click)="cancel()">Cancel consultation</ion-button>
+          <ion-button *ngIf="s.participant === 'facilitator' && (s.state === 'scheduled' || s.state === 'waiting')" color="danger" fill="outline" [disabled]="busy" (click)="cancel()">Cancel consultation</ion-button>
           <ion-button fill="outline" [disabled]="busy" (click)="refresh()">Refresh session</ion-button>
         </div>
 
@@ -98,11 +157,22 @@ import { ProgressNoteService } from '../../services/progress-note.service';
       <p class="small">Leaving video does not complete a physical visit or create a claim. Camera and microphone tracks stop when the page is left.</p>
     </main></ion-content>`,
   styles: [`
-    main{padding:18px;max-width:950px;margin:auto}.session-head,.note-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
-    .videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.media{background:#10251d;min-height:180px;overflow:hidden}
+    main{padding:18px;max-width:980px;margin:auto}.session-head,.note-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
     p[role=alert]{color:var(--ion-color-danger)}ion-checkbox{margin:10px 0}.video-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
-    .provider-note{margin-top:24px;padding:18px;border-radius:18px;background:var(--ion-color-light)}.provider-note ion-input,.provider-note ion-textarea{margin:10px 0}
+    .video-stage{position:relative;height:clamp(380px,68vh,760px);background:#0d1a16;border-radius:24px;overflow:hidden;isolation:isolate;box-shadow:0 18px 54px rgba(0,0,0,.22)}
+    .media{width:100%;height:100%;overflow:hidden}.remote-stage{display:flex;align-items:center;justify-content:center}
+    .remote-stage ::ng-deep video{width:100%;height:100%;object-fit:contain;display:block}.remote-stage ::ng-deep audio{display:none}
+    .remote-label,.self-preview>span{position:absolute;background:rgba(11,32,24,.76);color:#fff;padding:6px 10px;border-radius:9px;font-size:.76rem;backdrop-filter:blur(8px)}
+    .remote-label{left:14px;top:14px}.waiting-video{position:absolute;inset:0;display:grid;place-items:center;color:#dcebe5;font-weight:700;pointer-events:none}
+    .self-preview{position:absolute;right:16px;top:16px;width:clamp(108px,24%,210px);height:clamp(140px,25vh,220px);background:#23352f;border:2px solid rgba(255,255,255,.74);border-radius:16px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.38)}
+    .local-stage ::ng-deep video{width:100%;height:100%;object-fit:cover;display:block}.self-preview.front-facing ::ng-deep video{transform:scaleX(-1)}
+    .self-preview>span{left:7px;bottom:7px}
+    .call-controls{position:absolute;z-index:4;bottom:max(18px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:12px;padding:11px 14px;border-radius:30px;background:rgba(8,25,19,.86);box-shadow:0 8px 28px rgba(0,0,0,.38);backdrop-filter:blur(14px)}
+    .round-control{width:50px;height:50px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.15);color:#fff;font-size:24px;cursor:pointer}
+    .round-control.control-off{background:#8a5a1d}.round-control.hangup{background:#d23f4f;transform:rotate(135deg)}.round-control:disabled{opacity:.45;cursor:not-allowed}
+    .join-call{--border-radius:999px;--background:#0b7551;min-width:160px}.provider-note{margin-top:24px;padding:18px;border-radius:18px;background:var(--ion-color-light)}.provider-note ion-input,.provider-note ion-textarea{margin:10px 0}
     .eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800;color:var(--ion-color-success);margin:0}.draft-state,.small{font-size:12px;color:var(--ion-color-medium)}
+    @media(max-width:640px){main{padding:10px}.video-stage{height:72vh;border-radius:18px}.self-preview{right:10px;top:10px;width:31%;height:24%}.call-controls{gap:9px;padding:9px 11px}.round-control{width:46px;height:46px;font-size:22px}}
   `],
 })
 export class TelehealthSessionPage implements OnDestroy {
@@ -120,6 +190,9 @@ export class TelehealthSessionPage implements OnDestroy {
   connected = false;
   audioEnabled = true;
   videoEnabled = true;
+  cameraFacing: 'user' | 'environment' = 'user';
+  switchingCamera = false;
+  cameraCount = 0;
 
   participants = '';
   identityVerification = '';
@@ -145,6 +218,14 @@ export class TelehealthSessionPage implements OnDestroy {
     private notes: ProgressNoteService,
     route: ActivatedRoute,
   ) {
+    addIcons({
+      callOutline,
+      cameraReverseOutline,
+      micOffOutline,
+      micOutline,
+      videocamOffOutline,
+      videocamOutline,
+    });
     this.appointmentId = route.snapshot.paramMap.get('appointmentId') || '';
   }
 
@@ -248,10 +329,14 @@ export class TelehealthSessionPage implements OnDestroy {
       const audio = await createLocalAudioTrack();
       if (generation !== this.generation) { audio.stop(); return; }
       this.audio = audio;
-      const video = await createLocalVideoTrack({width: 640});
+      const video = await createLocalVideoTrack({width: 960, facingMode: 'user'});
       if (generation !== this.generation) { video.stop(); return; }
       this.video = video;
-      this.local?.nativeElement.replaceChildren(video.attach());
+      this.cameraFacing = 'user';
+      this.cameraCount = await navigator.mediaDevices?.enumerateDevices()
+        .then((devices) => devices.filter((device) => device.kind === 'videoinput').length)
+        .catch(() => 2) || 1;
+      this.attachLocalVideo();
       this.status = 'Connecting…';
       const room = await connect(grant.token, {name: grant.room, tracks: [audio, video]});
       if (generation !== this.generation) { room.disconnect(); return; }
@@ -282,8 +367,46 @@ export class TelehealthSessionPage implements OnDestroy {
   }
 
   camera(): void {
-    this.videoEnabled ? this.video?.disable() : this.video?.enable();
+    if (!this.video || this.switchingCamera) return;
+    this.videoEnabled ? this.video.disable() : this.video.enable();
     this.videoEnabled = !this.videoEnabled;
+  }
+
+  async switchCamera(): Promise<void> {
+    const track = this.video;
+    if (!this.room || !track || this.switchingCamera || this.cameraCount < 2) return;
+    const next: 'user' | 'environment' = this.cameraFacing === 'user' ? 'environment' : 'user';
+    this.switchingCamera = true;
+    this.error = '';
+    try {
+      await track.restart({ facingMode: { exact: next }, width: { ideal: 1280 } });
+      if (this.video !== track || !this.room) {
+        track.stop();
+        return;
+      }
+      this.cameraFacing = next;
+      if (!this.videoEnabled) track.disable();
+      this.attachLocalVideo();
+    } catch {
+      if (this.video !== track || !this.room) {
+        track.stop();
+        return;
+      }
+      try {
+        await track.restart({ facingMode: { ideal: this.cameraFacing } });
+        if (this.video !== track || !this.room) {
+          track.stop();
+          return;
+        }
+        if (!this.videoEnabled) track.disable();
+        this.attachLocalVideo();
+      } catch {
+        // Keep audio and the Twilio room alive even if camera recovery fails.
+      }
+      this.error = 'Unable to switch cameras. The consultation remains connected.';
+    } finally {
+      this.switchingCamera = false;
+    }
   }
 
   leave(): void {
@@ -295,6 +418,8 @@ export class TelehealthSessionPage implements OnDestroy {
     this.video?.stop();
     this.audio = null;
     this.video = null;
+    this.cameraFacing = 'user';
+    this.switchingCamera = false;
     this.connected = false;
     this.local?.nativeElement.replaceChildren();
     this.remote?.nativeElement.replaceChildren();
@@ -468,6 +593,13 @@ export class TelehealthSessionPage implements OnDestroy {
     this.assessmentAndPlan = String(value?.assessmentAndPlan || '');
     this.followUpAndPrecautions = String(value?.followUpAndPrecautions || '');
     this.noteDetails = String(value?.noteDetails || '');
+  }
+
+  private attachLocalVideo(): void {
+    const host = this.local?.nativeElement;
+    if (!host) return;
+    host.replaceChildren();
+    if (this.video) host.appendChild(this.video.attach());
   }
 
   private attach(track: RemoteTrack): void {
