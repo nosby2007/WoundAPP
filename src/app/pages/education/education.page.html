@@ -28,7 +28,7 @@
 
     <ion-item *ngIf="!selectedTopicId">
       <ion-label position="stacked">Or type a topic</ion-label>
-      <ion-textarea [(ngModel)]="customTopic" [autoGrow]="true" [rows]="1"
+      <ion-textarea [(ngModel)]="customTopic" (ionInput)="scheduleDraft()" [autoGrow]="true" [rows]="1"
                     placeholder="Anything not in the catalogue yet"></ion-textarea>
     </ion-item>
 
@@ -40,14 +40,14 @@
 
     <ion-item>
       <ion-label position="stacked">Who was taught</ion-label>
-      <ion-select [(ngModel)]="learners" [multiple]="true" placeholder="Select">
+      <ion-select [(ngModel)]="learners" (ionChange)="scheduleDraft()" [multiple]="true" placeholder="Select">
         <ion-select-option *ngFor="let l of learnerOptions" [value]="l.value">{{ l.label }}</ion-select-option>
       </ion-select>
     </ion-item>
 
     <ion-item>
       <ion-label position="stacked">Readiness</ion-label>
-      <ion-select [(ngModel)]="readiness" interface="popover" placeholder="Not recorded">
+      <ion-select [(ngModel)]="readiness" (ionChange)="scheduleDraft()" interface="popover" placeholder="Not recorded">
         <ion-select-option *ngFor="let r of readinessOptions" [value]="r.value">{{ r.label }}</ion-select-option>
       </ion-select>
     </ion-item>
@@ -58,14 +58,14 @@
     <ng-container *ngIf="!refused">
       <ion-item>
         <ion-label position="stacked">How it was delivered</ion-label>
-        <ion-select [(ngModel)]="method" [multiple]="true" placeholder="Select">
+        <ion-select [(ngModel)]="method" (ionChange)="scheduleDraft()" [multiple]="true" placeholder="Select">
           <ion-select-option *ngFor="let m of methodOptions" [value]="m.value">{{ m.label }}</ion-select-option>
         </ion-select>
       </ion-item>
 
       <ion-item>
         <ion-label position="stacked">How they responded</ion-label>
-        <ion-select [(ngModel)]="response" [multiple]="true" placeholder="Select">
+        <ion-select [(ngModel)]="response" (ionChange)="scheduleDraft()" [multiple]="true" placeholder="Select">
           <ion-select-option *ngFor="let r of responseOptions" [value]="r.value">{{ r.label }}</ion-select-option>
         </ion-select>
       </ion-item>
@@ -78,7 +78,7 @@
 
     <ion-item lines="none">
       <ion-label position="stacked">Notes</ion-label>
-      <ion-textarea [(ngModel)]="notes" [autoGrow]="true" [rows]="2"
+      <ion-textarea [(ngModel)]="notes" (ionInput)="scheduleDraft()" [autoGrow]="true" [rows]="2"
                     placeholder="How this session actually went"></ion-textarea>
     </ion-item>
   </ion-list>
@@ -86,6 +86,8 @@
   <ion-note class="gaps" *ngIf="gaps.length">
     Still missing: {{ gaps.join(' · ') }}
   </ion-note>
+
+  <ion-note *ngIf="draftStatus">{{ draftStatus }}</ion-note>
 
   <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
