@@ -2,13 +2,13 @@ import { Inject, Injectable } from '@angular/core';
 
 import {
   CLINICAL_DATA_PROVIDER,
+  ClinicalContext,
   ClinicalDataProvider,
+  ClinicalEncounterContext,
+  ClinicalPatientDocument,
+  ClinicalPatientRecord,
   PatientDocumentUploadOptions,
 } from './clinical-data-provider';
-import { Patient } from './patient.service';
-import { MobilePatientDocument } from './mobile-patient-document.service';
-import { MobileClinicalContext } from './patient-clinical-context-reader.service';
-import { EncounterContext } from './patient-encounter-context-reader.service';
 
 /**
  * Stable application-facing gateway. UI code should prefer this service over
@@ -18,19 +18,19 @@ import { EncounterContext } from './patient-encounter-context-reader.service';
 export class ClinicalDataService {
   constructor(@Inject(CLINICAL_DATA_PROVIDER) private readonly provider: ClinicalDataProvider) {}
 
-  getPatient(patientId: string): Promise<Patient & Record<string, any>> {
+  getPatient(patientId: string): Promise<ClinicalPatientRecord> {
     return this.provider.getPatient(patientId);
   }
 
-  getClinicalContext(patientId: string): Promise<MobileClinicalContext> {
+  getClinicalContext(patientId: string): Promise<ClinicalContext> {
     return this.provider.getClinicalContext(patientId);
   }
 
-  getEncounterContext(patientId: string): Promise<EncounterContext> {
+  getEncounterContext(patientId: string): Promise<ClinicalEncounterContext> {
     return this.provider.getEncounterContext(patientId);
   }
 
-  listPatientDocuments(patientId: string): Promise<MobilePatientDocument[]> {
+  listPatientDocuments(patientId: string): Promise<ClinicalPatientDocument[]> {
     return this.provider.listPatientDocuments(patientId);
   }
 
