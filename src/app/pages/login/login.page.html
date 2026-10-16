@@ -1,82 +1,101 @@
 <ion-content [fullscreen]="true" class="login-page">
-
-  <div class="card-wrapper">
-
-  <div class="brand-header">
-    <div class="logo-circle">
-      <span>PH</span>
+  <div class="login-shell">
+    <div class="blue-field" aria-hidden="true">
+      <span class="blue-circle circle-1"></span>
+      <span class="blue-circle circle-2"></span>
+      <span class="blue-circle circle-3"></span>
+      <span class="blue-circle circle-4"></span>
     </div>
-    <div class="brand-text">
-      <h1>Perry Home Wound Care</h1>
-      <p>Nurse Mobile Console</p>
-    </div>
-  </div>
 
-    <div class="login-card">
+    <a class="product-brand" routerLink="/" aria-label="Back to WoundAPP home">
+      <span class="brand-mark">W</span>
+      <span class="brand-copy">
+        <strong>WoundAPP</strong>
+        <small>Clinical field workspace</small>
+      </span>
+    </a>
 
-      <h2 class="title">Sign in</h2>
-      <p class="subtitle">Use your nurse / provider account credentials</p>
+    <section class="login-layout">
+      <div class="brand-panel">
+        <p class="eyebrow">SECURE CLINICAL ACCESS</p>
+        <h1>Wound care, connected from the field to the clinical record.</h1>
+        <p class="brand-lead">
+          Sign in to continue patient visits, wound assessments, care plans,
+          provider orders and progress documentation.
+        </p>
 
-      <form [formGroup]="form" (ngSubmit)="submit()">
-
-        <!-- Email -->
-        <ion-item lines="full">
-          <ion-icon name="mail-outline" slot="start"></ion-icon>
-          <ion-input
-            type="email"
-            label="Email"
-            labelPlacement="stacked"
-            placeholder="you@example.com"
-            formControlName="email">
-          </ion-input>
-        </ion-item>
-        <div class="error" *ngIf="form.controls.email.touched && form.controls.email.invalid">
-          <span *ngIf="form.controls.email.errors?.['required']">Email is required.</span>
-          <span *ngIf="form.controls.email.errors?.['email']">Invalid email format.</span>
+        <div class="brand-points">
+          <span>Mobile wound-care workflow</span>
+          <span>Role-based clinical access</span>
+          <span>Visit-linked documentation</span>
         </div>
-
-        <!-- Password -->
-        <ion-item lines="full">
-          <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
-          <ion-input
-            type="password"
-            label="Password"
-            labelPlacement="stacked"
-            placeholder="••••••••"
-            formControlName="password">
-          </ion-input>
-        </ion-item>
-        <div class="error" *ngIf="form.controls.password.touched && form.controls.password.invalid">
-          <span *ngIf="form.controls.password.errors?.['required']">Password is required.</span>
-          <span *ngIf="form.controls.password.errors?.['minlength']">
-            Minimum 6 characters.
-          </span>
-        </div>
-
-        <!-- Error global -->
-        <div class="error global" *ngIf="errorMsg">
-          {{ errorMsg }}
-        </div>
-
-        <!-- Button -->
-        <ion-button
-          expand="block"
-          class="login-btn"
-          type="submit"
-          [disabled]="loading || form.invalid">
-          <ng-container *ngIf="!loading; else loadingTpl">
-            Sign in
-          </ng-container>
-          <ng-template #loadingTpl>
-            <ion-spinner name="crescent"></ion-spinner>
-          </ng-template>
-        </ion-button>
-      </form>
-
-      <div class="footnote">
-        <p>Secure access · Firebase Auth · Wound Assessments</p>
       </div>
-    </div>
-  </div>
 
+      <div class="login-card-wrap">
+        <div class="login-card">
+          <div class="card-heading">
+            <span class="card-kicker">WELCOME BACK</span>
+            <h2>Sign in</h2>
+            <p>Use your nurse or provider account credentials.</p>
+          </div>
+
+          <form [formGroup]="form" (ngSubmit)="submit()">
+            <ion-item lines="none" class="field">
+              <ion-icon name="mail-outline" slot="start"></ion-icon>
+              <ion-input
+                type="email"
+                label="Email"
+                labelPlacement="stacked"
+                placeholder="you@example.com"
+                formControlName="email">
+              </ion-input>
+            </ion-item>
+
+            <div class="error" *ngIf="form.controls.email.touched && form.controls.email.invalid">
+              <span *ngIf="form.controls.email.errors?.['required']">Email is required.</span>
+              <span *ngIf="form.controls.email.errors?.['email']">Invalid email format.</span>
+            </div>
+
+            <ion-item lines="none" class="field">
+              <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
+              <ion-input
+                type="password"
+                label="Password"
+                labelPlacement="stacked"
+                placeholder="••••••••"
+                formControlName="password">
+              </ion-input>
+            </ion-item>
+
+            <div class="error" *ngIf="form.controls.password.touched && form.controls.password.invalid">
+              <span *ngIf="form.controls.password.errors?.['required']">Password is required.</span>
+              <span *ngIf="form.controls.password.errors?.['minlength']">Minimum 6 characters.</span>
+            </div>
+
+            <div class="error global" *ngIf="errorMsg">
+              {{ errorMsg }}
+            </div>
+
+            <ion-button
+              expand="block"
+              class="login-btn"
+              type="submit"
+              [disabled]="loading || form.invalid">
+              <ng-container *ngIf="!loading; else loadingTpl">Sign in</ng-container>
+              <ng-template #loadingTpl>
+                <ion-spinner name="crescent"></ion-spinner>
+              </ng-template>
+            </ion-button>
+          </form>
+
+          <div class="secure-note">
+            <span class="secure-dot"></span>
+            Protected clinical workspace
+          </div>
+        </div>
+
+        <a class="public-link" routerLink="/">← Back to WoundAPP overview</a>
+      </div>
+    </section>
+  </div>
 </ion-content>
