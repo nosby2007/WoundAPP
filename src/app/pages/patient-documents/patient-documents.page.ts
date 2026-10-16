@@ -10,8 +10,8 @@ import {
 } from '@ionic/angular/standalone';
 import { documentAttachOutline } from 'ionicons/icons';
 
-import { MobilePatientDocument } from '../../services/mobile-patient-document.service';
 import { ClinicalDataService } from '../../services/clinical-data.service';
+import { ClinicalPatientDocument } from '../../services/clinical-data-provider';
 
 @Component({
   selector: 'app-patient-documents',
@@ -117,11 +117,11 @@ export class PatientDocumentsPage {
   uploading = false;
   error = '';
   message = '';
-  documents: MobilePatientDocument[] = [];
+  documents: ClinicalPatientDocument[] = [];
   selectedFiles: File[] = [];
   docType = 'other';
   docDescription = '';
-  previewDocument: MobilePatientDocument | null = null;
+  previewDocument: ClinicalPatientDocument | null = null;
   previewUrl: SafeResourceUrl | null = null;
   previewKind: 'image' | 'pdf' | 'unsupported' = 'unsupported';
 
@@ -176,7 +176,7 @@ export class PatientDocumentsPage {
     }
   }
 
-  openPreview(doc: MobilePatientDocument): void {
+  openPreview(doc: ClinicalPatientDocument): void {
     const mime = (doc.mimeType || '').toLowerCase();
     const name = (doc.name || '').toLowerCase();
     if (mime === 'application/pdf' || /\.pdf$/i.test(name)) {
