@@ -42,9 +42,9 @@ export class PatientClinicalContextReaderService {
       this.read(patientId, 'diagnostic'),
       this.read(patientId, 'medicalHistory'),
       this.read(patientId, 'allergy'),
-      getDoc(doc(db, 'patients', patientId)),
+      getDoc(doc(db, 'patients', patientId)).catch(() => null),
     ]);
-    const patient = patientSnap.exists() ? patientSnap.data() as Record<string, any> : {};
+    const patient = patientSnap?.exists() ? patientSnap.data() as Record<string, any> : {};
     const intake = patient['clinical'] || {};
 
     return {
