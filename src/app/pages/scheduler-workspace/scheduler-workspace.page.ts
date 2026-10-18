@@ -85,7 +85,7 @@ type EditorMode = 'new' | 'edit' | 'replan';
             </ion-item>
 
             <ion-item lines="none">
-              <ion-select label="Billing Provider (verified NPI)" labelPlacement="stacked" [(ngModel)]="form.billingProviderUid" placeholder="Select billing provider">
+              <ion-select label="Billing Provider (verified NPI)" labelPlacement="stacked" [(ngModel)]="form.billingProviderUid" [disabled]="editorMode === 'edit'" placeholder="Select billing provider">
                 <ion-select-option value="">Not assigned</ion-select-option>
                 <ion-select-option *ngFor="let provider of billingProviders" [value]="provider.uid">{{ provider.displayName }} · {{ provider.npi }}</ion-select-option>
               </ion-select>
