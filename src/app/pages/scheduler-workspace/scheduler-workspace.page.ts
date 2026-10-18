@@ -84,6 +84,13 @@ type EditorMode = 'new' | 'edit' | 'replan';
               </ion-select>
             </ion-item>
 
+            <ion-item lines="none">
+              <ion-select label="Billing Provider (verified NPI)" labelPlacement="stacked" [(ngModel)]="form.billingProviderUid" placeholder="Select billing provider">
+                <ion-select-option value="">Not assigned</ion-select-option>
+                <ion-select-option *ngFor="let provider of billingProviders" [value]="provider.uid">{{ provider.displayName }} · {{ provider.npi }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <p class="linked-note">Billing provider is separate from the clinician performing the visit. Billing entity selection requires a verified organization registry and is not yet available.</p>
             <div class="form-grid">
               <ion-item lines="none">
                 <ion-input label="Start" labelPlacement="stacked" type="datetime-local" [(ngModel)]="form.start"></ion-input>
@@ -184,6 +191,7 @@ export class SchedulerWorkspacePage implements OnInit {
   visits: TeamScheduleVisit[] = [];
   patients: Patient[] = [];
   staffOptions: SchedulerStaffOption[] = [];
+  get billingProviders(): SchedulerStaffOption[] { return this.staffOptions.filter(s => ['np','provider','md','do','physician'].includes(s.role) && /^\\d{10}$/.test(s.npi || '')); }
   loading = true;
   saving = false;
   error = '';
@@ -203,6 +211,7 @@ export class SchedulerWorkspacePage implements OnInit {
     start: '',
     end: '',
     visitType: 'routine',
+    billingProviderUid: '',
   };
 
   constructor(
@@ -254,6 +263,7 @@ export class SchedulerWorkspacePage implements OnInit {
       start: this.toLocalInput(this.scheduler.toDate(visit.start)),
       end: this.toLocalInput(this.scheduler.toDate(visit.end) || this.addMinutes(this.scheduler.toDate(visit.start), 60)),
       visitType: visit.visitType || 'routine',
+      billingProviderUid: visit.billingProviderUid || '',
     };
   }
 
@@ -266,6 +276,7 @@ export class SchedulerWorkspacePage implements OnInit {
     this.form.assignedToName = visit.assignedToName || '';
     this.form.assignedToRole = visit.assignedToRole || '';
     this.form.visitType = visit.visitType || 'routine';
+    this.form.billingProviderUid = visit.billingProviderUid || '';
     this.editorOpen = true;
   }
 
@@ -324,6 +335,7 @@ export class SchedulerWorkspacePage implements OnInit {
           visitType: this.form.visitType,
           workflowKind: this.form.visitType === 'wound_follow_up' ? 'wound' : 'general',
           sourceAppointmentId: this.editorMode === 'replan' ? this.sourceAppointmentId : null,
+          billingProviderUid: this.form.billingProviderUid || null,
         });
         this.message = this.editorMode === 'replan'
           ? 'Replacement appointment created and linked to the prior visit.'
@@ -366,6 +378,7 @@ export class SchedulerWorkspacePage implements OnInit {
       start: this.toLocalInput(start),
       end: this.toLocalInput(end),
       visitType: 'routine',
+      billingProviderUid: '',
     };
   }
 
