@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type MobileClinicalContextKind = 'diagnostic' | 'medicalHistory' | 'allergy';
@@ -22,6 +22,9 @@ export interface MobileClinicalContext {
   diagnoses: MobileClinicalContextFact[];
   medicalHistory: MobileClinicalContextFact[];
   allergies: MobileClinicalContextFact[];
+  intakeDiagnoses: string[];
+  intakeAllergies: string[];
+  intakeMedicalHistory: string[];
 }
 
 /**
@@ -35,13 +38,19 @@ export class PatientClinicalContextReaderService {
   async load(patientId: string): Promise<MobileClinicalContext> {
     if (!patientId) throw new Error('Patient context requires a patientId.');
 
-    const [diagnoses, medicalHistory, allergies] = await Promise.all([
+    const [diagnoses, medicalHistory, allergies, patientSnap] = await Promise.all([
       this.read(patientId, 'diagnostic'),
       this.read(patientId, 'medicalHistory'),
       this.read(patientId, 'allergy'),
+      getDoc(doc(db, 'patients', patientId)).catch(() => null),
     ]);
+    const patient = patientSnap?.exists() ? patientSnap.data() as Record<string, any> : {};
+    const intake = patient['clinical'] || {};
 
     return {
+      intakeDiagnoses: this.intakeTexts(patient['diagnoses'] ?? intake['diagnoses']),
+      intakeAllergies: this.intakeTexts(patient['allergies'] ?? intake['allergies']),
+      intakeMedicalHistory: this.intakeTexts(patient['medicalHistory'] ?? intake['medicalHistory']),
       // Only provider-approved diagnoses are shown as established diagnoses.
       diagnoses: diagnoses
         .filter((row) => row.reviewStatus === 'approved' && row.status !== 'entered_in_error')
@@ -73,6 +82,14 @@ export class PatientClinicalContextReaderService {
         sourceReference: this.text(data.sourceReference),
       };
     });
+  }
+
+  private intakeTexts(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value.map(item =>
+      typeof item === 'string' ? item.trim() :
+      item && typeof item === 'object' ? this.text((item as any).description || (item as any).name) : null
+    ).filter((item): item is string => !!item))];
   }
 
   private text(value: unknown): string | null {
