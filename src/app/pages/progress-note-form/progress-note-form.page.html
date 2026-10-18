@@ -24,7 +24,8 @@
             <span>{{ dob | date: 'MM/dd/yyyy' }}</span>
             <span *ngIf="age(patient) !== null"> · {{ age(patient) }} yrs</span>
           </ng-container>
-          <span *ngIf="patient.mrn"> · MRN {{ patient.mrn }}</span>
+          <span *ngIf="patient.mrn || patient.identity?.mrn"> · MRN {{ patient.mrn || patient.identity?.mrn }}</span>
+          <span *ngIf="patient.accountNumber || patient.identity?.accountNumber"> · Account {{ patient.accountNumber || patient.identity?.accountNumber }}</span>
         </p>
       </div>
     </div>
@@ -69,6 +70,20 @@
             <strong>{{ item.description }}</strong>
             <span *ngIf="item.severity">{{ item.severity }}</span>
             <small *ngIf="item.reaction">Reaction: {{ item.reaction }}</small>
+          </div>
+        </section>
+
+        <section class="context-section" *ngIf="clinicalContext.intakeDiagnoses.length || clinicalContext.intakeMedicalHistory.length || clinicalContext.intakeAllergies.length">
+          <h3>Intake history — requires clinical verification</h3>
+          <p class="context-disclaimer">These are patient intake entries, not provider-approved diagnoses or reconciled allergy records. Confirm accuracy before using them in a note.</p>
+          <div class="context-row" *ngFor="let item of clinicalContext.intakeDiagnoses">
+            <strong>Intake diagnosis: {{ item }}</strong><small>Source: patient intake · unverified</small>
+          </div>
+          <div class="context-row" *ngFor="let item of clinicalContext.intakeMedicalHistory">
+            <strong>Intake medical history: {{ item }}</strong><small>Source: patient intake · unverified</small>
+          </div>
+          <div class="context-row" *ngFor="let item of clinicalContext.intakeAllergies">
+            <strong>Intake allergy: {{ item }}</strong><small>Source: patient intake · verify reaction and status</small>
           </div>
         </section>
 
