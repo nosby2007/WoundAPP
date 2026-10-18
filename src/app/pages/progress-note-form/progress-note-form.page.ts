@@ -92,7 +92,7 @@ export class ProgressNoteFormPage {
   loadingHistory = true;
   errorMsg = '';
   recent: ProgressNote[] = [];
-  clinicalContext: MobileClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+  clinicalContext: MobileClinicalContext = { diagnoses: [], medicalHistory: [], allergies: [], intakeDiagnoses: [], intakeAllergies: [], intakeMedicalHistory: [] };
   encounterContext: EncounterContext = { medications: [], activeOrders: [], vascular: [], systemic: [] };
   loadingClinicalContext = true;
   clinicalContextError = '';
@@ -137,7 +137,7 @@ export class ProgressNoteFormPage {
       this.clinicalContext = await this.clinicalContextReader.load(this.patientId);
     } catch (err) {
       console.error('Could not load canonical clinical context', err);
-      this.clinicalContext = { diagnoses: [], medicalHistory: [], allergies: [] };
+      this.clinicalContext = { diagnoses: [], medicalHistory: [], allergies: [], intakeDiagnoses: [], intakeAllergies: [], intakeMedicalHistory: [] };
       this.clinicalContextError = 'Clinical background could not be loaded. The note can still be written.';
     } finally {
       this.loadingClinicalContext = false;
