@@ -35,6 +35,13 @@ import { PatientService } from '../../services/patient.service';
 
         <section class="card" *ngIf="!loading">
           <div class="head"><div><p class="eyebrow dark">DEMOGRAPHICS</p><h2>Reception details</h2></div></div>
+          <p class="eyebrow dark section-label">PATIENT & EPISODE IDENTIFIERS</p>
+          <ion-item><ion-input label="MRN (10 digits · assigned by system)" labelPlacement="stacked" [value]="mrn || 'Pending server assignment'" [readonly]="true"></ion-input></ion-item>
+          <ion-item><ion-input label="Account Number (12 digits · episode)" labelPlacement="stacked" [value]="accountNumber || 'Pending episode assignment'" [readonly]="true"></ion-input></ion-item>
+          <p class="hint">Identifiers are read-only. Never enter a fabricated MRN or account number. Contact registration if missing.</p>
+          <p class="eyebrow dark section-label">CONSENT DOCUMENTS</p>
+          <p class="hint">Signed consent PDFs must be verified in Documents. Uploading a file is not equivalent to capturing an electronic signature.</p>
+          <ion-item><ion-input label="Consent documents on file" labelPlacement="stacked" [value]="consentDocumentCount" [readonly]="true"></ion-input></ion-item>
           <ion-item><ion-input label="Legal name" labelPlacement="stacked" [(ngModel)]="form.name"></ion-input></ion-item>
           <div class="grid">
             <ion-item><ion-input label="DOB" labelPlacement="stacked" type="date" [(ngModel)]="form.dob"></ion-input></ion-item>
@@ -148,6 +155,7 @@ export class IntakePatientPage {
   readonly documentAttachOutline=documentAttachOutline;
   readonly saveOutline=saveOutline;
   patientId='';
+  mrn=''; accountNumber=''; consentDocumentCount=0;
   loading=true; saving=false; uploading=false;
   error=''; message='';
   documents:MobilePatientDocument[]=[];
@@ -188,7 +196,10 @@ export class IntakePatientPage {
         emergencyContactName:patient.emergencyContactName||'',
         emergencyContactPhone:patient.emergencyContactPhone||''
       };
+      this.mrn=String(patient.mrn || '');
+      this.accountNumber=String(patient['accountNumber'] || patient['currentAccountNumber'] || '');
       this.documents=documents;
+      this.consentDocumentCount=documents.filter(d=>String(d.type || '').toLowerCase()==='consent').length;
     }catch(e:any){this.error=e?.message||'Unable to load patient.'}
     finally{this.loading=false}
   }
