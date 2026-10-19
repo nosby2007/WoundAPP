@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   query,
   runTransaction,
   serverTimestamp,
@@ -60,6 +61,10 @@ export interface FieldVisit {
   clinicianUid?: string | null;
   clinicianName?: string | null;
   clinicianRole?: string | null;
+  /** Scheduler's billing identity, kept separate from the field clinician. */
+  billingProviderUid?: string | null;
+  billingProviderName?: string | null;
+  billingProviderNpi?: string | null;
   checkIn: EvvCheckpoint | null;
   checkOut: EvvCheckpoint | null;
 }
@@ -214,6 +219,12 @@ export class VisitService {
           clinicianUid: user.uid,
           clinicianName: user.displayName ?? scheduled['assignedToName'] ?? null,
           clinicianRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
+          // Scheduler's billing attribution is independent of who performs
+          // the visit. Copy the source values when WoundAPP has to create the
+          // canonical visit shell at check-in.
+          billingProviderUid: scheduled['billingProviderUid'] ?? null,
+          billingProviderName: scheduled['billingProviderName'] ?? null,
+          billingProviderNpi: scheduled['billingProviderNpi'] ?? null,
           woundId: null,
           episodeId: null,
           checkIn: checkpoint,
@@ -384,6 +395,41 @@ export class VisitService {
       ));
     }).catch((error) => {
       console.warn('[VisitService] child wound visit completion reconciliation deferred', error);
+    });
+
+    // The progress note may have been written before checkout. Once field
+    // evidence is complete, promote already-filed human-reviewed note evidence
+    // to office-documentation complete without mixing it into the EVV
+    // transaction (which intentionally stays minimal).
+    const providerNotes = collection(db, `patients/${patientId}/providerNotes`);
+    void Promise.all([
+      getDocs(query(providerNotes, where('visitId', '==', visitId), limit(10))),
+      getDocs(query(providerNotes, where('fieldEncounterVisitId', '==', visitId), limit(10))),
+      getDocs(query(providerNotes, where('appointmentId', '==', visitId), limit(10))),
+    ]).then((noteSnapshots) => {
+      const hasHumanReviewedProgressNote = noteSnapshots.some((notesSnap) => notesSnap.docs.some((noteDoc) => {
+        const note = noteDoc.data() as any;
+        const type = String(note.type || '').trim().toLowerCase();
+        return note.humanReviewed !== false &&
+          (!type || type === 'progress notes' || type === 'progress note');
+      }));
+      if (!hasHumanReviewedProgressNote) return undefined;
+      return this.durableMutations.enqueueUpdate({
+        operation: 'visit_office_documentation_complete',
+        patientId,
+        entityType: 'woundVisit',
+        entityId: visitId,
+        firestorePath: `patients/${patientId}/woundVisits/${visitId}`,
+        payload: {
+          officeDocumentationState: 'complete',
+          officeDocumentationCompletedAt: DurableClinicalMutationService.serverTimestamp(),
+          officeDocumentationCompletedBy: user.uid,
+          updatedAt: DurableClinicalMutationService.serverTimestamp(),
+          updatedBy: user.uid,
+        },
+      });
+    }).catch((error) => {
+      console.warn('[VisitService] progress-note office-documentation reconciliation deferred', error);
     });
 
     void this.audit.record({

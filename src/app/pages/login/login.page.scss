@@ -1,8 +1,23 @@
-/* Sign-in. Light clinical shell like the rest of the app -- this page used
-   to be the only dark screen, which is what made every screen after it feel
-   like a different product. */
 .login-page {
-  --background: var(--ion-background-color);
+  --background: #0b5d45;
+}
+
+.login-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(211, 244, 230, .22), transparent 28%),
+    linear-gradient(165deg, #073e31 0%, #0b7551 43%, #2b9a72 72%, #b7e2d1 100%);
+}
+
+.login-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,45,34,.08));
 }
 
 .card-wrapper {
@@ -13,6 +28,32 @@
   padding: var(--app-space-5);
   max-width: 460px;
   margin: 0 auto;
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.card-wrapper.login-ready {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.public-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-bottom: 18px;
+  color: rgba(255,255,255,.92);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.public-return ion-icon {
+  font-size: 17px;
 }
 
 .brand-header {
@@ -28,35 +69,36 @@
   width: 48px;
   height: 48px;
   flex: 0 0 48px;
-  border-radius: 50%;
-  background: var(--ion-color-primary);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #0b7551, #124a3b);
   color: #fff;
-  font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 10px 22px rgba(5, 72, 52, .24);
 }
 
 .brand-text {
   h1 {
     margin: 0;
     font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--app-ink);
-    letter-spacing: -0.01em;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.015em;
   }
 
   p {
     margin: 2px 0 0;
     font-size: 0.82rem;
-    color: var(--app-ink-muted);
+    color: rgba(255,255,255,.76);
   }
 }
 
 .login-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(255,255,255,.72);
   border-radius: var(--app-radius-lg);
-  box-shadow: var(--app-shadow);
+  box-shadow: 0 24px 60px rgba(3, 48, 36, .24);
+  backdrop-filter: blur(14px);
   padding: var(--app-space-5);
 }
 
@@ -74,8 +116,6 @@
   color: var(--app-ink-muted);
 }
 
-/* Same boxed field as the intake and assessment forms, so the first screen a
-   nurse sees already teaches the shape every other form uses. */
 ion-item {
   margin-bottom: var(--app-space-3);
   --background: var(--app-surface);
@@ -132,4 +172,141 @@ ion-input::part(label) {
   text-align: center;
   font-size: 0.75rem;
   color: var(--app-ink-muted);
+}
+
+/* Splash inspired by the provided mobile reference: full-height gradient,
+   broad layered arcs, centered product identity. No external asset is needed,
+   so the login remains available offline and there is nothing new to fetch. */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #fff;
+  animation: splash-fade 650ms ease 2.4s forwards;
+}
+
+.splash-wave {
+  position: absolute;
+  border-radius: 50%;
+  border-style: solid;
+  pointer-events: none;
+}
+
+.wave-one {
+  width: 122vw;
+  height: 122vw;
+  left: -79vw;
+  top: 8vh;
+  border-width: 11vw;
+  border-color: rgba(6, 96, 69, .88);
+  transform: rotate(-18deg);
+}
+
+.wave-two {
+  width: 151vw;
+  height: 151vw;
+  left: -94vw;
+  top: -4vh;
+  border-width: 11vw;
+  border-color: rgba(73, 164, 125, .62);
+  transform: rotate(-18deg);
+}
+
+.wave-three {
+  width: 183vw;
+  height: 183vw;
+  left: -109vw;
+  top: -17vh;
+  border-width: 10vw;
+  border-color: rgba(199, 238, 221, .38);
+  transform: rotate(-18deg);
+}
+
+.splash-brand {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  transform: translateY(2vh);
+  animation: brand-rise 520ms cubic-bezier(.2,.75,.25,1);
+}
+
+.splash-mark {
+  position: relative;
+  width: 76px;
+  height: 76px;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(220, 255, 241, .9);
+  border-radius: 50%;
+}
+
+.ring-one {
+  transform: scale(.92);
+}
+
+.ring-two {
+  transform: translateX(10px) scale(.72);
+  opacity: .78;
+}
+
+.ring-three {
+  transform: translateX(19px) scale(.51);
+  opacity: .58;
+}
+
+.splash-wordmark {
+  font-size: clamp(28px, 7vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: rgba(239, 255, 248, .96);
+}
+
+.splash-tagline {
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(255,255,255,.78);
+}
+
+@keyframes brand-rise {
+  from { opacity: 0; transform: translateY(5vh) scale(.97); }
+  to { opacity: 1; transform: translateY(2vh) scale(1); }
+}
+
+@keyframes splash-fade {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-wrapper,
+  .splash-screen,
+  .splash-brand {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .card-wrapper {
+    justify-content: flex-start;
+    padding-top: max(28px, env(safe-area-inset-top));
+  }
+
+  .public-return {
+    margin-top: 6px;
+  }
+
+  .splash-brand {
+    transform: translateY(0);
+  }
 }

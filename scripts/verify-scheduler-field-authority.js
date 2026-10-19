@@ -56,7 +56,11 @@ forbid(fieldPage, "appointment visit linkage will retry", 'Field visit EVV point
 for (const value of [
   "sourceOfTruth: 'woundapp'",
   "patients/${patientId}/woundEpisodes",
+  "visitScope: 'patient_visit'",
+  'woundIds: arrayUnion(woundId)',
   'fieldWoundIds: arrayUnion(woundId)',
+  'const legacySingleWound =',
+  'payload.visitId = clinicalVisitId',
   'needsProviderAssignment: identity.role !== \'np\'',
 ]) need(assessments, value, 'AssessmentsService');
 
@@ -67,4 +71,4 @@ for (const value of [
   'newWound: !this.woundId',
 ]) need(form, value, 'Assessment form');
 
-console.log('PASS Schedule-native EVV: Schedule id is the deterministic physical encounter, check-in does not depend on stale woundVisit pointers or durable browser storage, the field encounter remains wound-neutral, and WoundAPP keeps wound-specific child records downstream.');
+console.log('PASS Schedule-native EVV: Schedule id is the deterministic physical patient visit, check-in does not depend on stale woundVisit pointers or durable browser storage, new assessments share one patient_visit, and only legacy single_wound encounters retain child-record compatibility.');

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VisitWorkflowPolicyService, WorkflowCircle } from './visit-workflow-policy.service';
-import { ClinicalVisitLink } from '../shared/clinical-visit-link';
+import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 
 export interface WorkflowCompletionItem {
   circle: WorkflowCircle;
@@ -77,30 +77,7 @@ export class VisitCompletenessService {
   }
 
   private matchesVisit(row: any, link: ClinicalVisitLink): boolean {
-    const visitId = (link.visitId || '').trim();
-    const appointmentId = (link.appointmentId || '').trim();
-
-    if (visitId) {
-      const visitRefs = [
-        row?.id,
-        row?.visitId,
-        row?.woundVisitId,
-        row?.clinicalVisitId,
-        row?.fieldEncounterVisitId,
-        row?.mobileWorkflow?.woundVisitId,
-      ].filter(Boolean).map(String);
-      if (visitRefs.includes(visitId)) return true;
-    }
-
-    if (appointmentId) {
-      const appointmentRefs = [
-        row?.appointmentId,
-        row?.mobileWorkflow?.appointmentId,
-      ].filter(Boolean).map(String);
-      if (appointmentRefs.includes(appointmentId)) return true;
-    }
-
-    return false;
+    return matchesClinicalVisitLink(row,link);
   }
 
   private async read(path: string): Promise<any[]> {

@@ -1,5 +1,5 @@
 // src/app/pages/assessment-form/assessment-form.page.ts
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ToastController,
@@ -34,6 +34,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
 import { Camera, CameraDirection, CameraResultType, CameraSource } from '@capacitor/camera';
 import { AssessmentsService } from '../../services/assessments.service';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { WoundRoundMobileService } from '../../services/wound-round.service';
 import { getAuth } from 'firebase/auth';
 import { take } from 'rxjs/operators';
@@ -67,6 +68,7 @@ import {
   WOUND_TYPES,
 } from 'src/app/shared/wound-vocabulary';
 import { buildWoundTreatment } from 'src/app/shared/wound-treatment';
+import { assessmentDebridementGroup, assessmentDebridementPayload } from '../../shared/assessment-debridement';
 import {
   stripWoundIdForUpdate,
   woundIdForCreate,
@@ -120,13 +122,14 @@ import { clinicalVisitQueryParams } from 'src/app/shared/clinical-visit-link';
     IonToolbar,
   ],
 })
-export class AssessmentFormPage implements OnInit {
+export class AssessmentFormPage implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private assessments = inject(AssessmentsService);
   private rounds = inject(WoundRoundMobileService);
   private toastCtrl = inject(ToastController);
+  private drafts = inject(ClinicalDraftService);
 
   patientId = this.route.snapshot.paramMap.get('patientId')!;
   assessmentId = this.route.snapshot.paramMap.get('assessmentId'); // undefined = NEW
@@ -210,6 +213,9 @@ export class AssessmentFormPage implements OnInit {
   additionalCareOptions = ADDITIONAL_CARE;
 
   loading = false;
+  draftStatus = '';
+  private draftTimer?: ReturnType<typeof setTimeout>;
+  private restoringDraft = false;
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
 
@@ -284,6 +290,7 @@ export class AssessmentFormPage implements OnInit {
     orders: this.fb.group({
       goalOfCare: [''],
     }),
+    debridementProcedure: assessmentDebridementGroup(this.fb),
     treatment: this.fb.group({
       dressingAppearance: [''],
       cleansing: [''],
@@ -321,13 +328,24 @@ export class AssessmentFormPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.form.valueChanges.subscribe(() => {
+      if (!this.restoringDraft) this.scheduleDraft();
+    });
+
     if (this.assessmentId) {
       this.loadForEdit();
       return;
     }
     if (this.isReevaluation) {
       void this.loadReevaluationBaseline();
+      return;
     }
+    void this.restoreDraft();
+  }
+
+  ngOnDestroy(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    void this.persistDraft();
   }
 
   private async loadReevaluationBaseline(): Promise<void> {
@@ -416,6 +434,7 @@ export class AssessmentFormPage implements OnInit {
       console.error('[AssessmentForm] re-evaluation baseline load failed', error);
     } finally {
       this.loading = false;
+      await this.restoreDraft();
     }
   }
 
@@ -504,11 +523,16 @@ export class AssessmentFormPage implements OnInit {
             },
           });
 
+          if (data.debridementProcedure) {
+            this.form.controls.debridementProcedure.patchValue(data.debridementProcedure);
+          }
+
           if (data.photoURL) {
             this.photoPreview = data.photoURL;
           }
 
           this.loading = false;
+          void this.restoreDraft();
         },
         error: (err) => {
           console.error('[AssessmentForm] loadForEdit error', err);
@@ -522,6 +546,55 @@ export class AssessmentFormPage implements OnInit {
     if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
+  }
+
+  private draftKey() {
+    const modeKey = this.assessmentId
+      ? `edit:${this.assessmentId}`
+      : this.woundId
+        ? `reeval:${this.woundId}`
+        : 'new';
+    return {
+      formKind: 'wound_assessment' as const,
+      patientId: this.patientId,
+      contextKey: [
+        modeKey,
+        this.fieldEncounterVisitId || this.appointmentId || 'no-visit',
+      ].join(':'),
+    };
+  }
+
+  private scheduleDraft(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
+  }
+
+  private async restoreDraft(): Promise<void> {
+    if (!this.patientId) return;
+    try {
+      const saved = await this.drafts.load<any>(this.draftKey());
+      if (!saved?.payload?.form) return;
+      this.restoringDraft = true;
+      this.form.patchValue(saved.payload.form, { emitEvent: false });
+      this.draftStatus = saved.updatedAt
+        ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
+        : 'Draft restored';
+    } catch {
+      // Draft recovery is additive and must never block wound documentation.
+    } finally {
+      this.restoringDraft = false;
+    }
+  }
+
+  private async persistDraft(): Promise<void> {
+    if (!this.patientId || this.loading || this.restoringDraft) return;
+    const form = this.form.getRawValue();
+    try {
+      await this.drafts.save(this.draftKey(), { form });
+      this.draftStatus = 'Draft autosaved.';
+    } catch {
+      this.draftStatus = 'Draft not synced yet.';
+    }
   }
 
   async takePhoto() {
@@ -691,6 +764,8 @@ export class AssessmentFormPage implements OnInit {
       // entirely rather than stored as a row of blanks, so a reader can tell
       // "no dressing recorded" from "no dressing applied".
       const treatment = buildWoundTreatment(v.treatment);
+      const procedure = assessmentDebridementPayload(v.debridementProcedure);
+      if (procedure) basePayload.debridementProcedure = procedure;
       if (treatment) basePayload.treatment = treatment;
       if (v.orders.goalOfCare) basePayload.orders = { goalOfCare: v.orders.goalOfCare };
 
@@ -703,11 +778,20 @@ export class AssessmentFormPage implements OnInit {
         // so it points at itself.
         id = this.assessments.newId(this.patientId);
         basePayload.woundId = woundIdForCreate(this.woundId, id);
-        await this.assessments.createWithId(this.patientId, id, basePayload, {
+        const linkResult = await this.assessments.createWithId(this.patientId, id, basePayload, {
           appointmentId: this.appointmentId,
           fieldEncounterVisitId: this.fieldEncounterVisitId,
           newWound: !this.woundId,
         });
+        // The service resolves the canonical wound/episode/visit linkage in
+        // the same batch as the assessment. Keep that exact identity in this
+        // page so downstream Care Plan / Education / Orders / Progress Note
+        // do not fall back to a wound-neutral physical encounter.
+        this.woundId = linkResult.woundId;
+        this.appointmentId = linkResult.appointmentId || this.appointmentId;
+        this.fieldEncounterVisitId = linkResult.fieldEncounterVisitId || this.fieldEncounterVisitId;
+        basePayload.woundId = linkResult.woundId;
+        basePayload.episodeId = linkResult.episodeId;
       } else {
         basePayload.updatedAt = now;
         // Never on an update. The stored value is the wound's identity and
@@ -753,6 +837,9 @@ export class AssessmentFormPage implements OnInit {
 
       this.loading = false;
       await savingToast.dismiss();
+
+      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      this.draftStatus = '';
 
       const doneToast = await this.toastCtrl.create({
         message: this.roundId

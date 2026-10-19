@@ -21,11 +21,13 @@ for (const value of [
   'Clinical Visit Record',
   'Patient face sheet',
   'Rendering clinician',
-  'Encounter verification / EVV',
-  'Clinical document manifest',
-  'Authentication and source statement',
-  'Record requires review before external release',
-  'This record was compiled from chart documents explicitly linked to the selected clinical encounter.',
+  'Encounter times',
+  'Clinical documents',
+  'Clinical authentication',
+  '@page { size: A4;',
+  '478-310-4446',
+  '478-721-9473',
+  'support@perryhomewoundcare.network',
 ]) need(svc, value, 'professional visit packet');
 
 for (const value of [
@@ -44,5 +46,8 @@ const packetEnd = svc.indexOf('private async buildDocument(', packetStart);
 const packetBlock = svc.slice(packetStart, packetEnd);
 forbid(packetBlock, 'this.renderObject(record.data)', 'visit packet');
 forbid(packetBlock, 'Object.keys(value).sort()', 'visit packet');
+forbid(svc, 'Generated from the clinical chart.', 'external report');
+forbid(svc, 'Source record ${', 'external report');
+forbid(svc, 'Record ${this.escape(record.id)}', 'external report');
 
 console.log('PASS professional visit packet: encounter-scoped clinical record replaces raw Firestore object dump.');

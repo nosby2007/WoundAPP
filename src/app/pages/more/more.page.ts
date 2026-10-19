@@ -7,6 +7,7 @@ import { AuthService } from '../../services/auth.service';
 import { TenantService } from '../../services/tenant.service';
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
 import { FieldRolePolicyService } from '../../services/field-role-policy.service';
+import { canFacilitateTelehealth } from '../../shared/telehealth-policy';
 
 @Component({
   selector: 'app-more',
@@ -33,10 +34,12 @@ import { FieldRolePolicyService } from '../../services/field-role-policy.service
         <section class="section">
           <p class="eyebrow dark">CLINICAL WORKSPACE</p>
           <ion-list lines="none" class="menu">
+            <ion-item button *ngIf="canUseTelehealth" (click)="telehealth()"><ion-label><strong>Telehealth</strong><p>Call the assigned NP with the patient, directly from WoundAPP.</p></ion-label><ion-badge color="success">New</ion-badge></ion-item>
             <ion-item button detail="false" *ngIf="canSeeField" (click)="mySchedule()"><div class="menu-icon"><ion-icon [icon]="calendarOutline"></ion-icon></div><ion-label><strong>My Schedule</strong><p>Today, upcoming visits and self-planning for your own clinical workload.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
-            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeWoundRounds" (click)="woundRounds()"><div class="menu-icon featured"><ion-icon [icon]="businessOutline"></ion-icon></div><ion-label><strong>Wound Rounds</strong><p>iPad-ready facility rounds, patient queue, wound assessments and QA progress.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeField" (click)="today()"><div class="menu-icon"><ion-icon [icon]="sparklesOutline"></ion-icon></div><ion-label><strong>Today Command</strong><p>Visits, field tasks and point-of-care execution for today.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canSeeClinical" (click)="visitHistory()"><div class="menu-icon featured"><ion-icon [icon]="documentTextOutline"></ion-icon></div><ion-label><strong>Visit History</strong><p>Review all saved patient visits, field outcomes, clinician, EVV checkpoints and documentation handoff.</p></ion-label><ion-badge color="success">New</ion-badge><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
+            <ion-item button detail="false" *ngIf="canSeeClinical" (click)="clinicalDocuments()"><div class="menu-icon"><ion-icon [icon]="documentAttachOutline"></ion-icon></div><ion-label><strong>Patient Documents</strong><p>Select a patient, then open referrals, authorizations, insurance, labs and other chart documents.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
             <ion-item button detail="false" *ngIf="canCreatePatient" (click)="newPatient()"><div class="menu-icon"><ion-icon [icon]="personAddOutline"></ion-icon></div><ion-label><strong>New patient</strong><p>Create a patient record when your role permits it.</p></ion-label><ion-icon slot="end" [icon]="chevronForwardOutline"></ion-icon></ion-item>
           </ion-list>
         </section>
@@ -95,7 +98,9 @@ export class MorePage implements OnInit {
   online = navigator.onLine;
   signingOut = false;
   canSeeClinical = false;
+  canSeeWoundRounds = false;
   canSeeField = false;
+  canUseTelehealth = false;
   canUseScheduler = false;
   canCreatePatient = false;
   accessLevel = 'unknown';
@@ -120,7 +125,9 @@ export class MorePage implements OnInit {
     this.identityProblem = readiness.missing.length ? `Missing: ${readiness.missing.join(', ')}.` : '';
     if (readiness.identity) {
       this.canSeeClinical = this.rolePolicy.canUseClinicalWorkspace(readiness.identity);
+      this.canSeeWoundRounds = this.rolePolicy.canUseWoundRoundWorkspace(readiness.identity);
       this.canSeeField = this.rolePolicy.canUseFieldToday(readiness.identity);
+      this.canUseTelehealth = !!readiness.identity && canFacilitateTelehealth([readiness.identity.role, ...(readiness.identity.roles || [])]);
       this.canUseScheduler = this.rolePolicy.canUseSchedulingWorkspace(readiness.identity);
       this.canCreatePatient = this.rolePolicy.canCreatePatient(readiness.identity);
       this.accessLevel = this.rolePolicy.accessLevel(readiness.identity);
@@ -134,9 +141,11 @@ export class MorePage implements OnInit {
   @HostListener('window:offline') onOffline(): void { this.online = false; }
 
   today(): void { void this.router.navigate(['/tabs/today']); }
+  telehealth(): void { void this.router.navigate(['/tabs/telehealth']); }
   mySchedule(): void { void this.router.navigate(['/tabs/my-schedule']); }
   woundRounds(): void { void this.router.navigate(['/tabs/wound-rounds']); }
   visitHistory(): void { void this.router.navigate(['/tabs/visit-history']); }
+  clinicalDocuments(): void { void this.router.navigate(['/tabs/patients'], { queryParams: { open: 'documents' } }); }
   schedulerWorkspace(): void { void this.router.navigate(['/tabs/scheduler']); }
   intakePatients(): void { void this.router.navigate(['/tabs/intake-patients']); }
   newPatient(): void { void this.router.navigate(['/tabs/add-patient']); }

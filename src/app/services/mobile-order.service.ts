@@ -233,13 +233,32 @@ export class MobileOrderService {
     if (requestedSnap.exists()) {
       const requested = requestedSnap.data() as Record<string, unknown>;
       const requestedWoundId = String(requested['woundId'] || '').trim();
-      if (requestedWoundId === woundId) {
+      const visitScope = String(requested['visitScope'] || '').trim();
+      const linkedWoundIds = Array.from(new Set([
+        ...((Array.isArray(requested['woundIds']) ? requested['woundIds'] : []) as unknown[]),
+        ...((Array.isArray(requested['fieldWoundIds']) ? requested['fieldWoundIds'] : []) as unknown[]),
+      ].map(value => String(value || '').trim()).filter(Boolean)));
+
+      if (requestedWoundId === woundId || (visitScope === 'patient_visit' && linkedWoundIds.includes(woundId))) {
+        let resolvedEpisodeId = String(requested['episodeId'] || baseLink.episodeId || '').trim() || null;
+        if (!resolvedEpisodeId) {
+          try {
+            const woundSnap = await getDoc(doc(db, `patients/${patientId}/wounds/${woundId}`));
+            resolvedEpisodeId = woundSnap.exists()
+              ? String((woundSnap.data() as any).activeEpisodeId || '').trim() || null
+              : null;
+          } catch {
+            resolvedEpisodeId = null;
+          }
+        }
         return {
           ...baseLink,
+          // patient_visit stays the one physical encounter; never manufacture
+          // a per-wound visit id to make an order fit.
           visitId: requestedVisitId,
           fieldEncounterVisitId,
           woundId,
-          episodeId: String(requested['episodeId'] || baseLink.episodeId || '').trim() || null,
+          episodeId: resolvedEpisodeId,
         };
       }
     }

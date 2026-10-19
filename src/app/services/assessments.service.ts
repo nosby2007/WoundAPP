@@ -16,12 +16,15 @@ import {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  runTransaction,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Storage, ref, uploadString, getDownloadURL } from '@angular/fire/storage';
 import { ClinicalIdentityService } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
+import { normalizeFieldRole } from './field-role-policy.service';
+import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 
 export interface FieldAssessmentContext {
   appointmentId?: string | null;
@@ -30,9 +33,19 @@ export interface FieldAssessmentContext {
   newWound?: boolean;
 }
 
+export interface AssessmentVisitLinkResult {
+  assessmentId: string;
+  visitId: string | null;
+  appointmentId: string | null;
+  fieldEncounterVisitId: string | null;
+  woundId: string;
+  episodeId: string | null;
+}
+
 export interface MobileAssessment {
   id: string;
   woundId?: string;
+  episodeId?: string;
   type?: string;
   stage?: string;
   location?: string;
@@ -40,6 +53,12 @@ export interface MobileAssessment {
   status?: string;
   assessedAt?: Date;
   photoURL?: string;
+  visitId?: string | null;
+  woundVisitId?: string | null;
+  fieldEncounterVisitId?: string | null;
+  appointmentId?: string | null;
+  authorName?: string | null;
+  reviewed?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -56,6 +75,7 @@ export class AssessmentsService {
       map((docs: any[]) => docs.map((d) => ({
         id: d.id,
         woundId: d.woundId || null,
+        episodeId: d.episodeId || null,
         type: d.describe?.type || d.type || 'Unknown',
         stage: d.describe?.stage || d.stage,
         location: d.describe?.location || d.location || 'Unknown',
@@ -66,6 +86,10 @@ export class AssessmentsService {
           : d.assessedAt ? new Date(d.assessedAt)
           : d.createdAt ? new Date(d.createdAt) : undefined,
         photoURL: d.photoURL || null,
+        visitId: d.visitId || null, woundVisitId: d.woundVisitId || null,
+        fieldEncounterVisitId: d.fieldEncounterVisitId || null, appointmentId: d.appointmentId || null,
+        authorName: d.authorIdentity?.displayName || d.createdByName || null,
+        reviewed: d.providerReview?.reviewed === true,
       })))
     );
   }
@@ -81,6 +105,7 @@ export class AssessmentsService {
       map((d: any) => d ? {
         id: assessmentId,
         woundId: d.woundId || null,
+        episodeId: d.episodeId || null,
         type: d.describe?.type || d.type || 'Unknown',
         stage: d.describe?.stage || d.stage,
         location: d.describe?.location || d.location || 'Unknown',
@@ -98,6 +123,58 @@ export class AssessmentsService {
   getRaw(patientId: string, assessmentId: string): Observable<any | null> {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
     return docData(refDoc).pipe(map((d: any) => d ? { ...d, id: assessmentId } : null));
+  }
+
+  async recordProviderReview(patientId: string, assessmentId: string, note: string, decision: 'Concur' | 'Modified', attestation: boolean): Promise<void> {
+    const actor = await this.clinicalIdentity.requireCurrentIdentity();
+    if (![actor.role, ...actor.roles].map(normalizeFieldRole).some(r => ['np','provider','md','do','physician'].includes(r))) throw new Error('Provider role required.');
+    if (!attestation || !note.trim() || !['Concur','Modified'].includes(decision)) throw new Error('Enter your clinical review and accept the attestation.');
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    await runTransaction(this.firestore, async tx => {
+      const snap = await tx.get(assessmentRef);
+      const d = snap.data();
+      const patient = (await tx.get(doc(this.firestore, `patients/${patientId}`))).data();
+      const patientOrg = patient?.['orgId'] || patient?.['orgID'];
+      const evidenceOrg = d?.['orgId'] || d?.['orgID'] || d?.['authorIdentity']?.orgId || patientOrg;
+      if (!d || patientOrg !== actor.orgId || evidenceOrg !== actor.orgId || (d['patientId'] && d['patientId'] !== patientId)) throw new Error('Assessment is unavailable in your organization.');
+      if (d['providerReview']?.reviewed) throw new Error('Already reviewed. Use a separate clinical note for an additional review.');
+      if (!d['locked'] || !(d['esign']?.signed === true || d['signed'] === true)) throw new Error('The assessment must be signed and locked before provider review.');
+      tx.update(assessmentRef, {providerReview:{reviewed:true,reviewedAt:serverTimestamp(),reviewedByUid:actor.uid,
+        reviewedByName:actor.displayName,providerNote:note.trim(),decision,attestationAccepted:true},updatedAt:serverTimestamp()});
+    });
+    // Do not report a committed clinical review as failed if auxiliary audit is unavailable.
+    await this.audit.record({action:'wound_assessment_provider_reviewed',patientId,entityType:'woundAssessment',entityId:assessmentId}).catch(() => {});
+  }
+
+  async acceptEpisodeResponsibility(patientId: string, assessmentId: string): Promise<void> {
+    const actor = await this.clinicalIdentity.requireCurrentIdentity({requireNpi:true});
+    if (![actor.role, ...actor.roles].map(normalizeFieldRole).includes('np') || !/^\d{10}$/.test(actor.npi || '')) throw new Error('An NP with a valid NPI must accept episode responsibility.');
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    await runTransaction(this.firestore, async tx => {
+      const assessment = (await tx.get(assessmentRef)).data();
+      const patient = (await tx.get(doc(this.firestore, `patients/${patientId}`))).data();
+      const patientOrg = patient?.['orgId'] || patient?.['orgID'];
+      const evidenceOrg = assessment?.['orgId'] || assessment?.['orgID'] || assessment?.['authorIdentity']?.orgId || patientOrg;
+      if (!assessment || patientOrg !== actor.orgId || evidenceOrg !== actor.orgId || !assessment['episodeId'] || (assessment['patientId'] && assessment['patientId'] !== patientId)) throw new Error('No eligible linked episode.');
+      const episodeRef = doc(this.firestore, `patients/${patientId}/woundEpisodes/${assessment['episodeId']}`);
+      const episode = (await tx.get(episodeRef)).data();
+      if (!episode || (episode['orgId'] || episode['orgID']) !== actor.orgId || episode['patientId'] !== patientId ||
+        episode['woundId'] !== (assessment['woundId'] || assessmentId) || episode['status'] === 'closed') throw new Error('Episode linkage or status is not eligible.');
+      if (episode['providerOfRecordUid'] && episode['providerOfRecordUid'] !== actor.uid) throw new Error('Another provider is responsible. Reassignment requires the JADE episode editor.');
+      if (episode['providerOfRecordUid'] === actor.uid && episode['providerOfRecordNpi'] === actor.npi && episode['providerOfRecordName'] === actor.displayName && episode['needsProviderAssignment'] === false) return;
+      tx.update(episodeRef, {providerOfRecordUid:actor.uid,providerOfRecordName:actor.displayName,providerOfRecordNpi:actor.npi,
+        episodeOwnerType:'np',needsProviderAssignment:false,updatedAt:serverTimestamp(),updatedBy:actor.uid,
+        providerAssignmentHistory:arrayUnion({field:'providerOfRecordUid',previousUid:episode['providerOfRecordUid'] || null,
+          previousName:episode['providerOfRecordName'] || null,newUid:actor.uid,newName:actor.displayName,
+          changedByUid:actor.uid,changedByName:actor.displayName,changedAt:new Date(),reason:'Explicit NP acceptance from the linked wound assessment'})});
+    });
+  }
+
+  async assessmentForVisit(patientId: string, woundId: string, link: ClinicalVisitLink): Promise<any | null> {
+    const snap = await getDocs(collection(this.firestore, `patients/${patientId}/woundAssessments`));
+    return snap.docs.map(s => ({...s.data(),id:s.id} as any))
+      .filter(d => (d.woundId || d.id) === woundId && matchesClinicalVisitLink(d,link))
+      .sort((a,b) => this.assessmentTimeMs(b) - this.assessmentTimeMs(a))[0] || null;
   }
 
 
@@ -165,7 +242,7 @@ export class AssessmentsService {
     id: string,
     data: any,
     fieldContext: FieldAssessmentContext = {}
-  ): Promise<void> {
+  ): Promise<AssessmentVisitLinkResult> {
     const payload = await this.withCanonicalAuthor({
       ...data,
       appointmentId: fieldContext.appointmentId || null,
@@ -176,6 +253,14 @@ export class AssessmentsService {
     const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
     const woundId = String(payload.woundId || id);
     const now = serverTimestamp();
+    // Carry billing attribution from the canonical encounter only; never infer clinical responsibility.
+    let scheduledBilling: any = {};
+    if (fieldContext.fieldEncounterVisitId) {
+      const visit = (await getDoc(doc(this.firestore, `patients/${patientId}/woundVisits/${fieldContext.fieldEncounterVisitId}`))).data();
+      if (visit && (visit['orgId'] || visit['orgID']) === identity.orgId && visit['billingProviderUid'] && /^\d{10}$/.test(visit['billingProviderNpi'] || '')) {
+        scheduledBilling = {billingProviderUid:visit['billingProviderUid'],billingProviderName:visit['billingProviderName'] || null,billingProviderNpi:visit['billingProviderNpi']};
+      }
+    }
 
     let patient: any = null;
     let facilityId: string | null = null;
@@ -221,8 +306,7 @@ export class AssessmentsService {
           history: [{
             toState: 'created',
             fromState: null,
-            // Firestore serverTimestamp() is not supported inside arrays.
-            // Preserve the event time as a concrete timestamp in history.
+            // Firestore does not support serverTimestamp() inside arrays.
             occurredAt: new Date(),
             actor,
             comment: 'Wound established from WoundAPP field assessment.',
@@ -252,12 +336,15 @@ export class AssessmentsService {
         assignedClinicianName: identity.displayName,
         episodeOwnerType: identity.role === 'np' ? 'np' : null,
         fieldOpenedByRole: identity.role,
+        primaryRnUid: identity.role === 'nurse' ? identity.uid : null,
+        primaryRnName: identity.role === 'nurse' ? identity.displayName : null,
         providerOfRecordUid: identity.role === 'np' ? identity.uid : null,
         providerOfRecordName: identity.role === 'np' ? identity.displayName : null,
         providerOfRecordNpi: identity.role === 'np' ? identity.npi : null,
         billingProviderUid: identity.role === 'np' ? identity.uid : null,
         billingProviderName: identity.role === 'np' ? identity.displayName : null,
         billingProviderNpi: identity.role === 'np' ? identity.npi : null,
+        ...scheduledBilling,
         needsProviderAssignment: identity.role !== 'np',
         startDate: new Date().toISOString().slice(0, 10),
         notes: 'Created from WoundAPP first field assessment.',
@@ -291,29 +378,42 @@ export class AssessmentsService {
       const fieldVisit = fieldVisitSnap.data() as any;
       const appointmentId = fieldContext.appointmentId || fieldVisit.appointmentId || null;
       const existingWoundId = String(fieldVisit.woundId || '').trim();
+      const legacySingleWound =
+        fieldVisit.visitScope === 'single_wound' && !!existingWoundId;
 
       let clinicalVisitId = fieldVisitId;
 
-      if (!existingWoundId || existingWoundId === woundId) {
-        // First wound discovered in this physical appointment: promote the
-        // pre-wound field envelope into the wound-specific clinical visit.
-        // This preserves the original EVV/check-in identity and avoids a
-        // shadow visit.
+      if (!legacySingleWound) {
+        // Contract v1: one Scheduler appointment == one physical patient visit.
+        // Every wound assessment in this encounter links back to the same
+        // deterministic Schedule/EVV visit. Wounds and episodes remain
+        // wound-specific; the physical visit itself stays wound-neutral.
         batch.update(fieldVisitRef, {
-          woundId,
-          visitScope: 'single_wound',
-          episodeId: episodeId || fieldVisit.episodeId || null,
+          visitScope: 'patient_visit',
+          woundId: null,
+          episodeId: null,
+          assessmentIds: arrayUnion(id),
+          woundIds: arrayUnion(woundId),
+          fieldWoundIds: arrayUnion(woundId),
+          ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+      } else if (existingWoundId === woundId) {
+        // Transitional compatibility only. Visits already promoted to the
+        // historical single_wound shape stay readable and are never rewritten
+        // into the new patient_visit contract.
+        batch.update(fieldVisitRef, {
           assessmentIds: arrayUnion(id),
           fieldWoundIds: arrayUnion(woundId),
-          fieldWoundVisitIds: arrayUnion(fieldVisitId),
           ...(episodeId ? { fieldEpisodeIds: arrayUnion(episodeId) } : {}),
           updatedAt: now,
           updatedBy: identity.uid,
         });
       } else {
-        // A single physical appointment can include several wounds. Each
-        // additional wound gets a deterministic wound-specific clinical
-        // record while sharing the physical appointment/EVV source.
+        // Transitional compatibility for an already-started legacy encounter.
+        // New patient_visit encounters never enter this branch and therefore
+        // never generate per-wound child visits.
         clinicalVisitId = `${fieldVisitId}__${woundId}`;
         const childRef = doc(this.firestore, `patients/${patientId}/woundVisits/${clinicalVisitId}`);
         const childSnap = await getDoc(childRef);
@@ -394,6 +494,15 @@ export class AssessmentsService {
     } catch (auditError) {
       console.error('[AssessmentsService] Assessment committed; audit recording failed', auditError);
     }
+
+    return {
+      assessmentId: id,
+      visitId: (payload.visitId as string | null | undefined) ?? null,
+      appointmentId: (payload.appointmentId as string | null | undefined) ?? fieldContext.appointmentId ?? null,
+      fieldEncounterVisitId: (payload.fieldEncounterVisitId as string | null | undefined) ?? fieldContext.fieldEncounterVisitId ?? null,
+      woundId,
+      episodeId: (payload.episodeId as string | null | undefined) ?? episodeId ?? null,
+    };
   }
 
   async update(patientId: string, id: string, data: any): Promise<void> {

@@ -92,6 +92,12 @@
         <ion-button size="small" fill="outline" [disabled]="documentBusy()" (click)="shareVisitPacket()">
           <ion-icon slot="start" name="share-outline"></ion-icon>Send clinical record
         </ion-button>
+        <ion-button size="small" fill="outline" (click)="openPatientDocuments()">
+          <ion-icon slot="start" name="documents-outline"></ion-icon>Patient documents
+        </ion-button>
+        <ion-button size="small" color="success" fill="solid" (click)="openSignatureCenter()">
+          <ion-icon slot="start" name="shield-checkmark-outline"></ion-icon>Review &amp; sign
+        </ion-button>
       </div>
 
       <div class="document-flow">
@@ -137,7 +143,7 @@
 
         <div class="document-circle">
           <button class="circle-main" type="button" (click)="openCarePlan()">
-            <span class="circle-index">5</span><strong>Care Plan</strong><small>Goals & plan of care</small>
+            <span class="circle-index">5</span><strong>Wound Care Plan</strong><small>Goals for the selected wound</small>
           </button>
           <div class="circle-actions">
             <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('carePlan')"><ion-icon name="print-outline"></ion-icon></ion-button>
@@ -187,6 +193,13 @@
       </div>
     </section>
 
+    <section *ngIf="visitAssessments().length">
+      <h2>Assessments already captured for this visit</h2>
+      <p>Review the existing findings. A separate reassessment is needed only when clinically indicated.</p>
+      <ion-button fill="outline" *ngFor="let assessment of visitAssessments()" (click)="openAssessment(assessment)">
+        {{ assessment.location }} · {{ assessment.authorName || 'Clinical team' }} · {{ assessment.reviewed ? 'Reviewed' : 'Open / provider review' }}
+      </ion-button>
+    </section>
     <ion-searchbar placeholder="Search by type, location…" [ngModel]="search()" (ngModelChange)="search.set($event)"></ion-searchbar>
 
     <div *ngIf="loading()" class="center"><ion-spinner name="crescent"></ion-spinner></div>
@@ -202,17 +215,25 @@
         <ion-label class="assessment-main">
           <div class="assessment-left"><h2 class="assessment-title">{{ a.type || 'Assessment' }}</h2>
             <p class="assessment-sub">{{ a.location || 'Location N/A' }}<span *ngIf="a.assessedAt"> · {{ a.assessedAt | date: 'MM/dd/yyyy' }}</span><span *ngIf="a.assessmentCount > 1" class="reeval-count"> · {{ a.assessmentCount }} assessments</span></p>
-            <ion-button size="small" fill="solid" class="btn-reeval reeval-mobile" (click)="$event.stopPropagation(); reEvaluate(a)">
-              <ion-icon slot="start" name="refresh-outline"></ion-icon>
-              Re-evaluate
-            </ion-button>
+            <div class="wound-mobile-actions">
+              <ion-button size="small" fill="outline" class="btn-care-plan care-plan-mobile" (click)="$event.stopPropagation(); openWoundCarePlan(a)">
+                <ion-icon slot="start" name="reader-outline"></ion-icon>
+                Care plan
+              </ion-button>
+              <ion-button size="small" fill="solid" class="btn-reeval reeval-mobile" (click)="$event.stopPropagation(); reEvaluate(a)">
+                <ion-icon slot="start" name="refresh-outline"></ion-icon>
+                Re-evaluate
+              </ion-button>
+            </div>
           </div>
           <div class="assessment-right"><div class="assessment-badges"><span class="chip status-chip" [ngClass]="a.status">{{ a.status || 'unknown' }}</span><span *ngIf="a.stage" class="chip stage-chip">Stage {{ a.stage }}</span></div></div>
         </ion-label>
         <div class="actions" slot="end" (click)="$event.stopPropagation()">
+          <ion-button size="small" fill="outline" (click)="openTelehealth(a)">New Telehealth</ion-button>
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="printClinicalDocument('woundAssessment', a.id)" aria-label="Print this wound assessment"><ion-icon slot="icon-only" name="print-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" [disabled]="documentBusy()" (click)="shareClinicalDocument('woundAssessment', a.id)" aria-label="Send this wound assessment"><ion-icon slot="icon-only" name="share-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="clear" class="btn-history" (click)="openWoundHistory(a)"><ion-icon slot="icon-only" name="time-outline"></ion-icon></ion-button>
+          <ion-button size="small" fill="clear" class="btn-care-plan care-plan-desktop" (click)="openWoundCarePlan(a)" aria-label="Open this wound care plan"><ion-icon slot="icon-only" name="reader-outline"></ion-icon></ion-button>
           <ion-button size="small" fill="solid" class="btn-reeval reeval-desktop" (click)="reEvaluate(a)"><ion-icon slot="icon-only" name="refresh-outline"></ion-icon></ion-button>
         </div>
       </ion-item>

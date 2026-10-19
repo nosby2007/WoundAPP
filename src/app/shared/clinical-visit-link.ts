@@ -36,7 +36,7 @@ export function clinicalVisitQueryParams(link?: ClinicalVisitLink | null): Recor
 
 export function matchesClinicalVisitLink(row: any, link?: ClinicalVisitLink | null): boolean {
   if (!row || !link) return false;
-  const visitId = (link.visitId || '').trim();
+  const visitId = (link.fieldEncounterVisitId || link.visitId || '').trim();
   const appointmentId = (link.appointmentId || '').trim();
 
   if (visitId) {
@@ -49,6 +49,8 @@ export function matchesClinicalVisitLink(row: any, link?: ClinicalVisitLink | nu
       row.mobileWorkflow?.woundVisitId,
     ].filter(Boolean).map(String);
     if (visitRefs.includes(visitId)) return true;
+    // A different explicit encounter must not be counted via appointment alone.
+    if (visitRefs.some(ref => ref !== String(row.id)) && (link.fieldEncounterVisitId || visitId !== appointmentId)) return false;
   }
 
   if (appointmentId) {

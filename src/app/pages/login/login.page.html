@@ -1,16 +1,39 @@
 <ion-content [fullscreen]="true" class="login-page">
 
-  <div class="card-wrapper">
+  <div class="login-backdrop" aria-hidden="true">
+    <div class="splash-wave wave-one"></div>
+    <div class="splash-wave wave-two"></div>
+    <div class="splash-wave wave-three"></div>
+  </div>
 
-  <div class="brand-header">
-    <div class="logo-circle">
-      <span>PH</span>
-    </div>
-    <div class="brand-text">
-      <h1>Perry Home Wound Care</h1>
-      <p>Nurse Mobile Console</p>
+  <div class="splash-screen" *ngIf="showSplash" aria-label="WoundAPP loading">
+    <div class="splash-brand">
+      <div class="splash-mark" aria-hidden="true">
+        <span class="ring ring-one"></span>
+        <span class="ring ring-two"></span>
+        <span class="ring ring-three"></span>
+      </div>
+      <div class="splash-wordmark">WoundAPP</div>
+      <div class="splash-tagline">Clinical field workspace</div>
     </div>
   </div>
+
+  <div class="card-wrapper" [class.login-ready]="!showSplash">
+
+    <a class="public-return" routerLink="/" aria-label="Back to WoundAPP public site">
+      <ion-icon name="arrow-back-outline"></ion-icon>
+      <span>Back to WoundAPP</span>
+    </a>
+
+    <div class="brand-header">
+      <div class="logo-circle">
+        <span>W</span>
+      </div>
+      <div class="brand-text">
+        <h1>WoundAPP</h1>
+        <p>Secure mobile clinical workspace</p>
+      </div>
+    </div>
 
     <div class="login-card">
 
@@ -19,7 +42,6 @@
 
       <form [formGroup]="form" (ngSubmit)="submit()">
 
-        <!-- Email -->
         <ion-item lines="full">
           <ion-icon name="mail-outline" slot="start"></ion-icon>
           <ion-input
@@ -35,7 +57,6 @@
           <span *ngIf="form.controls.email.errors?.['email']">Invalid email format.</span>
         </div>
 
-        <!-- Password -->
         <ion-item lines="full">
           <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
           <ion-input
@@ -53,12 +74,10 @@
           </span>
         </div>
 
-        <!-- Error global -->
         <div class="error global" *ngIf="errorMsg">
           {{ errorMsg }}
         </div>
 
-        <!-- Button -->
         <ion-button
           expand="block"
           class="login-btn"
@@ -74,7 +93,7 @@
       </form>
 
       <div class="footnote">
-        <p>Secure access · Firebase Auth · Wound Assessments</p>
+        <p>Protected clinical access · Firebase Auth · PIN unlock</p>
       </div>
     </div>
   </div>

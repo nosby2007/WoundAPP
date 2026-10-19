@@ -25,6 +25,12 @@
   <!-- Détail -->
   <ng-container *ngIf="!loading && assessment">
 
+    <ion-card *ngIf="readOnly" color="light">
+      <ion-card-content>
+        Review-only assessment from an assigned-facility wound round. Clinical authoring actions are unavailable.
+      </ion-card-content>
+    </ion-card>
+
     <ion-card>
       <ion-card-header>
         <ion-card-title>
@@ -105,10 +111,33 @@
         />
       </ion-card-content>
     </ion-card>
+    <ion-card *ngIf="canReview || assessment.providerReview?.reviewed">
+      <ion-card-header><ion-card-title>Provider review of existing findings</ion-card-title></ion-card-header>
+      <ion-card-content>
+        <p>Recorded by {{ assessment.authorIdentity?.displayName || assessment.createdByName || 'Clinical team' }}. Review does not overwrite the original evaluation.</p>
+        <div *ngIf="assessment.providerReview?.reviewed; else reviewForm">
+          <p>{{ assessment.providerReview.reviewedByName }} · {{ assessment.providerReview.decision }}</p>
+          <p>{{ assessment.providerReview.providerNote }}</p>
+          <p>For an additional review or new clinical findings, create a separate clinical note or reassessment.</p>
+        </div>
+        <ng-template #reviewForm>
+          <p *ngIf="canReview && !canRecordReview">Awaiting the author's signed and locked assessment before provider review.</p>
+          <div *ngIf="canRecordReview">
+          <label>Decision <select [(ngModel)]="reviewDecision"><option>Concur</option><option>Modified</option></select></label>
+          <p><label>Clinical review <textarea [(ngModel)]="reviewNote" rows="5" style="width:100%"></textarea></label></p>
+          <p><label><input type="checkbox" [(ngModel)]="reviewAttestation"> I reviewed the existing findings and attest to my own documented clinical decision.</label></p>
+          <ion-button (click)="saveReview()" [disabled]="reviewBusy || !reviewAttestation || !reviewNote.trim()">Save provider review</ion-button>
+          </div>
+        </ng-template>
+        <p>{{ reviewMessage }}</p>
+        <ion-button *ngIf="canAcceptEpisode && assessment.episodeId" fill="outline" (click)="acceptEpisode()">Accept episode responsibility</ion-button>
+        <p>{{ episodeMessage }}</p>
+      </ion-card-content>
+    </ion-card>
   </ng-container>
 </ion-content>
 
-<ion-footer>
+<ion-footer *ngIf="!readOnly">
   <ion-toolbar>
     <!-- The three things done next to a wound: change what was recorded,
          write the plan for it, or say something about it. -->
@@ -127,7 +156,7 @@
       </ion-button>
     </ion-buttons>
     <ion-buttons slot="end">
-      <ion-button (click)="editAssessment()">
+      <ion-button *ngIf="canEditAssessment" (click)="editAssessment()">
         <ion-icon slot="start" name="create-outline"></ion-icon>
         Edit
       </ion-button>

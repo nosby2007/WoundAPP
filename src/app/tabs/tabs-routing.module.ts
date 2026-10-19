@@ -32,14 +32,19 @@ import { VisitHistoryDetailPage } from '../pages/visit-history-detail/visit-hist
 import { SchedulerWorkspacePage } from '../pages/scheduler-workspace/scheduler-workspace.page';
 import { ReceptionPatientsPage } from '../pages/reception-patients/reception-patients.page';
 import { IntakePatientPage } from '../pages/intake-patient/intake-patient.page';
+import { PatientDocumentsPage } from '../pages/patient-documents/patient-documents.page';
 import { VisitCompletePage } from '../pages/visit-complete/visit-complete.page';
+import { FieldSignatureCenterPage } from '../pages/field-signature-center/field-signature-center.page';
 import { SyncReviewPage } from '../pages/sync-review/sync-review.page';
+import { telehealthFacilitatorGuard } from '../guards/telehealth.guard';
 
 const routes: Routes = [
   {
     path: '',
     component: TabsPage,
     children: [
+      { path: 'telehealth/session/:appointmentId', loadComponent: () => import('../pages/telehealth/telehealth-session.page').then(m => m.TelehealthSessionPage), canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'telehealth', loadComponent: () => import('../pages/telehealth/telehealth.page').then(m => m.TelehealthPage), canActivate: [telehealthFacilitatorGuard] },
       { path: 'patients', component: PatientsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'today', component: TodayPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'sync-review', component: SyncReviewPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
@@ -47,8 +52,9 @@ const routes: Routes = [
       { path: 'today/visit/:appointmentId', component: FieldVisitPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'today/task/:taskId', component: FieldTaskPage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
       { path: 'my-schedule', component: MySchedulePage, canActivate: [fieldAccessGuard], data: { access: 'field' } },
-      { path: 'wound-rounds', component: WoundRoundsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
-      { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'wound-rounds', component: WoundRoundsPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review' } },
+      { path: 'wound-rounds/:roundId/patients/:patientId/assessments/:assessmentId', component: AssessmentDetailPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review', readOnly: true } },
+      { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review' } },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },
       { path: 'visit-history', component: VisitHistoryPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
@@ -60,12 +66,14 @@ const routes: Routes = [
       { path: 'progress-note', component: ProgressNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'skin-wound/:patientId/signatures', component: FieldSignatureCenterPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'skin-wound/:patientId/documents', component: PatientDocumentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/wound-note', component: WoundNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/education', component: EducationPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/braden', component: BradenFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/systemic-assessment', component: SystemicAssessmentPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/general-assessment', component: GeneralClinicalAssessmentPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
-      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [fieldAccessGuard, clinicalRoleGuard], data: { access: 'clinical', roles: ['provider','np','nurse','rn','lpn','lvn','md','do','physician','wound_nurse','wound_nurse_internal','don'] } },
+      { path: 'skin-wound/:patientId/orders', component: ClinicalOrderPage, canActivate: [fieldAccessGuard, clinicalRoleGuard], data: { access: 'clinical', roles: ['provider','np','nurse','rn','lpn','lvn','md','do','physician','wound_nurse_internal'] } },
       { path: 'skin-wound/:patientId/care-plan', component: PatientCarePlanPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments/new', component: AssessmentFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments/:assessmentId/edit', component: AssessmentFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },

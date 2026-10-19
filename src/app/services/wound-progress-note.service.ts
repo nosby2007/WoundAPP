@@ -123,6 +123,7 @@ export class WoundProgressNoteService {
       pain: assessment.pain ?? null,
       progress: assessment.progress ?? null,
       treatment: assessment.treatment ?? null,
+      debridementProcedure: assessment.debridementProcedure ?? null,
       goalOfCare: assessment.orders?.goalOfCare ?? null,
       // Orders filed against this wound, plus the patient-level ones, which
       // are about every wound and would otherwise appear against none.

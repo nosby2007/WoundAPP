@@ -1,0 +1,77 @@
+{
+  "schema": "phwc.patient-visit",
+  "version": 1,
+  "status": "approved-for-dev-implementation",
+  "scope": "JADE-SHOP + WoundAPP",
+  "authority": {
+    "scheduling": "JADE-SHOP Scheduler",
+    "fieldExecutionAndAssessment": "WoundAPP",
+    "officeReviewAndBillingPreparation": "JADE-SHOP"
+  },
+  "paths": {
+    "appointment": "appointments/{appointmentId}",
+    "visit": "patients/{patientId}/woundVisits/{visitId}",
+    "assessment": "patients/{patientId}/woundAssessments/{assessmentId}",
+    "wound": "patients/{patientId}/wounds/{woundId}",
+    "episode": "patients/{patientId}/woundEpisodes/{episodeId}"
+  },
+  "identity": {
+    "newPhysicalVisitId": "visitId == appointmentId",
+    "appointmentLink": "appointment.woundVisitId == visitId when linked",
+    "assessmentLink": "assessment.visitId == visitId",
+    "woundLink": "assessment.woundId identifies exactly one wound",
+    "episodeLink": "assessment.episodeId identifies that wound's episode when available",
+    "noNewPerWoundVisits": true,
+    "legacyPerWoundVisits": "read-only-compatible; preserve existing ids and EVV evidence"
+  },
+  "visit": {
+    "visitScope": "patient_visit",
+    "patientId": "required",
+    "appointmentId": "required for new visits",
+    "woundIds": "unique discovered/assessed wound ids, may be empty before first assessment",
+    "assessmentIds": "unique assessment ids belonging to this physical visit",
+    "fieldWoundIds": "legacy-compatible alias/projection of woundIds while readers migrate",
+    "fieldWoundVisitIds": "legacy-only; do not generate children for patient_visit",
+    "checkIn": "one immutable physical-visit EVV checkpoint",
+    "checkOut": "one immutable physical-visit EVV checkpoint",
+    "fieldCompletionSnapshot": "one immutable physical-visit snapshot",
+    "billing": "one visit package with per-wound evidence; no automatic extra billable encounter"
+  },
+  "assessment": {
+    "visitId": "required for new scheduled encounter assessments",
+    "woundId": "required",
+    "patientId": "required",
+    "episodeId": "wound-specific, when available",
+    "appointmentId": "same as physical visit appointment",
+    "fieldEncounterVisitId": "same as physical visit id for new patient_visit"
+  },
+  "providers": {
+    "assignedClinician": "scheduler selected staff uid/name/role",
+    "performingClinician": "WoundAPP authenticated author; never overwritten by provider of record",
+    "providerOfRecord": "verified clinical assignment, not inferred from RN",
+    "billingProvider": "verified assignment; not automatically equivalent to performing clinician",
+    "npi": "verified provider profile; missing NPI remains explicit blocker",
+    "billingEntity": "verified organization affiliation; not guessed"
+  },
+  "compatibility": {
+    "existingSingleWound": "continue reading without rewriting",
+    "existingFieldEncounter": "continue reading without rewriting",
+    "noLegacyEvvmigration": true,
+    "noPatientDataInFixtures": true
+  },
+  "security": {
+    "tenantAndPatientScope": "enforced by Firestore rules",
+    "evv": "immutable once recorded",
+    "assessmentLink": "same patient, same physical visit, valid wound and episode",
+    "dischargedPatient": "no new clinical documentation except explicit authorized amendment",
+    "audit": "retain actor, timestamp, provenance"
+  },
+  "rollout": [
+    "JADE dual-reader and rule tests",
+    "WoundAPP writer behind DEV-only gate",
+    "scheduler/provider snapshots",
+    "readiness and billing package",
+    "synthetic multi-wound end-to-end tests",
+    "explicit production approval"
+  ]
+}

@@ -16,6 +16,7 @@ export interface FieldPatient {
 }
 
 export interface FieldVisit {
+  deliveryMode?: 'telehealth_video' | 'telehealth_audio' | string;
   id: string;
   orgId?: string;
   patientId?: string;

@@ -88,6 +88,11 @@ export class ClinicalIdentityService {
     const role = this.string(profile, 'role') || this.array(profile, 'roles')[0] || '';
     const roles = this.array(profile, 'roles').length ? this.array(profile, 'roles') : (role ? [role] : []);
 
+    const facilityIds = Array.from(new Set([
+      ...this.array(profile, 'facilityIds'),
+      this.string(profile, 'primaryFacilityId'),
+    ].filter((value): value is string => !!value)));
+
     return {
       identityVersion: 1,
       uid: user.uid,
@@ -99,7 +104,7 @@ export class ClinicalIdentityService {
       npi: this.string(profile, 'npi', 'NPI'),
       licenseNumber: this.string(profile, 'licenseNumber', 'licenseNo', 'license'),
       licenseState: this.string(profile, 'licenseState', 'licenseJurisdiction'),
-      facilityIds: this.array(profile, 'facilityIds'),
+      facilityIds,
       source: 'users_profile',
       capturedAtIso: new Date().toISOString(),
     };

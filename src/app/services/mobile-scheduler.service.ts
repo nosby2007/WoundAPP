@@ -7,6 +7,7 @@ export interface SchedulerStaffOption {
   uid: string;
   displayName: string;
   role: string;
+  npi?: string | null;
 }
 
 export interface TeamScheduleVisit {
@@ -26,6 +27,9 @@ export interface TeamScheduleVisit {
   facilityId?: string | null;
   nextAppointmentId?: string | null;
   createdByUid?: string | null;
+  billingProviderUid?: string | null;
+  billingProviderName?: string | null;
+  billingProviderNpi?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -42,7 +46,7 @@ export class MobileSchedulerService {
     ));
 
     const allowed = new Set([
-      'rn', 'registered_nurse', 'nurse', 'wound_nurse', 'wound_nurse_internal',
+      'rn', 'registered_nurse', 'nurse', 'wound_nurse_internal',
       'lpn', 'lvn', 'np', 'provider', 'md', 'do', 'physician',
       'cna', 'caregiver', 'personal_care_aide', 'companion', 'sitter',
       'home_health_aide', 'hha',
@@ -55,11 +59,12 @@ export class MobileSchedulerService {
           uid: d.id,
           displayName: String(data.displayName || data.name || data.email || 'Unnamed'),
           role: this.normalizeRole(data.role),
+          npi: /^\\d{10}$/.test(String(data.npi || '')) ? String(data.npi) : null,
           status: String(data.status || (data.active === false ? 'inactive' : 'active')).toLowerCase(),
         };
       })
       .filter(item => item.status === 'active' && allowed.has(item.role))
-      .map(({ uid, displayName, role }) => ({ uid, displayName, role }))
+      .map(({ uid, displayName, role, npi }) => ({ uid, displayName, role, npi }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
@@ -75,6 +80,7 @@ export class MobileSchedulerService {
     workflowKind?: 'general' | 'wound';
     statusReason?: string | null;
     sourceAppointmentId?: string | null;
+    billingProviderUid?: string | null;
   }): Promise<string> {
     const user = auth.currentUser;
     const orgId = await this.tenant.currentOrgId();
@@ -82,6 +88,10 @@ export class MobileSchedulerService {
     if (!input.patientId) throw new Error('Choose a patient.');
     if (!input.assignedToUid) throw new Error('Assign a staff member.');
     this.validateTimes(input.start, input.end);
+    const billingProvider = input.billingProviderUid
+      ? (await this.listAssignableStaff()).find(staff => staff.uid === input.billingProviderUid && ['np','provider','md','do','physician'].includes(staff.role) && /^\\d{10}$/.test(staff.npi || ''))
+      : null;
+    if (input.billingProviderUid && !billingProvider) throw new Error('Select an active billing provider with a verified 10-digit NPI.');
 
     const appointmentRef = doc(collection(db, 'appointments'));
     const facilityId = await this.currentPrimaryFacilityId();
@@ -95,6 +105,9 @@ export class MobileSchedulerService {
       assignedToUid: input.assignedToUid,
       assignedToName: input.assignedToName,
       assignedToRole: input.assignedToRole,
+      billingProviderUid: billingProvider?.uid || null,
+      billingProviderName: billingProvider?.displayName || null,
+      billingProviderNpi: billingProvider?.npi || null,
       createdByUid: user.uid,
       start: Timestamp.fromDate(input.start),
       end: Timestamp.fromDate(input.end),

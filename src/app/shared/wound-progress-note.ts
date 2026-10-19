@@ -112,7 +112,31 @@ export interface WoundNoteWound {
     additionalCare?: string[];
   } | null;
   goalOfCare?: string | null;
+  /** The procedure recorded on this assessment; never inferred from wound depth. */
+  debridementProcedure?: WoundNoteDebridement | null;
   orders: WoundNoteOrder[];
+}
+
+export interface WoundNoteDebridement {
+  performed?: boolean;
+  type?: string | null;
+  indication?: string | null;
+  consentObtained?: boolean;
+  instrument?: string | null;
+  tissueLevel?: string | null;
+  areaDebridedCm2?: number | null;
+  anesthesia?: string | null;
+  hemostasis?: string | null;
+  tolerated?: string | null;
+  complications?: string | null;
+  postMeasurements?: {
+    length?: number | null;
+    width?: number | null;
+    depth?: number | null;
+    area?: number | null;
+    volume?: number | null;
+  } | null;
+  note?: string | null;
 }
 
 export interface WoundNoteEducation {
@@ -139,7 +163,13 @@ export interface WoundNoteInput {
 /** Whole years, or null when there is no usable date of birth. */
 export function ageInYears(dob: string | Date | null | undefined, on: Date): number | null {
   if (!dob) return null;
-  const born = dob instanceof Date ? dob : new Date(dob);
+  // A date-only clinical DOB is a calendar value, not a UTC instant. Parsing
+  // YYYY-MM-DD with `new Date(string)` shifts it to the previous day in US
+  // time zones and can make the documented age one year too high.
+  const calendarDob = typeof dob === 'string' && /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.0{1,3})?Z)?$/.exec(dob);
+  const born = calendarDob
+    ? new Date(Number(calendarDob[1]), Number(calendarDob[2]) - 1, Number(calendarDob[3]))
+    : (dob instanceof Date ? dob : new Date(dob));
   if (Number.isNaN(born.getTime())) return null;
 
   let age = on.getFullYear() - born.getFullYear();
@@ -239,6 +269,34 @@ function ordersBlock(wound: WoundNoteWound): string {
   return ['Active Orders', ...rows].join('\n');
 }
 
+function debridementBlock(wound: WoundNoteWound): string | null {
+  const procedure = wound.debridementProcedure;
+  // A treatment selection alone is not evidence that a procedure occurred.
+  if (!procedure || procedure.performed !== true) return null;
+  const post = procedure.postMeasurements;
+  return [
+    'Debridement Procedure',
+    line('Debridement performed', 'Yes'),
+    line('Type', procedure.type),
+    line('Indication', procedure.indication),
+    // An unchecked legacy checkbox does not establish that consent was refused.
+    line('Consent obtained', procedure.consentObtained === true ? 'Yes' : null),
+    line('Instrument', procedure.instrument),
+    line('Documented tissue level', procedure.tissueLevel),
+    line('Area actually debrided', num(procedure.areaDebridedCm2, 'cm²')),
+    line('Anesthesia / pain management', procedure.anesthesia),
+    line('Hemostasis', procedure.hemostasis),
+    line('Patient tolerance', procedure.tolerated),
+    line('Complications', procedure.complications),
+    line('Post-debridement length', num(post?.length, 'cm')),
+    line('Post-debridement width', num(post?.width, 'cm')),
+    line('Post-debridement depth', num(post?.depth, 'cm')),
+    line('Post-debridement wound surface area', num(post?.area, 'cm²')),
+    line('Post-debridement wound volume', num(post?.volume, 'cm³')),
+    line('Procedure note', procedure.note),
+  ].filter((row): row is string => !!row).join('\n');
+}
+
 function woundBlock(wound: WoundNoteWound): string {
   const header = [
     woundHeading(wound),
@@ -280,7 +338,8 @@ function woundBlock(wound: WoundNoteWound): string {
     line('Notes', wound.progress?.notes),
   ].filter((l): l is string => !!l).join('\n');
 
-  return [header, '', assessment, '', ordersBlock(wound)].join('\n');
+  return [header, assessment, debridementBlock(wound), ordersBlock(wound)]
+    .filter((section): section is string => !!section).join('\n\n');
 }
 
 function educationBlock(education: WoundNoteEducation[]): string | null {

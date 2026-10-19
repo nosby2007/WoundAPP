@@ -12,6 +12,7 @@ import {
 
 import { addIcons } from 'ionicons';
 import {
+  arrowBackOutline,
   lockClosedOutline,
   mailOutline,
 } from 'ionicons/icons';
@@ -47,6 +48,8 @@ import { auth, authStateReady } from '../../firebase';
 export class LoginPage implements OnInit {
   loading = false;
   errorMsg = '';
+  showSplash = true;
+  private splashTimer: ReturnType<typeof setTimeout> | null = null;
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -60,12 +63,24 @@ export class LoginPage implements OnInit {
     private pin: PinService
   ) {
     addIcons({
+      arrowBackOutline,
       lockClosedOutline,
       mailOutline,
     });
   }
 
   async ngOnInit(): Promise<void> {
+    const reduceMotion = typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      this.showSplash = false;
+    } else {
+      this.splashTimer = setTimeout(() => {
+        this.showSplash = false;
+        this.splashTimer = null;
+      }, 3200);
+    }
+
     await authStateReady;
     if (!auth.currentUser) return;
 
@@ -73,6 +88,10 @@ export class LoginPage implements OnInit {
     await this.router.navigateByUrl(unlocked ? '/tabs/today' : '/pin', {
       replaceUrl: true,
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.splashTimer) clearTimeout(this.splashTimer);
   }
 
   async submit() {

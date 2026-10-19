@@ -151,8 +151,11 @@ openPatient(p: any) {
 
   console.log('[PatientsPage] navigate with patientId =', patientId);
 
+  const open = this.router.parseUrl(this.router.url).queryParamMap.get('open');
   this.router.navigate(
-    ['/tabs', 'skin-wound', patientId, 'assessments'],
+    open === 'documents'
+      ? ['/tabs', 'skin-wound', patientId, 'documents']
+      : ['/tabs', 'skin-wound', patientId, 'assessments'],
   );
 }
 
