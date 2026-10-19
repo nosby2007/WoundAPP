@@ -185,7 +185,7 @@ export class PatientDocumentsPage {
   "consent_debridement": "PERRY HOME WOUND CARE LLC\nPrivate Home Care Provider | Skilled Nursing & Specialized Wound Care\nDEBRIDEMENT INFORMED CONSENT\nProcedure-specific consent — complete before each planned procedure or treatment series as appropriate\n\nWound location / laterality:\nDiagnosis / clinical indication:\nProposed clinician / credentials:\nPlanned method (select and specify): Conservative sharp; Sharp/surgical; Mechanical; Enzymatic; Autolytic; Other.\nPlanned depth / tissue targeted:\nAnesthesia/analgesia plan:\n\nProcedure and purpose\nDebridement removes selected devitalized tissue or debris to support wound assessment and management. The clinician has explained the planned method, extent, anticipated discomfort, and whether repeated treatments may be necessary. Only a clinician legally authorized and appropriately trained for the proposed method may perform it.\n\nPotential benefits\nPossible benefits include removal of nonviable tissue, improved visualization of the wound bed, and support for the treatment plan. Healing, infection resolution, and avoidance of hospitalization or amputation are not guaranteed.\n\nMaterial risks\nRisks may include pain, bleeding, injury to healthy tissue or deeper structures, infection or worsening infection, delayed healing, allergic or medication reactions, and the need for additional procedures or urgent evaluation. Risk may be greater with poor circulation, diabetes, neuropathy, anticoagulant use, or other medical conditions. The clinician will review patient-specific risks before proceeding.\n\nAlternatives\nAlternatives include no debridement at this time, continued dressings and monitoring, autolytic or enzymatic methods when suitable, specialist referral, or treatment in a facility with additional resources. Some wounds, including certain ischemic wounds or stable dry eschar, may require vascular/specialist assessment before debridement.\n\nPatient-specific discussion\nRelevant conditions, medications, allergies, circulation assessment, and risks reviewed:\n\nAuthorization\nI authorize the above named qualified clinician to perform the debridement method and scope explained to me. I understand the clinician will reassess safety immediately before treatment and stop or refer if findings make the planned procedure inappropriate. Any materially different procedure requires a new discussion and consent.\n\nI consent to the procedure described above. OR I decline the proposed procedure.\n\nAcknowledgment and signatures\nI have had an opportunity to ask questions. My questions were answered in language I understand. I understand I may refuse or withdraw consent, subject to clinical and legal limitations, without losing the right to discuss other appropriate care options."
 };
   get consentText(): string {
-    return 'Patient: ' + this.patientName + '\\n\\n' + this.consentTexts[this.consentKind];
+    return 'Patient: ' + this.patientName + '\n\n' + this.consentTexts[this.consentKind];
   }
   resetConsent(): void { this.consentSignature = null; this.nurseSignature = null; this.nurseSignaturePad?.clear(); this.photographyChoice = ''; this.consentDecision = ''; this.signaturePad?.clear(); }
   async saveConsent(): Promise<void> {
@@ -226,12 +226,12 @@ export class PatientDocumentsPage {
       };
       newPage();
       const maxWidth = width - 2 * margin;
-      for (const paragraph of this.consentText.split('\\n')) {
+      for (const paragraph of this.consentText.split('\n')) {
         if (!paragraph.trim()) { y += 14; continue; }
         const heading = paragraph.length < 65 && !paragraph.endsWith('.');
         ctx.font = (heading ? 'bold ' : '') + '19px Arial';
         let line = '';
-        for (const word of paragraph.split(/\\s+/)) {
+        for (const word of paragraph.split(/\s+/)) {
           const next = line ? line + ' ' + word : word;
           if (ctx.measureText(next).width > maxWidth && line) { drawLine(line, heading); line = word; }
           else line = next;
@@ -249,7 +249,7 @@ export class PatientDocumentsPage {
       ];
       for (const field of fields) {
         ctx.font = '19px Arial'; let line = '';
-        for (const word of field.split(/\\s+/)) {
+        for (const word of field.split(/\s+/)) {
           const next = line ? line + ' ' + word : word;
           if (ctx.measureText(next).width > maxWidth && line) { drawLine(line); line = word; }
           else line = next;
