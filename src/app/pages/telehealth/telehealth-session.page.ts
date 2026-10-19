@@ -48,7 +48,7 @@ import { ProgressNoteService } from '../../services/progress-note.service';
             (click)="recordConsent()">Record facilitated consent</ion-button>
         </section>
 
-        <div class="videos call-stage" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'">
+        <div class="videos call-stage" [class.front-camera]="cameraFacing === 'user'" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'">
           <section class="self-tile"><h2>You</h2><div #local class="media"></div></section>
           <section class="remote-tile"><h2>NP / other participant</h2><div #remote class="media"></div></section>
         </div>
@@ -102,16 +102,18 @@ import { ProgressNoteService } from '../../services/progress-note.service';
     main{padding:18px;max-width:950px;margin:auto}.session-head,.note-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
     .videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.media{background:#10251d;min-height:180px;overflow:hidden}
     p[role=alert]{color:var(--ion-color-danger)}ion-checkbox{margin:10px 0}.video-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
-    .call-stage{position:relative;display:block;background:#101b21;border-radius:24px;overflow:hidden;min-height:330px;aspect-ratio:9/12;max-height:75vh}
-    .call-stage .remote-tile{position:absolute;inset:0;display:flex;flex-direction:column}
-    .call-stage .remote-tile .media{flex:1;min-height:0;background:#101b21}
-    .call-stage .self-tile{position:absolute;right:14px;top:14px;width:30%;max-width:190px;z-index:2;background:#263942;border:2px solid #ffffff80;border-radius:16px;overflow:hidden;box-shadow:0 6px 22px #0006}
-    .call-stage .self-tile .media{min-height:110px;aspect-ratio:3/4}
+    .call-stage{position:relative;display:block;width:100%;margin:12px auto 0;background:#101b21;border-radius:22px;overflow:hidden;aspect-ratio:3/4;max-height:min(64dvh,650px)}
+    .call-stage .self-tile{position:absolute;inset:0;display:flex;flex-direction:column;min-width:0;background:#101b21}
+    .call-stage .self-tile .media{flex:1;min-height:0;width:100%;background:#101b21}
+    .call-stage .remote-tile{position:absolute;right:12px;top:12px;width:27%;max-width:155px;z-index:2;display:flex;flex-direction:column;background:#263942;border:2px solid #ffffff80;border-radius:16px;overflow:hidden;box-shadow:0 6px 22px #0006}
+    .call-stage .remote-tile .media{min-height:100px;aspect-ratio:3/4}
     .call-stage h2{color:white;font-size:12px;margin:0;padding:7px 10px;background:#10252acc}
-    .call-stage .media :is(video){width:100%;height:100%;object-fit:cover}
-    .call-controls{justify-content:center;padding:12px;border-radius:24px;background:#172b32;gap:10px}
-    .call-controls ion-button{--border-radius:30px}
-    @media(min-width:700px){.call-stage{aspect-ratio:16/9;max-height:620px}.call-stage .self-tile{width:23%}}
+    .call-stage .media video{display:block;width:100%;height:100%;object-fit:contain;object-position:center center}
+    .call-stage.front-camera .self-tile .media video{transform:scaleX(-1)}
+    .call-controls{justify-content:center;align-items:center;padding:12px;margin:12px 0 90px;border-radius:22px;background:#172b32;gap:8px}
+    .call-controls ion-button{--border-radius:24px;font-size:12px;min-height:44px}
+    main{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+    @media(min-width:700px){.call-stage{aspect-ratio:16/9;max-height:620px}.call-stage .remote-tile{width:22%}}
     .provider-note{margin-top:24px;padding:18px;border-radius:18px;background:var(--ion-color-light)}.provider-note ion-input,.provider-note ion-textarea{margin:10px 0}
     .eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800;color:var(--ion-color-success);margin:0}.draft-state,.small{font-size:12px;color:var(--ion-color-medium)}
   `],
