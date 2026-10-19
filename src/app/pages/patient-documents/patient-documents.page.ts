@@ -125,8 +125,11 @@ import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.com
               <ion-select-option value="decline">I decline the described service / procedure</ion-select-option>
             </ion-select>
           </ion-item>
-          <app-visit-signature-pad (signatureChange)="consentSignature = $event"></app-visit-signature-pad>
-          <ion-button expand="block" [disabled]="savingConsent || !consentSignature || !signerName.trim() || !explainingClinician.trim() || (consentKind === 'consent_to_treat' ? !photographyChoice : !consentDecision) || (signerCapacity === 'representative' && !representativeAuthority.trim()) || (consentKind === 'consent_debridement' && !procedureDetails.trim())" (click)="saveConsent()">
+          <p class="hint"><strong>Patient / authorized representative signature</strong></p>
+          <app-visit-signature-pad #patientSignaturePad (signatureChange)="consentSignature = $event"></app-visit-signature-pad>
+          <p class="hint"><strong>Verifying nurse signature</strong> — separate attestation that the consent discussion and patient choice were documented.</p>
+          <app-visit-signature-pad #nurseSignaturePad (signatureChange)="nurseSignature = $event"></app-visit-signature-pad>
+          <ion-button expand="block" [disabled]="savingConsent || !consentSignature || !nurseSignature || !signerName.trim() || !explainingClinician.trim() || (consentKind === 'consent_to_treat' ? !photographyChoice : !consentDecision) || (signerCapacity === 'representative' && !representativeAuthority.trim()) || (consentKind === 'consent_debridement' && !procedureDetails.trim())" (click)="saveConsent()">
             <ion-spinner *ngIf="savingConsent"></ion-spinner> Save signed consent to chart
           </ion-button>
           <p class="hint">Saved as a signed image of the full text and signature in Patient Documents. A new signature is required for each consent; no automatic authorization is inferred.</p>
@@ -163,7 +166,8 @@ export class PatientDocumentsPage {
   documents: MobilePatientDocument[] = [];
   selectedFiles: File[] = [];
   docType = 'other';
-  @ViewChild(VisitSignaturePadComponent) signaturePad?: VisitSignaturePadComponent;
+  @ViewChild('patientSignaturePad') signaturePad?: VisitSignaturePadComponent;
+  @ViewChild('nurseSignaturePad') nurseSignaturePad?: VisitSignaturePadComponent;
   consentKind: 'consent_to_treat' | 'consent_telehealth' | 'consent_debridement' = 'consent_to_treat';
   signerCapacity: 'patient' | 'representative' = 'patient';
   photographyChoice: 'agree' | 'decline' | '' = '';
@@ -173,6 +177,7 @@ export class PatientDocumentsPage {
   explainingClinician = '';
   procedureDetails = '';
   consentSignature: string | null = null;
+  nurseSignature: string | null = null;
   savingConsent = false;
   readonly consentTexts: Record<string, string> = {
   "consent_to_treat": "PERRY HOME WOUND CARE LLC\nPrivate Home Care Provider | Skilled Nursing & Specialized Wound Care\nCONSENT TO TREAT\nGeneral consent for assessment and non-emergency wound-care services at home\n\nServices covered\nI authorize PHWC clinicians acting within their licenses and authorized orders to obtain health history and vital signs, assess wounds and skin, photograph wounds when separately authorized below, cleanse wounds, apply or change dressings, provide education, coordinate care with my treating clinicians, and perform other specifically ordered non-emergency nursing services. A nurse practitioner or other qualified clinician may evaluate me and recommend a treatment plan. This form does not itself authorize surgery, sharp debridement, anesthesia, or procedures requiring a separate informed consent.\n\nExpected benefits and material risks\nThe goal is to assess healing, protect tissue, manage drainage and symptoms, and identify complications. Possible risks include discomfort, skin irritation or allergy, bleeding during routine care, infection, delayed healing, and unexpected reactions. Results and healing cannot be guaranteed.\n\nAlternatives and patient choice\nAlternatives may include care through my physician, a wound clinic, a licensed home health agency when appropriate, or declining recommended services. I may ask questions, request a different plan, or refuse an intervention. PHWC may recommend referral or emergency evaluation when home treatment is insufficient.\n\nCare coordination and records\nI understand relevant information may be shared with members of my care team, referring providers, pharmacies, payers, and other parties as permitted by law and PHWC privacy practices. This consent does not replace any required HIPAA authorization. I acknowledge I have been offered information about privacy practices and how to raise concerns.\n\nWound photography — optional choice\nChoose one: I consent to clinically necessary wound photographs stored in the protected medical record and shared for treatment as permitted by law. OR I decline optional wound photography. I understand certain clinically necessary documentation may need to be discussed separately.\n\nFinancial information\nI understand coverage, prior authorization, referrals, and patient responsibility depend on my insurance and the services actually provided. Signing this clinical consent does not guarantee insurance payment or authorize charges not otherwise disclosed.\n\nAcknowledgment and signatures\nI have had an opportunity to ask questions. My questions were answered in language I understand. I understand I may refuse or withdraw consent, subject to clinical and legal limitations, without losing the right to discuss other appropriate care options.",
@@ -180,45 +185,100 @@ export class PatientDocumentsPage {
   "consent_debridement": "PERRY HOME WOUND CARE LLC\nPrivate Home Care Provider | Skilled Nursing & Specialized Wound Care\nDEBRIDEMENT INFORMED CONSENT\nProcedure-specific consent — complete before each planned procedure or treatment series as appropriate\n\nWound location / laterality:\nDiagnosis / clinical indication:\nProposed clinician / credentials:\nPlanned method (select and specify): Conservative sharp; Sharp/surgical; Mechanical; Enzymatic; Autolytic; Other.\nPlanned depth / tissue targeted:\nAnesthesia/analgesia plan:\n\nProcedure and purpose\nDebridement removes selected devitalized tissue or debris to support wound assessment and management. The clinician has explained the planned method, extent, anticipated discomfort, and whether repeated treatments may be necessary. Only a clinician legally authorized and appropriately trained for the proposed method may perform it.\n\nPotential benefits\nPossible benefits include removal of nonviable tissue, improved visualization of the wound bed, and support for the treatment plan. Healing, infection resolution, and avoidance of hospitalization or amputation are not guaranteed.\n\nMaterial risks\nRisks may include pain, bleeding, injury to healthy tissue or deeper structures, infection or worsening infection, delayed healing, allergic or medication reactions, and the need for additional procedures or urgent evaluation. Risk may be greater with poor circulation, diabetes, neuropathy, anticoagulant use, or other medical conditions. The clinician will review patient-specific risks before proceeding.\n\nAlternatives\nAlternatives include no debridement at this time, continued dressings and monitoring, autolytic or enzymatic methods when suitable, specialist referral, or treatment in a facility with additional resources. Some wounds, including certain ischemic wounds or stable dry eschar, may require vascular/specialist assessment before debridement.\n\nPatient-specific discussion\nRelevant conditions, medications, allergies, circulation assessment, and risks reviewed:\n\nAuthorization\nI authorize the above named qualified clinician to perform the debridement method and scope explained to me. I understand the clinician will reassess safety immediately before treatment and stop or refer if findings make the planned procedure inappropriate. Any materially different procedure requires a new discussion and consent.\n\nI consent to the procedure described above. OR I decline the proposed procedure.\n\nAcknowledgment and signatures\nI have had an opportunity to ask questions. My questions were answered in language I understand. I understand I may refuse or withdraw consent, subject to clinical and legal limitations, without losing the right to discuss other appropriate care options."
 };
   get consentText(): string {
-    return 'Patient: ' + this.patientName + ' | Patient ID: ' + this.patientId + '\\n\\n' + this.consentTexts[this.consentKind];
+    return 'Patient: ' + this.patientName + '\\n\\n' + this.consentTexts[this.consentKind];
   }
-  resetConsent(): void { this.consentSignature = null; this.photographyChoice = ''; this.consentDecision = ''; this.signaturePad?.clear(); }
+  resetConsent(): void { this.consentSignature = null; this.nurseSignature = null; this.nurseSignaturePad?.clear(); this.photographyChoice = ''; this.consentDecision = ''; this.signaturePad?.clear(); }
   async saveConsent(): Promise<void> {
-    if (!this.consentSignature || !this.signerName.trim() || !this.explainingClinician.trim() ||
+    if (!this.consentSignature || !this.nurseSignature || !this.signerName.trim() || !this.explainingClinician.trim() ||
       (this.consentKind === 'consent_to_treat' ? !this.photographyChoice : !this.consentDecision) ||
       (this.signerCapacity === 'representative' && !this.representativeAuthority.trim()) ||
       (this.consentKind === 'consent_debridement' && !this.procedureDetails.trim())) return;
     this.savingConsent = true; this.error = ''; this.message = '';
     try {
       const signedAt = new Date().toISOString();
-      const image = new Image();
-      image.src = this.consentSignature;
-      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Signature image unavailable.')); });
-      const canvas = document.createElement('canvas'); canvas.width = 1200;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Unable to render consent.');
-      const lines: string[] = [];
-      const wrap = (text: string, max = 72) => { for (const paragraph of text.split('\\n')) {
-        let line = ''; for (const word of paragraph.split(' ')) { if ((line + ' ' + word).length > max) { lines.push(line); line = word; } else line = line ? line + ' ' + word : word; } lines.push(line);
-      }};
-      wrap(this.consentText);
-      wrap('\\nRecorded choice: ' + (this.consentKind === 'consent_to_treat' ? 'Optional wound photography: ' + this.photographyChoice : 'Consent decision: ' + this.consentDecision));
-      wrap('\\nSigner: ' + this.signerName.trim() + ' (' + this.signerCapacity + ')');
-      if (this.signerCapacity === 'representative') wrap('Authority: ' + this.representativeAuthority.trim());
-      if (this.consentKind === 'consent_debridement') wrap('Procedure details: ' + this.procedureDetails.trim());
-      wrap('Explained by: ' + this.explainingClinician.trim() + ' | Signed at: ' + signedAt);
-      canvas.height = Math.max(850, 110 + lines.length * 29 + 260);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#173248'; ctx.font = '21px Arial';
-      lines.forEach((line, i) => ctx.fillText(line, 38, 58 + i * 29));
-      ctx.drawImage(image, 38, 95 + lines.length * 29, 500, 150);
-      ctx.font = '16px Arial'; ctx.fillText('Patient / representative signature', 38, 270 + lines.length * 29);
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Consent image generation failed.')), 'image/png'));
+      // Render a paginated US Letter document at 150 DPI with generous print margins.
+      const loadSignature = (dataUrl: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image(); image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Signature image unavailable.')); image.src = dataUrl;
+      });
+      const [patientSignature, nurseSignature] = await Promise.all([
+        loadSignature(this.consentSignature), loadSignature(this.nurseSignature),
+      ]);
+      const width = 1275, height = 1650, margin = 100, lineHeight = 30;
+      const pages: HTMLCanvasElement[] = [];
+      let canvas!: HTMLCanvasElement, ctx!: CanvasRenderingContext2D, y = 0;
+      const newPage = () => {
+        canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#16415c'; ctx.font = 'bold 25px Arial';
+        ctx.fillText('PERRY HOME WOUND CARE LLC', margin, 90);
+        ctx.fillStyle = '#6b7280'; ctx.font = '18px Arial';
+        ctx.fillText('Private Home Care Provider | Skilled Nursing & Specialized Wound Care', margin, 122);
+        ctx.strokeStyle = '#0b7251'; ctx.lineWidth = 3; ctx.beginPath();
+        ctx.moveTo(margin, 140); ctx.lineTo(width - margin, 140); ctx.stroke();
+        y = 190; pages.push(canvas);
+      };
+      const drawLine = (value: string, bold = false) => {
+        if (y > height - 130) newPage();
+        ctx.fillStyle = '#233549'; ctx.font = (bold ? 'bold ' : '') + '19px Arial';
+        ctx.fillText(value, margin, y); y += lineHeight;
+      };
+      newPage();
+      const maxWidth = width - 2 * margin;
+      for (const paragraph of this.consentText.split('\\n')) {
+        if (!paragraph.trim()) { y += 14; continue; }
+        const heading = paragraph.length < 65 && !paragraph.endsWith('.');
+        ctx.font = (heading ? 'bold ' : '') + '19px Arial';
+        let line = '';
+        for (const word of paragraph.split(/\\s+/)) {
+          const next = line ? line + ' ' + word : word;
+          if (ctx.measureText(next).width > maxWidth && line) { drawLine(line, heading); line = word; }
+          else line = next;
+        }
+        if (line) drawLine(line, heading);
+      }
+      y += 16;
+      const fields = [
+        'Recorded choice: ' + (this.consentKind === 'consent_to_treat' ? 'Optional wound photography: ' + this.photographyChoice : 'Consent decision: ' + this.consentDecision),
+        'Signer: ' + this.signerName.trim() + ' (' + this.signerCapacity + ')',
+        ...(this.signerCapacity === 'representative' ? ['Representative authority: ' + this.representativeAuthority.trim()] : []),
+        ...(this.consentKind === 'consent_debridement' ? ['Procedure details: ' + this.procedureDetails.trim()] : []),
+        'Verifying clinician: ' + this.explainingClinician.trim(),
+        'Signed at: ' + signedAt,
+      ];
+      for (const field of fields) {
+        ctx.font = '19px Arial'; let line = '';
+        for (const word of field.split(/\\s+/)) {
+          const next = line ? line + ' ' + word : word;
+          if (ctx.measureText(next).width > maxWidth && line) { drawLine(line); line = word; }
+          else line = next;
+        }
+        if (line) drawLine(line);
+      }
+      if (y > height - 440) newPage();
+      y += 20;
+      ctx.drawImage(patientSignature, margin, y, 430, 120); y += 145;
+      drawLine('Patient / authorized representative signature');
+      ctx.drawImage(nurseSignature, margin, y, 430, 120); y += 145;
+      drawLine('Verifying nurse signature');
+      const merged = document.createElement('canvas');
+      merged.width = width; merged.height = height * pages.length;
+      const mergedCtx = merged.getContext('2d');
+      if (!mergedCtx) throw new Error('Unable to render consent pages.');
+      pages.forEach((page, index) => {
+        const pageCtx = page.getContext('2d')!;
+        pageCtx.fillStyle = '#6b7280'; pageCtx.font = '15px Arial';
+        pageCtx.fillText('PHWC • Patient consent form • Page ' + (index + 1) + ' of ' + pages.length, margin, height - 60);
+        mergedCtx.drawImage(page, 0, index * height);
+      });
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        merged.toBlob(b => b ? resolve(b) : reject(new Error('Consent image generation failed.')), 'image/png'));
       const file = new File([blob], this.consentKind + '-' + signedAt.replace(/[:.]/g, '-') + '.png', {type: 'image/png'});
       await this.docs.upload(this.patientId, [file], {type: this.consentKind, description: 'Signed consent v1; ' + signedAt + '; signer: ' + this.signerName.trim() + '; clinician: ' + this.explainingClinician.trim()});
       this.documents = await this.docs.list(this.patientId);
       this.message = 'Signed consent saved to the patient chart.';
-      this.signaturePad?.clear(); this.consentSignature = null; this.photographyChoice = ''; this.consentDecision = ''; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
+      this.signaturePad?.clear(); this.nurseSignaturePad?.clear(); this.consentSignature = null; this.nurseSignature = null; this.photographyChoice = ''; this.consentDecision = ''; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
     } catch (e: any) { this.error = e?.message || 'Unable to save consent.'; }
     finally { this.savingConsent = false; }
   }
