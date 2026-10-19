@@ -48,16 +48,17 @@ import { ProgressNoteService } from '../../services/progress-note.service';
             (click)="recordConsent()">Record facilitated consent</ion-button>
         </section>
 
-        <div class="videos" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'">
-          <section><h2>Your camera</h2><div #local class="media"></div></section>
-          <section><h2>NP / other participant</h2><div #remote class="media"></div></section>
+        <div class="videos call-stage" *ngIf="s.state !== 'ended' && s.state !== 'cancelled' && s.state !== 'failed'">
+          <section class="self-tile"><h2>You</h2><div #local class="media"></div></section>
+          <section class="remote-tile"><h2>NP / other participant</h2><div #remote class="media"></div></section>
         </div>
 
-        <div class="video-actions">
+        <div class="video-actions call-controls">
           <ion-button *ngIf="!connected && s.state !== 'ended'" [disabled]="busy || s.consentStatus !== 'accepted' || !isOpen" (click)="join()">Join video consultation</ion-button>
           <ion-button *ngIf="connected" (click)="mute()">{{ audioEnabled ? 'Mute' : 'Unmute' }}</ion-button>
           <ion-button *ngIf="connected" (click)="camera()">{{ videoEnabled ? 'Camera off' : 'Camera on' }}</ion-button>
-          <ion-button *ngIf="connected" fill="outline" (click)="leave()">Leave video</ion-button>
+          <ion-button *ngIf="connected" [disabled]="switchingCamera" (click)="flipCamera()">Flip camera</ion-button>
+          <ion-button *ngIf="connected" color="danger" (click)="leave()">Leave video</ion-button>
           <ion-button *ngIf="s.participant === 'facilitator' && (s.state === 'scheduled' || s.state === 'waiting')" color="danger" [disabled]="busy" (click)="cancel()">Cancel consultation</ion-button>
           <ion-button fill="outline" [disabled]="busy" (click)="refresh()">Refresh session</ion-button>
         </div>
@@ -101,6 +102,16 @@ import { ProgressNoteService } from '../../services/progress-note.service';
     main{padding:18px;max-width:950px;margin:auto}.session-head,.note-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
     .videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.media{background:#10251d;min-height:180px;overflow:hidden}
     p[role=alert]{color:var(--ion-color-danger)}ion-checkbox{margin:10px 0}.video-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+    .call-stage{position:relative;display:block;background:#101b21;border-radius:24px;overflow:hidden;min-height:330px;aspect-ratio:9/12;max-height:75vh}
+    .call-stage .remote-tile{position:absolute;inset:0;display:flex;flex-direction:column}
+    .call-stage .remote-tile .media{flex:1;min-height:0;background:#101b21}
+    .call-stage .self-tile{position:absolute;right:14px;top:14px;width:30%;max-width:190px;z-index:2;background:#263942;border:2px solid #ffffff80;border-radius:16px;overflow:hidden;box-shadow:0 6px 22px #0006}
+    .call-stage .self-tile .media{min-height:110px;aspect-ratio:3/4}
+    .call-stage h2{color:white;font-size:12px;margin:0;padding:7px 10px;background:#10252acc}
+    .call-stage .media :is(video){width:100%;height:100%;object-fit:cover}
+    .call-controls{justify-content:center;padding:12px;border-radius:24px;background:#172b32;gap:10px}
+    .call-controls ion-button{--border-radius:30px}
+    @media(min-width:700px){.call-stage{aspect-ratio:16/9;max-height:620px}.call-stage .self-tile{width:23%}}
     .provider-note{margin-top:24px;padding:18px;border-radius:18px;background:var(--ion-color-light)}.provider-note ion-input,.provider-note ion-textarea{margin:10px 0}
     .eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800;color:var(--ion-color-success);margin:0}.draft-state,.small{font-size:12px;color:var(--ion-color-medium)}
   `],
@@ -120,6 +131,8 @@ export class TelehealthSessionPage implements OnDestroy {
   connected = false;
   audioEnabled = true;
   videoEnabled = true;
+  switchingCamera = false;
+  private cameraFacing: 'user' | 'environment' = 'user';
 
   participants = '';
   identityVerification = '';
@@ -248,7 +261,7 @@ export class TelehealthSessionPage implements OnDestroy {
       const audio = await createLocalAudioTrack();
       if (generation !== this.generation) { audio.stop(); return; }
       this.audio = audio;
-      const video = await createLocalVideoTrack({width: 640});
+      const video = await createLocalVideoTrack({width: 640, facingMode: this.cameraFacing});
       if (generation !== this.generation) { video.stop(); return; }
       this.video = video;
       this.local?.nativeElement.replaceChildren(video.attach());
@@ -284,6 +297,37 @@ export class TelehealthSessionPage implements OnDestroy {
   camera(): void {
     this.videoEnabled ? this.video?.disable() : this.video?.enable();
     this.videoEnabled = !this.videoEnabled;
+  }
+
+  async flipCamera(): Promise<void> {
+    if (!this.room || !this.video || this.switchingCamera) return;
+    this.switchingCamera = true;
+    const previous = this.video;
+    const nextFacing = this.cameraFacing === 'user' ? 'environment' : 'user';
+    try {
+      // Acquire the new camera before unpublishing the old track; keep the call connected.
+      const next = await createLocalVideoTrack({width: 640, facingMode: nextFacing});
+      if (!this.room || this.video !== previous) { next.stop(); return; }
+      const publication = this.room.localParticipant.videoTracks.values().next().value;
+      if (publication) this.room.localParticipant.unpublishTrack(previous);
+      try {
+        await this.room.localParticipant.publishTrack(next);
+      } catch (error) {
+        next.stop();
+        await this.room.localParticipant.publishTrack(previous);
+        throw error;
+      }
+      previous.detach().forEach(element => element.remove());
+      previous.stop();
+      this.video = next;
+      this.cameraFacing = nextFacing;
+      this.local?.nativeElement.replaceChildren(next.attach());
+      if (!this.videoEnabled) next.disable();
+    } catch (error: any) {
+      this.error = error?.message || 'Camera switch failed; your existing camera remains available.';
+    } finally {
+      this.switchingCamera = false;
+    }
   }
 
   leave(): void {
