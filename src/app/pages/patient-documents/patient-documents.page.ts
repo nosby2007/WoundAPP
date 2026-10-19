@@ -61,7 +61,7 @@ import { PatientService } from '../../services/patient.service';
 
         <section class="card">
           <div class="head"><div><p class="eyebrow dark">ADD TO CHART</p><h2>Upload document</h2></div></div>
-          <p class="hint">For RN/NP clinical use: referral, face sheet, authorization, insurance, lab result, discharge summary, consent, or other supporting document.</p>
+          <p class="hint">For RN/NP clinical use: upload a completed, signed consent form or other supporting document. Selecting a consent type does not record patient agreement or authorize a procedure.</p>
           <ion-item>
             <ion-select label="Document type" labelPlacement="stacked" [(ngModel)]="docType">
               <ion-select-option value="referral">Referral</ion-select-option>
@@ -69,7 +69,10 @@ import { PatientService } from '../../services/patient.service';
               <ion-select-option value="authorization">Authorization</ion-select-option>
               <ion-select-option value="insurance">Insurance card</ion-select-option>
               <ion-select-option value="dischargeSummary">Discharge summary</ion-select-option>
-              <ion-select-option value="consent">Consent</ion-select-option>
+              <ion-select-option value="consent">Consent (other)</ion-select-option>
+              <ion-select-option value="consent_to_treat">Consent to Treat</ion-select-option>
+              <ion-select-option value="consent_telehealth">Telehealth Informed Consent</ion-select-option>
+              <ion-select-option value="consent_debridement">Debridement Informed Consent</ion-select-option>
               <ion-select-option value="labResult">Lab result</ion-select-option>
               <ion-select-option value="other">Other</ion-select-option>
             </ion-select>
