@@ -12,6 +12,7 @@ import { documentAttachOutline } from 'ionicons/icons';
 
 import { MobilePatientDocument, MobilePatientDocumentService } from '../../services/mobile-patient-document.service';
 import { PatientService } from '../../services/patient.service';
+import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.component';
 
 @Component({
   selector: 'app-patient-documents',
@@ -19,7 +20,7 @@ import { PatientService } from '../../services/patient.service';
   imports: [
     CommonModule, FormsModule, IonHeader, IonToolbar, IonButtons, IonBackButton, IonTitle,
     IonContent, IonItem, IonSelect, IonSelectOption, IonTextarea, IonButton, IonSpinner,
-    IonList, IonLabel, IonIcon, IonBadge,
+    IonList, IonLabel, IonIcon, IonBadge, VisitSignaturePadComponent,
   ],
   template: `
     <ion-header class="ion-no-border">
@@ -92,6 +93,33 @@ import { PatientService } from '../../services/patient.service';
           <div class="success" *ngIf="message">{{ message }}</div>
         </section>
 
+
+        <section class="card">
+          <div class="head"><div><p class="eyebrow dark">PATIENT CONSENT</p><h2>Review and sign a consent</h2></div></div>
+          <p class="hint">Read the entire consent with the patient. A signature must be voluntary; refusal does not create an authorization.</p>
+          <ion-item>
+            <ion-select label="Consent form" labelPlacement="stacked" [(ngModel)]="consentKind" (ionChange)="resetConsent()">
+              <ion-select-option value="consent_to_treat">Consent to Treat</ion-select-option>
+              <ion-select-option value="consent_telehealth">Telehealth Informed Consent</ion-select-option>
+              <ion-select-option value="consent_debridement">Debridement Informed Consent</ion-select-option>
+            </ion-select>
+          </ion-item>
+          <div class="consent-text" style="white-space:pre-wrap;font-size:13px;line-height:1.55;padding:14px;background:#f7fafc;border-radius:12px">{{ consentText }}</div>
+          <ion-item><ion-select label="Signer" labelPlacement="stacked" [(ngModel)]="signerCapacity">
+            <ion-select-option value="patient">Patient</ion-select-option>
+            <ion-select-option value="representative">Authorized representative</ion-select-option>
+          </ion-select></ion-item>
+          <ion-item><ion-textarea label="Signer full name" labelPlacement="stacked" [(ngModel)]="signerName"></ion-textarea></ion-item>
+          <ion-item *ngIf="signerCapacity === 'representative'"><ion-textarea label="Representative relationship / authority" labelPlacement="stacked" [(ngModel)]="representativeAuthority"></ion-textarea></ion-item>
+          <ion-item *ngIf="consentKind === 'consent_debridement'"><ion-textarea label="Wound site, proposed technique, clinician, and alternatives discussed" labelPlacement="stacked" [(ngModel)]="procedureDetails"></ion-textarea></ion-item>
+          <ion-item><ion-textarea label="Clinician who explained the consent" labelPlacement="stacked" [(ngModel)]="explainingClinician"></ion-textarea></ion-item>
+          <app-visit-signature-pad (signatureChange)="consentSignature = $event"></app-visit-signature-pad>
+          <ion-button expand="block" [disabled]="savingConsent || !consentSignature || !signerName.trim() || !explainingClinician.trim() || (signerCapacity === 'representative' && !representativeAuthority.trim()) || (consentKind === 'consent_debridement' && !procedureDetails.trim())" (click)="saveConsent()">
+            <ion-spinner *ngIf="savingConsent"></ion-spinner> Save signed consent to chart
+          </ion-button>
+          <p class="hint">Saved as a signed image of the full text and signature in Patient Documents. A new signature is required for each consent; no automatic authorization is inferred.</p>
+        </section>
+
         <div class="preview-backdrop" *ngIf="previewDocument" (click)="closePreview()">
           <section class="preview-shell" (click)="$event.stopPropagation()">
             <header class="preview-head">
@@ -123,6 +151,58 @@ export class PatientDocumentsPage {
   documents: MobilePatientDocument[] = [];
   selectedFiles: File[] = [];
   docType = 'other';
+  consentKind: 'consent_to_treat' | 'consent_telehealth' | 'consent_debridement' = 'consent_to_treat';
+  signerCapacity: 'patient' | 'representative' = 'patient';
+  signerName = '';
+  representativeAuthority = '';
+  explainingClinician = '';
+  procedureDetails = '';
+  consentSignature: string | null = null;
+  savingConsent = false;
+  get consentText(): string {
+    const common = 'PERRY HOME WOUND CARE LLC | Patient: ' + this.patientName + ' | Patient ID: ' + this.patientId + '\\n\\n';
+    if (this.consentKind === 'consent_to_treat') return common + 'CONSENT TO TREAT (v1)\\nI authorize qualified clinicians of Perry Home Wound Care LLC to evaluate my wounds, assess my condition, provide prescribed skilled nursing and wound-care services, communicate with my care team, and document care. I understand the purpose, expected benefits, possible discomfort, infection or skin injury risks, and alternatives including declining treatment or seeking another provider. I may ask questions and refuse or withdraw consent at any time. Separate informed consent is required for invasive procedures. This consent does not guarantee results or authorize billing beyond applicable agreements.';
+    if (this.consentKind === 'consent_telehealth') return common + 'TELEHEALTH INFORMED CONSENT (v1)\\nI agree to a remote consultation with an appropriately licensed clinician, possibly assisted in person by a nurse. I understand the remote clinician may not be able to perform a complete physical examination and may recommend in-person evaluation. Technology may fail or interrupt the visit; privacy risks are reduced by secure systems but cannot be eliminated. I may decline telehealth and request an available in-person alternative. I understand that telehealth is not appropriate for emergencies and I should call 911 for an emergency. No audio or video recording is authorized by this consent.';
+    return common + 'DEBRIDEMENT INFORMED CONSENT (v1)\\nMy clinician has explained the wound location, proposed debridement method, its purpose (removal of nonviable tissue when clinically appropriate), expected benefits, and alternatives including other wound care or declining the procedure. Risks may include pain, bleeding, infection, injury to surrounding tissue, delayed healing, and need for further care. I understand the procedure may be stopped if unsafe and that no outcome is guaranteed. I may ask questions, refuse or withdraw consent before the procedure. The technique and wound site must be documented below; this form does not itself establish clinical suitability or practitioner authority.';
+  }
+  resetConsent(): void { this.consentSignature = null; }
+  async saveConsent(): Promise<void> {
+    if (!this.consentSignature || !this.signerName.trim() || !this.explainingClinician.trim() ||
+      (this.signerCapacity === 'representative' && !this.representativeAuthority.trim()) ||
+      (this.consentKind === 'consent_debridement' && !this.procedureDetails.trim())) return;
+    this.savingConsent = true; this.error = ''; this.message = '';
+    try {
+      const signedAt = new Date().toISOString();
+      const image = new Image();
+      image.src = this.consentSignature;
+      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Signature image unavailable.')); });
+      const canvas = document.createElement('canvas'); canvas.width = 1200;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to render consent.');
+      const lines: string[] = [];
+      const wrap = (text: string, max = 105) => { for (const paragraph of text.split('\\n')) {
+        let line = ''; for (const word of paragraph.split(' ')) { if ((line + ' ' + word).length > max) { lines.push(line); line = word; } else line = line ? line + ' ' + word : word; } lines.push(line);
+      }};
+      wrap(this.consentText);
+      wrap('\\nSigner: ' + this.signerName.trim() + ' (' + this.signerCapacity + ')');
+      if (this.signerCapacity === 'representative') wrap('Authority: ' + this.representativeAuthority.trim());
+      if (this.consentKind === 'consent_debridement') wrap('Procedure details: ' + this.procedureDetails.trim());
+      wrap('Explained by: ' + this.explainingClinician.trim() + ' | Signed at: ' + signedAt);
+      canvas.height = Math.max(850, 110 + lines.length * 29 + 260);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#173248'; ctx.font = '21px Arial';
+      lines.forEach((line, i) => ctx.fillText(line, 38, 58 + i * 29));
+      ctx.drawImage(image, 38, 95 + lines.length * 29, 500, 150);
+      ctx.font = '16px Arial'; ctx.fillText('Patient / representative signature', 38, 270 + lines.length * 29);
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Consent image generation failed.')), 'image/png'));
+      const file = new File([blob], this.consentKind + '-' + signedAt.replace(/[:.]/g, '-') + '.png', {type: 'image/png'});
+      await this.docs.upload(this.patientId, [file], {type: this.consentKind, description: 'Signed consent v1; ' + signedAt + '; signer: ' + this.signerName.trim() + '; clinician: ' + this.explainingClinician.trim()});
+      this.documents = await this.docs.list(this.patientId);
+      this.message = 'Signed consent saved to the patient chart.';
+      this.consentSignature = null; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
+    } catch (e: any) { this.error = e?.message || 'Unable to save consent.'; }
+    finally { this.savingConsent = false; }
+  }
   docDescription = '';
   previewDocument: MobilePatientDocument | null = null;
   previewUrl: SafeResourceUrl | null = null;
