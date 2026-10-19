@@ -134,7 +134,7 @@ export class TelehealthSessionPage implements OnDestroy {
   audioEnabled = true;
   videoEnabled = true;
   switchingCamera = false;
-  private cameraFacing: 'user' | 'environment' = 'user';
+  cameraFacing: 'user' | 'environment' = 'user';
 
   participants = '';
   identityVerification = '';
