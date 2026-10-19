@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -151,6 +151,7 @@ export class PatientDocumentsPage {
   documents: MobilePatientDocument[] = [];
   selectedFiles: File[] = [];
   docType = 'other';
+  @ViewChild(VisitSignaturePadComponent) signaturePad?: VisitSignaturePadComponent;
   consentKind: 'consent_to_treat' | 'consent_telehealth' | 'consent_debridement' = 'consent_to_treat';
   signerCapacity: 'patient' | 'representative' = 'patient';
   signerName = '';
@@ -165,7 +166,7 @@ export class PatientDocumentsPage {
     if (this.consentKind === 'consent_telehealth') return common + 'TELEHEALTH INFORMED CONSENT (v1)\\nI agree to a remote consultation with an appropriately licensed clinician, possibly assisted in person by a nurse. I understand the remote clinician may not be able to perform a complete physical examination and may recommend in-person evaluation. Technology may fail or interrupt the visit; privacy risks are reduced by secure systems but cannot be eliminated. I may decline telehealth and request an available in-person alternative. I understand that telehealth is not appropriate for emergencies and I should call 911 for an emergency. No audio or video recording is authorized by this consent.';
     return common + 'DEBRIDEMENT INFORMED CONSENT (v1)\\nMy clinician has explained the wound location, proposed debridement method, its purpose (removal of nonviable tissue when clinically appropriate), expected benefits, and alternatives including other wound care or declining the procedure. Risks may include pain, bleeding, infection, injury to surrounding tissue, delayed healing, and need for further care. I understand the procedure may be stopped if unsafe and that no outcome is guaranteed. I may ask questions, refuse or withdraw consent before the procedure. The technique and wound site must be documented below; this form does not itself establish clinical suitability or practitioner authority.';
   }
-  resetConsent(): void { this.consentSignature = null; }
+  resetConsent(): void { this.consentSignature = null; this.signaturePad?.clear(); }
   async saveConsent(): Promise<void> {
     if (!this.consentSignature || !this.signerName.trim() || !this.explainingClinician.trim() ||
       (this.signerCapacity === 'representative' && !this.representativeAuthority.trim()) ||
@@ -199,7 +200,7 @@ export class PatientDocumentsPage {
       await this.docs.upload(this.patientId, [file], {type: this.consentKind, description: 'Signed consent v1; ' + signedAt + '; signer: ' + this.signerName.trim() + '; clinician: ' + this.explainingClinician.trim()});
       this.documents = await this.docs.list(this.patientId);
       this.message = 'Signed consent saved to the patient chart.';
-      this.consentSignature = null; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
+      this.signaturePad?.clear(); this.consentSignature = null; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
     } catch (e: any) { this.error = e?.message || 'Unable to save consent.'; }
     finally { this.savingConsent = false; }
   }
