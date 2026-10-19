@@ -113,8 +113,20 @@ import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.com
           <ion-item *ngIf="signerCapacity === 'representative'"><ion-textarea label="Representative relationship / authority" labelPlacement="stacked" [(ngModel)]="representativeAuthority"></ion-textarea></ion-item>
           <ion-item *ngIf="consentKind === 'consent_debridement'"><ion-textarea label="Wound site, proposed technique, clinician, and alternatives discussed" labelPlacement="stacked" [(ngModel)]="procedureDetails"></ion-textarea></ion-item>
           <ion-item><ion-textarea label="Clinician who explained the consent" labelPlacement="stacked" [(ngModel)]="explainingClinician"></ion-textarea></ion-item>
+          <ion-item *ngIf="consentKind === 'consent_to_treat'">
+            <ion-select label="Optional wound photography" labelPlacement="stacked" [(ngModel)]="photographyChoice">
+              <ion-select-option value="agree">I consent to clinical wound photographs</ion-select-option>
+              <ion-select-option value="decline">I decline optional wound photography</ion-select-option>
+            </ion-select>
+          </ion-item>
+          <ion-item *ngIf="consentKind !== 'consent_to_treat'">
+            <ion-select label="Consent decision" labelPlacement="stacked" [(ngModel)]="consentDecision">
+              <ion-select-option value="agree">I consent to the described service / procedure</ion-select-option>
+              <ion-select-option value="decline">I decline the described service / procedure</ion-select-option>
+            </ion-select>
+          </ion-item>
           <app-visit-signature-pad (signatureChange)="consentSignature = $event"></app-visit-signature-pad>
-          <ion-button expand="block" [disabled]="savingConsent || !consentSignature || !signerName.trim() || !explainingClinician.trim() || (signerCapacity === 'representative' && !representativeAuthority.trim()) || (consentKind === 'consent_debridement' && !procedureDetails.trim())" (click)="saveConsent()">
+          <ion-button expand="block" [disabled]="savingConsent || !consentSignature || !signerName.trim() || !explainingClinician.trim() || (consentKind === 'consent_to_treat' ? !photographyChoice : !consentDecision) || (signerCapacity === 'representative' && !representativeAuthority.trim()) || (consentKind === 'consent_debridement' && !procedureDetails.trim())" (click)="saveConsent()">
             <ion-spinner *ngIf="savingConsent"></ion-spinner> Save signed consent to chart
           </ion-button>
           <p class="hint">Saved as a signed image of the full text and signature in Patient Documents. A new signature is required for each consent; no automatic authorization is inferred.</p>
@@ -154,6 +166,8 @@ export class PatientDocumentsPage {
   @ViewChild(VisitSignaturePadComponent) signaturePad?: VisitSignaturePadComponent;
   consentKind: 'consent_to_treat' | 'consent_telehealth' | 'consent_debridement' = 'consent_to_treat';
   signerCapacity: 'patient' | 'representative' = 'patient';
+  photographyChoice: 'agree' | 'decline' | '' = '';
+  consentDecision: 'agree' | 'decline' | '' = '';
   signerName = '';
   representativeAuthority = '';
   explainingClinician = '';
@@ -168,9 +182,10 @@ export class PatientDocumentsPage {
   get consentText(): string {
     return 'Patient: ' + this.patientName + ' | Patient ID: ' + this.patientId + '\\n\\n' + this.consentTexts[this.consentKind];
   }
-  resetConsent(): void { this.consentSignature = null; this.signaturePad?.clear(); }
+  resetConsent(): void { this.consentSignature = null; this.photographyChoice = ''; this.consentDecision = ''; this.signaturePad?.clear(); }
   async saveConsent(): Promise<void> {
     if (!this.consentSignature || !this.signerName.trim() || !this.explainingClinician.trim() ||
+      (this.consentKind === 'consent_to_treat' ? !this.photographyChoice : !this.consentDecision) ||
       (this.signerCapacity === 'representative' && !this.representativeAuthority.trim()) ||
       (this.consentKind === 'consent_debridement' && !this.procedureDetails.trim())) return;
     this.savingConsent = true; this.error = ''; this.message = '';
@@ -183,10 +198,11 @@ export class PatientDocumentsPage {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Unable to render consent.');
       const lines: string[] = [];
-      const wrap = (text: string, max = 105) => { for (const paragraph of text.split('\\n')) {
+      const wrap = (text: string, max = 72) => { for (const paragraph of text.split('\\n')) {
         let line = ''; for (const word of paragraph.split(' ')) { if ((line + ' ' + word).length > max) { lines.push(line); line = word; } else line = line ? line + ' ' + word : word; } lines.push(line);
       }};
       wrap(this.consentText);
+      wrap('\\nRecorded choice: ' + (this.consentKind === 'consent_to_treat' ? 'Optional wound photography: ' + this.photographyChoice : 'Consent decision: ' + this.consentDecision));
       wrap('\\nSigner: ' + this.signerName.trim() + ' (' + this.signerCapacity + ')');
       if (this.signerCapacity === 'representative') wrap('Authority: ' + this.representativeAuthority.trim());
       if (this.consentKind === 'consent_debridement') wrap('Procedure details: ' + this.procedureDetails.trim());
@@ -202,7 +218,7 @@ export class PatientDocumentsPage {
       await this.docs.upload(this.patientId, [file], {type: this.consentKind, description: 'Signed consent v1; ' + signedAt + '; signer: ' + this.signerName.trim() + '; clinician: ' + this.explainingClinician.trim()});
       this.documents = await this.docs.list(this.patientId);
       this.message = 'Signed consent saved to the patient chart.';
-      this.signaturePad?.clear(); this.consentSignature = null; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
+      this.signaturePad?.clear(); this.consentSignature = null; this.photographyChoice = ''; this.consentDecision = ''; this.signerName = ''; this.representativeAuthority = ''; this.procedureDetails = '';
     } catch (e: any) { this.error = e?.message || 'Unable to save consent.'; }
     finally { this.savingConsent = false; }
   }
