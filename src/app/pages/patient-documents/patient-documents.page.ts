@@ -54,7 +54,8 @@ import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.com
                 <strong>{{ doc.name }}</strong>
                 <p>{{ doc.type || 'other' }} · {{ doc.description || 'No description' }}</p>
               </ion-label>
-              <ion-badge slot="end" color="light">View</ion-badge>
+              <ion-button *ngIf="isSignedConsent(doc)" slot="end" size="small" fill="outline" (click)="$event.stopPropagation(); viewConsentPdf(doc)">View PDF</ion-button>
+              <ion-badge *ngIf="!isSignedConsent(doc)" slot="end" color="light">View</ion-badge>
             </ion-item>
           </ion-list>
           <p class="empty" *ngIf="!documents.length">No uploaded patient documents are available.</p>
@@ -139,7 +140,11 @@ import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.com
           <section class="preview-shell" (click)="$event.stopPropagation()">
             <header class="preview-head">
               <strong>{{ previewDocument.name }}</strong>
-              <ion-button fill="clear" color="dark" size="small" (click)="closePreview()">Close</ion-button>
+              <div class="preview-actions">
+                <ion-button *ngIf="previewDocument && isSignedConsent(previewDocument)" size="small" fill="outline" [disabled]="pdfBusy" (click)="downloadConsentPdf(previewDocument)">Download PDF</ion-button>
+                <ion-button *ngIf="previewDocument && isSignedConsent(previewDocument)" size="small" fill="outline" [disabled]="pdfBusy" (click)="printConsent(previewDocument)">Print</ion-button>
+                <ion-button fill="clear" color="dark" size="small" (click)="closePreview()">Close</ion-button>
+              </div>
             </header>
             <div class="preview-body">
               <img *ngIf="previewKind === 'image' && previewDocument.url" [src]="previewDocument.url" [alt]="previewDocument.name" class="preview-image" />
@@ -152,7 +157,7 @@ import { VisitSignaturePadComponent } from '../../shared/visit-signature-pad.com
     </ion-content>
   `,
   styles: [`
-    .page{min-height:100%;padding:16px 16px 36px;background:#f4f7fa}.hero{padding:20px;border-radius:24px;background:linear-gradient(145deg,#173d5c,#0b7251);color:#fff}.hero h1{margin:4px 0}.hero p{margin:0;opacity:.82;font-size:12px}.eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800}.eyebrow.dark{color:#587188}.card{margin-top:15px;padding:16px;border-radius:20px;background:#fff;box-shadow:0 7px 22px rgba(30,55,75,.06)}.head{display:flex;justify-content:space-between;align-items:start}.head h2{margin:2px 0 10px;color:#10233f}.card ion-item{--background:#f7fafc;border-radius:13px;margin:7px 0}.hint,.empty{font-size:11px;color:#667b8e}.file-button{display:flex;align-items:center;gap:9px;padding:14px;border:1px dashed #8da6b8;border-radius:14px;margin:10px 0;color:#173d5c;font-size:12px;font-weight:700}.file-button input{display:none}.success{background:#ecfdf5;color:#166534;border-radius:11px;padding:10px;margin-top:8px}.error{background:#fff1f2;color:#9f1239;border-radius:11px;padding:10px}.state{text-align:center;padding:25px;color:#667b8e}.preview-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(7,22,36,.78);display:grid;place-items:center;padding:12px}.preview-shell{width:min(980px,100%);height:min(88vh,900px);background:#fff;border-radius:22px;overflow:hidden;display:grid;grid-template-rows:auto 1fr;box-shadow:0 28px 70px rgba(0,0,0,.35)}.preview-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e6ece9}.preview-body{min-height:0;overflow:auto;display:grid;place-items:center;background:#eef3f1}.preview-image{max-width:100%;max-height:100%;object-fit:contain}.preview-pdf{width:100%;height:100%;border:0;background:#fff}.preview-unsupported{padding:24px;color:#64748b;text-align:center}@media(max-width:620px){.preview-backdrop{padding:0}.preview-shell{width:100vw;height:100vh;border-radius:0}}
+    .page{min-height:100%;padding:16px 16px 36px;background:#f4f7fa}.hero{padding:20px;border-radius:24px;background:linear-gradient(145deg,#173d5c,#0b7251);color:#fff}.hero h1{margin:4px 0}.hero p{margin:0;opacity:.82;font-size:12px}.eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800}.eyebrow.dark{color:#587188}.card{margin-top:15px;padding:16px;border-radius:20px;background:#fff;box-shadow:0 7px 22px rgba(30,55,75,.06)}.head{display:flex;justify-content:space-between;align-items:start}.head h2{margin:2px 0 10px;color:#10233f}.card ion-item{--background:#f7fafc;border-radius:13px;margin:7px 0}.hint,.empty{font-size:11px;color:#667b8e}.file-button{display:flex;align-items:center;gap:9px;padding:14px;border:1px dashed #8da6b8;border-radius:14px;margin:10px 0;color:#173d5c;font-size:12px;font-weight:700}.file-button input{display:none}.success{background:#ecfdf5;color:#166534;border-radius:11px;padding:10px;margin-top:8px}.error{background:#fff1f2;color:#9f1239;border-radius:11px;padding:10px}.state{text-align:center;padding:25px;color:#667b8e}.preview-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(7,22,36,.78);display:grid;place-items:center;padding:12px}.preview-shell{width:min(980px,100%);height:min(88vh,900px);background:#fff;border-radius:22px;overflow:hidden;display:grid;grid-template-rows:auto 1fr;box-shadow:0 28px 70px rgba(0,0,0,.35)}.preview-actions{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}.preview-head strong{max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.preview-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e6ece9}.preview-body{min-height:0;overflow:auto;display:grid;place-items:center;background:#eef3f1}.preview-image{max-width:100%;max-height:100%;object-fit:contain}.preview-pdf{width:100%;height:100%;border:0;background:#fff}.preview-unsupported{padding:24px;color:#64748b;text-align:center}@media(max-width:620px){.preview-backdrop{padding:0}.preview-shell{width:100vw;height:100vh;border-radius:0}}
   `],
 })
 export class PatientDocumentsPage {
@@ -286,6 +291,8 @@ export class PatientDocumentsPage {
   previewDocument: MobilePatientDocument | null = null;
   previewUrl: SafeResourceUrl | null = null;
   previewKind: 'image' | 'pdf' | 'unsupported' = 'unsupported';
+  pdfBusy = false;
+  private generatedPdfUrl: string | null = null;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -337,6 +344,145 @@ export class PatientDocumentsPage {
     } finally {
       this.uploading = false;
     }
+  }
+
+  isSignedConsent(doc: MobilePatientDocument): boolean {
+    return ['consent_to_treat', 'consent_telehealth', 'consent_debridement'].includes(doc.type || '') &&
+      /\\.(png|jpe?g|pdf)$/i.test(doc.name || '');
+  }
+
+  private async consentPdf(doc: MobilePatientDocument): Promise<Blob> {
+    if (!this.isSignedConsent(doc)) throw new Error('This is not a supported signed consent.');
+    const response = await fetch(doc.url, { mode: 'cors', credentials: 'omit' });
+    if (!response.ok) throw new Error('Unable to retrieve the signed document.');
+    const source = await response.blob();
+    if (source.type === 'application/pdf' || /\\.pdf$/i.test(doc.name)) return source;
+    const objectUrl = URL.createObjectURL(source);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Unable to decode the signed consent.'));
+        image.src = objectUrl;
+      });
+      // Existing signed PNGs concatenate US Letter pages vertically at 1275 x 1650.
+      // Preserve all pages rather than shrinking the entire tall image onto one sheet.
+      const pagePixelHeight = img.naturalWidth === 1275 ? 1650 : Math.round(img.naturalWidth * 11 / 8.5);
+      const pageCount = Math.ceil(img.naturalHeight / pagePixelHeight);
+      if (pageCount < 1 || pageCount > 100) throw new Error('Unsupported consent page count.');
+      const encoder = new TextEncoder();
+      const objects: Uint8Array[] = [];
+      const jpegPages: Uint8Array[] = [];
+      const pageWidth = 612, pageHeight = 792;
+      for (let page = 0; page < pageCount; page++) {
+        const startY = page * pagePixelHeight;
+        const sliceHeight = Math.min(pagePixelHeight, img.naturalHeight - startY);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = pagePixelHeight;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Unable to prepare printable consent.');
+        context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(img, 0, startY, img.naturalWidth, sliceHeight, 0, 0, canvas.width, sliceHeight);
+        const jpeg = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PDF page conversion failed.')), 'image/jpeg', 0.94));
+        jpegPages.push(new Uint8Array(await jpeg.arrayBuffer()));
+      }
+      // Minimal local PDF writer; no document data is sent to a conversion service.
+      const chunks: Uint8Array[] = [];
+      let offset = 0;
+      const offsets: number[] = [0];
+      const add = (bytes: Uint8Array) => { chunks.push(bytes); offset += bytes.length; };
+      const addText = (text: string) => add(encoder.encode(text));
+      const object = (id: number, body: string) => {
+        offsets[id] = offset;
+        addText(id + ' 0 obj\\n' + body + '\\nendobj\\n');
+      };
+      addText('%PDF-1.4\\n');
+      const kids = jpegPages.map((_, index) => (3 + index * 3) + ' 0 R').join(' ');
+      object(1, '<< /Type /Catalog /Pages 2 0 R >>');
+      object(2, '<< /Type /Pages /Kids [' + kids + '] /Count ' + jpegPages.length + ' >>');
+      for (let index = 0; index < jpegPages.length; index++) {
+        const pageId = 3 + index * 3;
+        const contentId = pageId + 1;
+        const imageId = pageId + 2;
+        object(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im0 ' + imageId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
+        const content = 'q 612 0 0 792 0 0 cm /Im0 Do Q';
+        const contentBytes = encoder.encode(content);
+        offsets[contentId] = offset;
+        addText(contentId + ' 0 obj\\n<< /Length ' + contentBytes.length + ' >>\\nstream\\n');
+        add(contentBytes);
+        addText('\\nendstream\\nendobj\\n');
+        const jpg = jpegPages[index];
+        offsets[imageId] = offset;
+        addText(imageId + ' 0 obj\\n<< /Type /XObject /Subtype /Image /Width ' + img.naturalWidth + ' /Height ' + pagePixelHeight + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.length + ' >>\\nstream\\n');
+        add(jpg);
+        addText('\\nendstream\\nendobj\\n');
+      }
+      const xref = offset;
+      const count = 3 + jpegPages.length * 3;
+      addText('xref\\n0 ' + count + '\\n0000000000 65535 f \\n');
+      for (let id = 1; id < count; id++) addText(String(offsets[id]).padStart(10, '0') + ' 00000 n \\n');
+      addText('trailer\\n<< /Size ' + count + ' /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF');
+      return new Blob(chunks as BlobPart[], { type: 'application/pdf' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  async viewConsentPdf(doc: MobilePatientDocument): Promise<void> {
+    if (this.pdfBusy) return;
+    this.pdfBusy = true; this.error = '';
+    try {
+      const pdf = await this.consentPdf(doc);
+      this.closePreview();
+      this.generatedPdfUrl = URL.createObjectURL(pdf);
+      this.previewDocument = doc;
+      this.previewKind = 'pdf';
+      this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.generatedPdfUrl);
+    } catch (error: any) { this.error = error?.message || 'Unable to preview consent PDF.'; }
+    finally { this.pdfBusy = false; }
+  }
+
+  async downloadConsentPdf(doc: MobilePatientDocument): Promise<void> {
+    if (this.pdfBusy) return;
+    this.pdfBusy = true; this.error = '';
+    try {
+      const pdf = await this.consentPdf(doc);
+      const url = URL.createObjectURL(pdf);
+      const link = document.createElement('a');
+      link.href = url; link.download = (doc.name || 'signed-consent').replace(/\\.[^.]+$/, '') + '.pdf';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error: any) { this.error = error?.message || 'Unable to download consent PDF.'; }
+    finally { this.pdfBusy = false; }
+  }
+
+  async printConsent(doc: MobilePatientDocument): Promise<void> {
+    if (this.pdfBusy) return;
+    this.pdfBusy = true; this.error = '';
+    try {
+      const pdf = await this.consentPdf(doc);
+      const url = URL.createObjectURL(pdf);
+      // Apple mobile browsers provide Print / Save to Files through the native PDF viewer.
+      if (this.isAppleMobilePdfHost()) {
+        const file = new File([pdf], (doc.name || 'consent').replace(/\\.[^.]+$/, '') + '.pdf', {type:'application/pdf'});
+        if (navigator.canShare?.({files:[file]})) {
+          await navigator.share({files:[file], title:'Signed patient consent'});
+          URL.revokeObjectURL(url);
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+        }
+      } else {
+        const frame = document.createElement('iframe');
+        frame.style.position = 'fixed'; frame.style.width = '1px'; frame.style.height = '1px';
+        frame.style.opacity = '0'; frame.src = url; document.body.appendChild(frame);
+        frame.onload = () => { try { frame.contentWindow?.print(); } catch { window.open(url, '_blank', 'noopener,noreferrer'); } };
+        setTimeout(() => { frame.remove(); URL.revokeObjectURL(url); }, 120000);
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') this.error = error?.message || 'Unable to print consent.';
+    } finally { this.pdfBusy = false; }
   }
 
   openPreview(doc: MobilePatientDocument): void {
