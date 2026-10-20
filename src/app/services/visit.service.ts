@@ -16,6 +16,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { scheduledBillingEntitySnapshot } from '../shared/scheduler-billing';
 
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
 import { VisitLocationService } from './visit-location.service';
@@ -65,6 +66,9 @@ export interface FieldVisit {
   billingProviderUid?: string | null;
   billingProviderName?: string | null;
   billingProviderNpi?: string | null;
+  billingEntityId?: string | null;
+  billingEntityName?: string | null;
+  billingEntityNpi?: string | null;
   checkIn: EvvCheckpoint | null;
   checkOut: EvvCheckpoint | null;
 }
@@ -225,6 +229,7 @@ export class VisitService {
           billingProviderUid: scheduled['billingProviderUid'] ?? null,
           billingProviderName: scheduled['billingProviderName'] ?? null,
           billingProviderNpi: scheduled['billingProviderNpi'] ?? null,
+          ...scheduledBillingEntitySnapshot(scheduled),
           woundId: null,
           episodeId: null,
           checkIn: checkpoint,

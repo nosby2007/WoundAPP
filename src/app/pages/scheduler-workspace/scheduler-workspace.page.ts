@@ -14,6 +14,7 @@ import {
   MobileSchedulerService, SchedulerStaffOption, TeamScheduleVisit,
 } from '../../services/mobile-scheduler.service';
 import { Patient, PatientService } from '../../services/patient.service';
+import { SchedulerBillingEntity, SchedulerBillingProvider } from '../../shared/scheduler-billing';
 
 type EditorMode = 'new' | 'edit' | 'replan';
 
@@ -84,6 +85,32 @@ type EditorMode = 'new' | 'edit' | 'replan';
               </ion-select>
             </ion-item>
 
+            <section class="billing-context" aria-label="Billing attribution">
+              <p class="eyebrow dark">BILLING ATTRIBUTION</p>
+              <p>The billing entity submits the claim. The billing provider is separate from the staff member performing care.</p>
+              <ng-container *ngIf="editorMode !== 'edit'; else existingBilling">
+                <ion-item lines="none">
+                  <ion-select label="Billing entity" labelPlacement="stacked" [(ngModel)]="form.billingEntityId" placeholder="Choose billing entity">
+                    <ion-select-option *ngFor="let entity of billingEntities" [value]="entity.id">{{ entity.name }} · NPI {{ entity.npi }}</ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <ion-item lines="none">
+                  <ion-select label="Billing provider" labelPlacement="stacked" [(ngModel)]="form.billingProviderUid" placeholder="Choose billing provider">
+                    <ion-select-option *ngFor="let provider of billingProviders" [value]="provider.uid">{{ provider.displayName }} · NPI {{ provider.npi }}</ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <p class="error" role="alert" *ngIf="billingError">{{ billingError }}</p>
+                <p *ngIf="!loading && !billingError && !billingEntities.length">No billing entity configured. Ask an administrator to complete the organization billing profile (legal name and NPI).</p>
+                <p *ngIf="!loading && !billingError && !billingProviders.length">No active billing-enabled provider with an NPI is available. Ask an administrator to verify the provider profile.</p>
+              </ng-container>
+              <ng-template #existingBilling>
+                <p>Entity: {{ editingBilling?.billingEntityName || 'Not assigned' }} · NPI {{ editingBilling?.billingEntityNpi || 'Not recorded' }}</p>
+                <p>Provider: {{ editingBilling?.billingProviderName || 'Not assigned' }} · NPI {{ editingBilling?.billingProviderNpi || 'Not recorded' }}</p>
+                <p>Rescheduling preserves existing billing attribution. This does not change a linked clinical record.</p>
+              </ng-template>
+              <p class="billing-disclaimer">Scheduling attribution does not verify payer enrollment, network participation or claim readiness.</p>
+            </section>
+
             <div class="form-grid">
               <ion-item lines="none">
                 <ion-input label="Start" labelPlacement="stacked" type="datetime-local" [(ngModel)]="form.start"></ion-input>
@@ -105,16 +132,16 @@ type EditorMode = 'new' | 'edit' | 'replan';
             </ion-item>
 
             <div class="editor-actions">
-              <ion-button expand="block" [disabled]="saving" (click)="saveAppointment()">
+              <ion-button expand="block" [disabled]="saving || loading || (editorMode !== 'edit' && (!form.billingEntityId || !form.billingProviderUid || !!billingError))" (click)="saveAppointment()">
                 <ion-spinner *ngIf="saving" name="crescent"></ion-spinner>
                 <span *ngIf="!saving">{{ editorMode === 'edit' ? 'Save changes' : editorMode === 'replan' ? 'Create replanned visit' : 'Create appointment' }}</span>
               </ion-button>
               <ion-button expand="block" fill="outline" color="medium" [disabled]="saving" (click)="closeEditor()">Cancel</ion-button>
             </div>
-            <div class="success" *ngIf="message">{{ message }}</div>
           </ion-card-content>
         </ion-card>
 
+        <div class="success" role="status" *ngIf="message">{{ message }}</div>
         <section class="section-head">
           <div><p class="eyebrow dark">NEXT 14 DAYS</p><h2>Team schedule</h2></div>
           <ion-badge color="primary">{{ visits.length }}</ion-badge>
@@ -129,6 +156,8 @@ type EditorMode = 'new' | 'edit' | 'replan';
               <div>
                 <strong>{{ visit.patientName || 'Patient' }}</strong>
                 <span>{{ visit.visitType || visit.workflowKind || 'Visit' }}</span>
+              <span>Billing entity: {{ visit.billingEntityName || 'Not assigned' }}</span>
+              <span>Billing provider: {{ visit.billingProviderName || 'Not assigned' }}</span>
               </div>
               <ion-badge [color]="statusColor(visit.status)">{{ visit.status || 'scheduled' }}</ion-badge>
             </div>
@@ -166,6 +195,7 @@ type EditorMode = 'new' | 'edit' | 'replan';
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}.section-head{display:flex;align-items:end;justify-content:space-between;margin:23px 4px 8px}.section-head h2{margin:2px 0 0;color:var(--ink)}
     .editor{margin:16px 0;border-radius:22px}.editor-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.editor h2{margin:3px 0 12px;color:var(--ink)}
     .editor ion-item{--background:#f7fafc;border-radius:14px;margin:8px 0}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.editor-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.success{margin-top:10px;background:#ecfdf5;color:#166534;border-radius:12px;padding:10px;font-size:12px}
+    .billing-context{margin:16px 0;padding:14px;border:1px solid #dce8e3;border-radius:16px;background:#f7fbf9}.billing-context p{font-size:12px;color:#40566c}.billing-context .billing-disclaimer{font-size:11px;color:#64748b}
     .visit{margin:10px 0;border-radius:20px;box-shadow:0 7px 22px rgba(30,55,75,.06)}.visit-alert{border-left:4px solid #c2413b}.row{display:flex;justify-content:space-between;gap:12px}.row strong{display:block;color:var(--ink);font-size:16px}.row span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
     .meta{display:grid;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid #edf1f4}.meta div{display:flex;gap:8px;align-items:center;color:#40566c;font-size:12px}.meta ion-icon{color:var(--green)}
     .reason{margin-top:10px;padding:9px 11px;border-radius:12px;background:#fff1f2;color:#9f1239;font-size:12px}.visit-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.linked-note{font-size:10px;color:#64748b}
@@ -184,6 +214,10 @@ export class SchedulerWorkspacePage implements OnInit {
   visits: TeamScheduleVisit[] = [];
   patients: Patient[] = [];
   staffOptions: SchedulerStaffOption[] = [];
+  billingProviders: SchedulerBillingProvider[] = [];
+  billingEntities: SchedulerBillingEntity[] = [];
+  billingError = '';
+  editingBilling: TeamScheduleVisit | null = null;
   loading = true;
   saving = false;
   error = '';
@@ -203,6 +237,8 @@ export class SchedulerWorkspacePage implements OnInit {
     start: '',
     end: '',
     visitType: 'routine',
+    billingProviderUid: '',
+    billingEntityId: '',
   };
 
   constructor(
@@ -216,15 +252,24 @@ export class SchedulerWorkspacePage implements OnInit {
   async load(): Promise<void> {
     this.loading = true;
     this.error = '';
+    this.billingError = '';
+    this.billingProviders = [];
+    this.billingEntities = [];
     try {
-      const [visits, patients, staff] = await Promise.all([
+      const [visits, patients, staff, billing] = await Promise.all([
         this.scheduler.upcoming(14),
         this.patientsService.listPatients(300),
         this.scheduler.listAssignableStaff(),
+        this.scheduler.billingOptions().catch(() => {
+          this.billingError = 'Unable to load billing configuration. Refresh or ask an administrator to verify your organization access.';
+          return null;
+        }),
       ]);
       this.visits = visits;
       this.patients = patients;
       this.staffOptions = staff;
+      this.billingProviders = billing?.providers || [];
+      this.billingEntities = billing?.entities || [];
     } catch (error: any) {
       this.error = error?.message || 'Unable to load the team schedule.';
     } finally {
@@ -244,6 +289,7 @@ export class SchedulerWorkspacePage implements OnInit {
     this.editorMode = 'edit';
     this.editorOpen = true;
     this.editingAppointmentId = visit.id;
+    this.editingBilling = visit;
     this.sourceAppointmentId = null;
     this.form = {
       patientId: visit.patientId || '',
@@ -254,6 +300,8 @@ export class SchedulerWorkspacePage implements OnInit {
       start: this.toLocalInput(this.scheduler.toDate(visit.start)),
       end: this.toLocalInput(this.scheduler.toDate(visit.end) || this.addMinutes(this.scheduler.toDate(visit.start), 60)),
       visitType: visit.visitType || 'routine',
+      billingProviderUid: visit.billingProviderUid || '',
+      billingEntityId: visit.billingEntityId || '',
     };
   }
 
@@ -297,6 +345,12 @@ export class SchedulerWorkspacePage implements OnInit {
       this.error = 'Choose both a patient and assigned staff member.';
       return;
     }
+    if (this.editorMode !== 'edit' &&
+        (!this.billingEntities.some(entity => entity.id === this.form.billingEntityId) ||
+         !this.billingProviders.some(provider => provider.uid === this.form.billingProviderUid) || this.billingError)) {
+      this.error = 'Choose a configured billing entity and an authorized billing provider.';
+      return;
+    }
 
     this.saving = true;
     this.error = '';
@@ -324,14 +378,16 @@ export class SchedulerWorkspacePage implements OnInit {
           visitType: this.form.visitType,
           workflowKind: this.form.visitType === 'wound_follow_up' ? 'wound' : 'general',
           sourceAppointmentId: this.editorMode === 'replan' ? this.sourceAppointmentId : null,
+          billingProviderUid: this.form.billingProviderUid,
+          billingEntityId: this.form.billingEntityId,
         });
         this.message = this.editorMode === 'replan'
           ? 'Replacement appointment created and linked to the prior visit.'
           : 'Appointment created.';
       }
 
+      this.editorOpen = false;
       await this.load();
-      setTimeout(() => this.closeEditor(), 700);
     } catch (error: any) {
       this.error = error?.message || 'Unable to save this appointment.';
     } finally {
@@ -354,6 +410,7 @@ export class SchedulerWorkspacePage implements OnInit {
     const end = this.addMinutes(start, 60);
     this.editorMode = mode;
     this.editingAppointmentId = null;
+    this.editingBilling = null;
     this.sourceAppointmentId = null;
     this.message = '';
     this.error = '';
@@ -366,6 +423,8 @@ export class SchedulerWorkspacePage implements OnInit {
       start: this.toLocalInput(start),
       end: this.toLocalInput(end),
       visitType: 'routine',
+      billingProviderUid: '',
+      billingEntityId: '',
     };
   }
 

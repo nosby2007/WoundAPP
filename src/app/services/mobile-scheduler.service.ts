@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
+import { SchedulerBillingEntity, SchedulerBillingProvider, schedulerBillingEntity, schedulerBillingProvider, schedulerBillingSnapshot } from '../shared/scheduler-billing';
 
 export interface SchedulerStaffOption {
   uid: string;
@@ -26,11 +27,45 @@ export interface TeamScheduleVisit {
   facilityId?: string | null;
   nextAppointmentId?: string | null;
   createdByUid?: string | null;
+  billingProviderUid?: string | null;
+  billingProviderName?: string | null;
+  billingProviderNpi?: string | null;
+  billingEntityId?: string | null;
+  billingEntityName?: string | null;
+  billingEntityNpi?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class MobileSchedulerService {
   constructor(private tenant: TenantService) {}
+
+  async billingOptions(): Promise<{ providers: SchedulerBillingProvider[]; entities: SchedulerBillingEntity[] }> {
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) throw new Error('Organization context is required.');
+    const [staff, organization] = await Promise.all([
+      getDocs(query(collection(db, 'staffPublic'), where('orgId', '==', orgId))),
+      getDoc(doc(db, 'organizations', orgId)),
+    ]);
+    const providers = staff.docs.map(record => schedulerBillingProvider(orgId, record.id, record.data()))
+      .filter((item): item is SchedulerBillingProvider => item !== null)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const entity = schedulerBillingEntity(orgId, organization.data());
+    return { providers, entities: entity ? [entity] : [] };
+  }
+
+  private async resolveBilling(orgId: string, providerUid: string, entityId: string) {
+    if (!providerUid || providerUid.includes('/')) throw new Error('Choose an authorized billing provider.');
+    if (entityId !== orgId) throw new Error('Choose the billing entity configured for your organization.');
+    // Refresh directory/configuration at save time; do not trust client-supplied names or NPIs.
+    const [staff, organization] = await Promise.all([
+      getDoc(doc(db, 'staffPublic', providerUid)), getDoc(doc(db, 'organizations', orgId)),
+    ]);
+    const provider = schedulerBillingProvider(orgId, providerUid, staff.data());
+    const entity = schedulerBillingEntity(orgId, organization.data());
+    if (!provider) throw new Error('Billing provider is unavailable or not enabled for billing. Ask an administrator to verify the provider profile.');
+    if (!entity) throw new Error('Billing entity is not configured. Ask an administrator to complete the organization billing profile (legal name and NPI).');
+    return schedulerBillingSnapshot(provider, entity);
+  }
 
   async listAssignableStaff(): Promise<SchedulerStaffOption[]> {
     const orgId = await this.tenant.currentOrgId();
@@ -75,6 +110,8 @@ export class MobileSchedulerService {
     workflowKind?: 'general' | 'wound';
     statusReason?: string | null;
     sourceAppointmentId?: string | null;
+    billingProviderUid: string;
+    billingEntityId: string;
   }): Promise<string> {
     const user = auth.currentUser;
     const orgId = await this.tenant.currentOrgId();
@@ -82,11 +119,14 @@ export class MobileSchedulerService {
     if (!input.patientId) throw new Error('Choose a patient.');
     if (!input.assignedToUid) throw new Error('Assign a staff member.');
     this.validateTimes(input.start, input.end);
+    const billing = await this.resolveBilling(orgId, input.billingProviderUid, input.billingEntityId);
 
     const appointmentRef = doc(collection(db, 'appointments'));
     const facilityId = await this.currentPrimaryFacilityId();
-    await setDoc(appointmentRef, {
+    const batch = writeBatch(db);
+    batch.set(appointmentRef, {
       orgId,
+      ...billing,
       facilityId,
       patientId: input.patientId,
       patientName: input.patientName,
@@ -108,11 +148,13 @@ export class MobileSchedulerService {
     });
 
     if (input.sourceAppointmentId) {
-      await updateDoc(doc(db, 'appointments', input.sourceAppointmentId), {
+      batch.update(doc(db, 'appointments', input.sourceAppointmentId), {
         nextAppointmentId: appointmentRef.id,
         updatedAt: serverTimestamp(),
       });
     }
+    // Creation and replan link either both succeed or neither does.
+    await batch.commit();
     return appointmentRef.id;
   }
 
