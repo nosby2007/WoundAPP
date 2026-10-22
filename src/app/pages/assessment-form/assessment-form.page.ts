@@ -38,6 +38,7 @@ import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { WoundRoundMobileService } from '../../services/wound-round.service';
 import { getAuth } from 'firebase/auth';
 import { take } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 
 import {
   ACQUIRED,
@@ -74,6 +75,7 @@ import {
   woundIdForCreate,
 } from 'src/app/shared/wound-identity';
 import { clinicalVisitQueryParams } from 'src/app/shared/clinical-visit-link';
+import { assessmentStageFromRecord, stageForWoundType } from '../../shared/wound-stage';
 
 /**
  * A wound assessment, as recorded at the bedside.
@@ -216,6 +218,10 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   draftStatus = '';
   private draftTimer?: ReturnType<typeof setTimeout>;
   private restoringDraft = false;
+  private formChanges?: Subscription;
+  private formRevision = 0;
+  private assessmentSaved = false;
+  private pendingDraftSave: Promise<void> = Promise.resolve();
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
 
@@ -328,7 +334,10 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.form.valueChanges.subscribe(() => {
+    this.formChanges?.unsubscribe();
+    this.formChanges = this.form.valueChanges.subscribe(() => {
+      this.formRevision++;
+      this.normalizeStage();
       if (!this.restoringDraft) this.scheduleDraft();
     });
 
@@ -344,8 +353,25 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.formChanges?.unsubscribe();
     if (this.draftTimer) clearTimeout(this.draftTimer);
     void this.persistDraft();
+  }
+
+  get isPressureWound(): boolean {
+    return this.form.controls.describe.controls.type.value === 'Pressure';
+  }
+
+  clearStage(): void {
+    const stage = this.form.controls.describe.controls.stage;
+    stage.setValue('');
+    stage.markAsDirty();
+  }
+
+  private normalizeStage(): void {
+    const describe = this.form.controls.describe.controls;
+    const stage = stageForWoundType(describe.type.value, describe.stage.value);
+    if (describe.stage.value !== stage) describe.stage.setValue(stage, { emitEvent: false });
   }
 
   private async loadReevaluationBaseline(): Promise<void> {
@@ -369,7 +395,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       this.form.patchValue({
         describe: {
           type: data.describe?.type || data.type || '',
-          stage: data.describe?.stage || data.stage || '',
+          stage: assessmentStageFromRecord(data),
           location: data.describe?.location || data.location || '',
           acquired: data.describe?.acquired || data.acquired || '',
           notes: '',
@@ -461,7 +487,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           this.form.patchValue({
             describe: {
               type: data.describe?.type || data.type || '',
-              stage: data.describe?.stage || data.stage || '',
+              stage: assessmentStageFromRecord(data),
               location: data.describe?.location || data.location || '',
               acquired: data.describe?.acquired || data.acquired || '',
               notes: data.describe?.notes || '',
@@ -565,17 +591,21 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   }
 
   private scheduleDraft(): void {
+    if (this.assessmentSaved) return;
     if (this.draftTimer) clearTimeout(this.draftTimer);
     this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
   }
 
   private async restoreDraft(): Promise<void> {
     if (!this.patientId) return;
+    const revision = this.formRevision;
+    this.restoringDraft = true;
     try {
       const saved = await this.drafts.load<any>(this.draftKey());
-      if (!saved?.payload?.form) return;
-      this.restoringDraft = true;
+      // A slow draft response must not undo a clinician's change or clear action.
+      if (!saved?.payload?.form || revision !== this.formRevision || this.assessmentSaved) return;
       this.form.patchValue(saved.payload.form, { emitEvent: false });
+      this.normalizeStage();
       this.draftStatus = saved.updatedAt
         ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
         : 'Draft restored';
@@ -583,14 +613,21 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       // Draft recovery is additive and must never block wound documentation.
     } finally {
       this.restoringDraft = false;
+      if (revision !== this.formRevision) this.scheduleDraft();
     }
   }
 
   private async persistDraft(): Promise<void> {
-    if (!this.patientId || this.loading || this.restoringDraft) return;
+    if (!this.patientId || this.loading || this.restoringDraft || this.assessmentSaved) return;
+    this.normalizeStage();
     const form = this.form.getRawValue();
+    const key = this.draftKey();
+    // Serialize snapshots so an older request cannot overwrite a cleared stage.
+    const saving = this.pendingDraftSave.catch(() => undefined)
+      .then(() => this.drafts.save(key, { form }));
+    this.pendingDraftSave = saving;
     try {
-      await this.drafts.save(this.draftKey(), { form });
+      await saving;
       this.draftStatus = 'Draft autosaved.';
     } catch {
       this.draftStatus = 'Draft not synced yet.';
@@ -653,11 +690,13 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   }
 
   async save() {
+    if (this.loading || this.assessmentSaved) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
 
+    const savedDraftKey = this.draftKey();
     this.loading = true;
 
     const savingToast = await this.toastCtrl.create({
@@ -694,7 +733,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
 
         describe: {
           type: v.describe.type || 'Other',
-          stage: v.describe.stage || null,
+          stage: stageForWoundType(v.describe.type, v.describe.stage) || null,
           location: v.describe.location || '',
           acquired: v.describe.acquired || 'In-House Acquired',
           ageCategory: '',
@@ -835,20 +874,25 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
         }
       }
 
+      this.assessmentSaved = true;
       this.loading = false;
       await savingToast.dismiss();
 
-      await this.drafts.clear(this.draftKey()).catch(() => undefined);
+      // Creation changes wound/visit IDs. Delete the original NEW draft, not a
+      // newly derived reevaluation key, and never recreate it on destruction.
+      if (this.draftTimer) clearTimeout(this.draftTimer);
+      await this.pendingDraftSave.catch(() => undefined);
+      const draftCleared = await this.drafts.clear(savedDraftKey).then(() => true, () => false);
       this.draftStatus = '';
 
       const doneToast = await this.toastCtrl.create({
-        message: this.roundId
+        message: (this.roundId
           ? (roundLinkFailed
               ? 'Assessment saved. Round linkage will be reconciled when evaluation is completed.'
               : 'Assessment saved and linked to wound round')
-          : 'Assessment saved',
-        duration: roundLinkFailed ? 3500 : 2000,
-        color: roundLinkFailed ? 'warning' : undefined,
+          : 'Assessment saved') + (draftCleared ? '' : ' Draft cleanup failed; an older draft may still appear. Do not save it as a new wound.'),
+        duration: !draftCleared ? 7000 : roundLinkFailed ? 3500 : 2000,
+        color: roundLinkFailed || !draftCleared ? 'warning' : undefined,
       });
       await doneToast.present();
 
