@@ -72,12 +72,20 @@
               </ion-select>
             </ion-item>
 
-            <ion-item>
+            <ion-item *ngIf="isPressureWound; else nonPressureStage">
               <ion-label position="stacked">Stage (if pressure)</ion-label>
-              <ion-select formControlName="stage" interface="popover">
+              <ion-select formControlName="stage" interface="popover" placeholder="No stage / not recorded">
+                <ion-select-option value="">No stage / not recorded</ion-select-option>
                 <ion-select-option *ngFor="let s of stages" [value]="s">{{ s }}</ion-select-option>
               </ion-select>
+              <ion-button slot="end" type="button" fill="clear" (click)="clearStage()"
+                          *ngIf="form.controls.describe.controls.stage.value" aria-label="Clear wound stage">
+                Clear stage
+              </ion-button>
             </ion-item>
+            <ng-template #nonPressureStage>
+              <ion-note>Pressure stage is not applicable to the selected wound type.</ion-note>
+            </ng-template>
 
             <ion-item>
               <ion-label position="stacked">Location</ion-label>

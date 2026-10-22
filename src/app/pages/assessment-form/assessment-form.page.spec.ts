@@ -4,13 +4,21 @@ import { AssessmentFormPage } from './assessment-form.page';
 import { of } from 'rxjs';
 import { AssessmentsService } from '../../services/assessments.service';
 import { assessmentDebridementPayload } from '../../shared/assessment-debridement';
+import { ClinicalDraftService } from '../../services/clinical-draft.service';
 
 describe('AssessmentFormPage', () => {
   let component: AssessmentFormPage;
   let fixture: ComponentFixture<AssessmentFormPage>;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: pageTestProviders({ patientId: 'p1' }) });
+    TestBed.configureTestingModule({ providers: [
+      ...pageTestProviders({ patientId: 'p1' }),
+      { provide: ClinicalDraftService, useValue: {
+        load: jasmine.createSpy('load').and.resolveTo(null),
+        save: jasmine.createSpy('save').and.resolveTo(undefined),
+        clear: jasmine.createSpy('clear').and.resolveTo(undefined),
+      } },
+    ] });
     fixture = TestBed.createComponent(AssessmentFormPage);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -18,6 +26,61 @@ describe('AssessmentFormPage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('lets the clinician clear a pressure stage and keeps it blank in the draft', async () => {
+    await fixture.whenStable();
+    component.form.controls.describe.patchValue({ type: 'Pressure', stage: 'Stage 3' });
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[aria-label="Clear wound stage"]').click();
+    await (component as any).persistDraft();
+    expect(component.form.controls.describe.controls.stage.value).toBe('');
+    expect(TestBed.inject(ClinicalDraftService).save).toHaveBeenCalledWith(
+      jasmine.any(Object), jasmine.objectContaining({ form: jasmine.objectContaining({
+        describe: jasmine.objectContaining({ stage: '' }),
+      }) }),
+    );
+  });
+
+  it('removes a pressure stage when the clinician changes wound type', () => {
+    component.form.controls.describe.patchValue({ type: 'Pressure', stage: 'Stage 4' });
+    component.form.controls.describe.controls.type.setValue('Venous');
+    fixture.detectChanges();
+    expect(component.form.controls.describe.controls.stage.value).toBe('');
+    expect(fixture.nativeElement.querySelector('[formControlName="stage"]')).toBeNull();
+    component.form.controls.describe.controls.type.setValue('Pressure');
+    expect(component.form.controls.describe.controls.stage.value).toBe('');
+  });
+
+  it('does not restore an inappropriate stage from a non-pressure draft', async () => {
+    await fixture.whenStable();
+    (TestBed.inject(ClinicalDraftService).load as jasmine.Spy).and.resolveTo({
+      payload: { form: { describe: { type: 'Surgical', stage: 'Stage 3' } } },
+    });
+    await (component as any).restoreDraft();
+    expect(component.form.controls.describe.controls.stage.value).toBe('');
+  });
+
+  it('does not let a slow draft response undo a clear action', async () => {
+    await fixture.whenStable();
+    let resolveDraft!: (value: any) => void;
+    (TestBed.inject(ClinicalDraftService).load as jasmine.Spy).and.returnValue(
+      new Promise(resolve => { resolveDraft = resolve; }),
+    );
+    component.form.controls.describe.controls.stage.setValue('Stage 3');
+    const restoring = (component as any).restoreDraft();
+    component.clearStage();
+    resolveDraft({ payload: { form: { describe: { type: 'Pressure', stage: 'Stage 3' } } } });
+    await restoring;
+    expect(component.form.controls.describe.controls.stage.value).toBe('');
+  });
+
+  it('does not recreate a completed assessment draft when leaving the form', async () => {
+    await fixture.whenStable();
+    (component as any).assessmentSaved = true;
+    component.ngOnDestroy();
+    await (component as any).pendingDraftSave;
+    expect(TestBed.inject(ClinicalDraftService).save).not.toHaveBeenCalled();
   });
 
   it('reveals procedure inputs only when performed is explicitly checked', () => {
