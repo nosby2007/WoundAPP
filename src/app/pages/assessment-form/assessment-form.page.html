@@ -463,6 +463,24 @@
             </ng-container>
           </div>
         </ion-accordion>
+
+        <ion-accordion value="clinicalCoding">
+          <ion-item slot="header"><ion-label>Diagnosis &amp; Procedure Coding</ion-label></ion-item>
+          <div slot="content">
+            <app-wound-coding-section
+              [coding]="coding"
+              [woundId]="codingWoundId"
+              [debridementDocumented]="form.controls.debridementProcedure.controls.performed.value === true"
+              [debridementAreaCm2]="form.controls.debridementProcedure.controls.areaDebridedCm2.value"
+              [chartDiagnoses]="chartDiagnoses"
+              [actor]="codingActor"
+              [providerAuthor]="providerAuthor"
+              [serviceDate]="todayIso"
+              [disabled]="codingLocked"
+              (codingChange)="onCodingChange($event)"></app-wound-coding-section>
+            <ion-note color="danger" *ngFor="let error of codingErrors">{{ error }}</ion-note>
+          </div>
+        </ion-accordion>
       </ion-accordion-group>
 
       <div class="app-actions actions">
