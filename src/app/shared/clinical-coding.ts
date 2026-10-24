@@ -171,7 +171,13 @@ export function clinicalCodingOf(record: unknown): ClinicalCoding | null {
  */
 export function validateClinicalCoding(
   coding: ClinicalCoding | null | undefined,
-  options: { woundIds?: string[]; debridementProcedureIds?: string[]; requireProvider?: boolean } = {}
+  options: {
+    woundIds?: string[];
+    debridementProcedureIds?: string[];
+    /** The wound each documented debridement was performed on, by procedure id. */
+    debridementProcedureWounds?: Record<string, string>;
+    requireProvider?: boolean;
+  } = {}
 ): ClinicalCodingIssue[] {
   const issues: ClinicalCodingIssue[] = [];
   if (!coding) return issues;
@@ -224,6 +230,10 @@ export function validateClinicalCoding(
     if (isDebridementCode(code) && options.debridementProcedureIds &&
         (!row.debridementProcedureId || !options.debridementProcedureIds.includes(row.debridementProcedureId))) {
       issues.push({ level: 'error', field: `procedures.${index}.debridementProcedureId`, message: `${label}: link ${code} to the documented debridement (tissue removed, depth, area) it bills.` });
+    }
+    const linkedWound = row.debridementProcedureId ? options.debridementProcedureWounds?.[row.debridementProcedureId] : undefined;
+    if (isDebridementCode(code) && linkedWound && row.woundId && linkedWound !== row.woundId) {
+      issues.push({ level: 'error', field: `procedures.${index}.debridementProcedureId`, message: `${label}: the linked debridement was performed on a different wound than the one selected.` });
     }
     if (!Number.isInteger(Number(row.units)) || Number(row.units) < 1) {
       issues.push({ level: 'error', field: `procedures.${index}.units`, message: `${label}: units must be a whole number of 1 or more.` });

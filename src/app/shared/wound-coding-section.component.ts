@@ -286,6 +286,7 @@ export class WoundCodingSectionComponent implements OnChanges {
       ...validateClinicalCoding(this.model, {
         woundIds: this.woundId ? [this.woundId] : [],
         debridementProcedureIds: this.debridementDocumented ? ['assessment'] : [],
+        debridementProcedureWounds: this.debridementDocumented && this.woundId ? { assessment: this.woundId } : {},
       }).filter((issue) => !extra.some((item) => item.field === issue.field && /evaluation and management/.test(issue.message))),
       ...extra,
     ];
