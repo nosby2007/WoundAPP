@@ -1,5 +1,5 @@
 // src/app/pages/assessment-form/assessment-form.page.ts
-import { Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ToastController,
@@ -76,6 +76,14 @@ import {
 } from 'src/app/shared/wound-identity';
 import { clinicalVisitQueryParams } from 'src/app/shared/clinical-visit-link';
 import { assessmentStageFromRecord, stageForWoundType } from '../../shared/wound-stage';
+import { ClinicalCoding, ClinicalCodingActor, clinicalCodingOf } from '../../shared/clinical-coding';
+import { WoundCodingChartDiagnosis, WoundCodingSectionComponent } from '../../shared/wound-coding-section.component';
+import { ClinicalIdentityService } from '../../services/clinical-identity.service';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase';
+
+/** Stands in for a new wound's id until the assessment id is allocated on save. */
+const THIS_WOUND = 'this-wound';
 
 /**
  * A wound assessment, as recorded at the bedside.
@@ -122,9 +130,59 @@ import { assessmentStageFromRecord, stageForWoundType } from '../../shared/wound
     IonTextarea,
     IonTitle,
     IonToolbar,
+    WoundCodingSectionComponent,
   ],
 })
 export class AssessmentFormPage implements OnInit, OnDestroy {
+  @ViewChild(WoundCodingSectionComponent) private codingSection?: WoundCodingSectionComponent;
+  private clinicalIdentity = inject(ClinicalIdentityService);
+
+  // ---- Diagnosis & Procedure Coding (shared/clinical-coding.ts)
+  coding: ClinicalCoding | null = null;
+  codingErrors: string[] = [];
+  codingActor: ClinicalCodingActor | null = null;
+  providerAuthor = false;
+  chartDiagnoses: WoundCodingChartDiagnosis[] = [];
+  /** A signed, locked assessment is frozen; corrections are made in JADE by amendment. */
+  codingLocked = false;
+  readonly todayIso = new Date().toISOString().slice(0, 10);
+
+  get codingWoundId(): string {
+    return this.woundId || THIS_WOUND;
+  }
+
+  onCodingChange(coding: ClinicalCoding): void {
+    this.coding = coding;
+    this.codingErrors = [];
+    if (!this.restoringDraft) this.scheduleDraft();
+  }
+
+  private async loadCodingContext(): Promise<void> {
+    try {
+      const identity = await this.clinicalIdentity.requireCurrentIdentity();
+      this.codingActor = { uid: identity.uid, displayName: identity.displayName ?? null, role: identity.role ?? null, credentials: identity.credentials ?? null };
+      const roles = [identity.role, ...(identity.roles || [])].map((role) => String(role || '').toLowerCase());
+      this.providerAuthor = roles.some((role) => ['provider', 'np', 'md', 'do', 'physician'].includes(role));
+    } catch { this.codingActor = null; }
+    try {
+      const snap = await getDocs(collection(db, `patients/${this.patientId}/diagnostic`));
+      this.chartDiagnoses = snap.docs
+        .map((item) => ({ id: item.id, ...(item.data() as any) }))
+        .filter((row: any) => row.reviewStatus === 'approved' && row.status !== 'entered_in_error' && row.code)
+        .map((row: any) => ({ id: row.id, code: String(row.code), description: row.description || null }));
+    } catch { this.chartDiagnoses = []; }
+  }
+
+  /** The coding block as stored: every row belongs to this assessment's wound. */
+  private codingForSave(woundId: string): ClinicalCoding | null {
+    if (!this.coding || (!this.coding.diagnoses.length && !this.coding.procedures.length)) return null;
+    const own = (id: string | null) => (!id || id === THIS_WOUND ? woundId : id);
+    return {
+      ...this.coding,
+      diagnoses: this.coding.diagnoses.map((row) => ({ ...row, woundId: own(row.woundId) })),
+      procedures: this.coding.procedures.map((row) => ({ ...row, woundId: own(row.woundId) })),
+    };
+  }
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -334,6 +392,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    void this.loadCodingContext();
     this.formChanges?.unsubscribe();
     this.formChanges = this.form.valueChanges.subscribe(() => {
       this.formRevision++;
@@ -483,6 +542,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           // recomputing it from the route would silently split the timeline
           // the edit was not even about.
           this.woundId = data.woundId ?? null;
+          this.coding = clinicalCodingOf(data);
+          this.codingLocked = data.locked === true || data.esign?.signed === true;
 
           this.form.patchValue({
             describe: {
@@ -605,6 +666,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       // A slow draft response must not undo a clinician's change or clear action.
       if (!saved?.payload?.form || revision !== this.formRevision || this.assessmentSaved) return;
       this.form.patchValue(saved.payload.form, { emitEvent: false });
+      if (saved.payload.coding) this.coding = saved.payload.coding;
       this.normalizeStage();
       this.draftStatus = saved.updatedAt
         ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
@@ -624,7 +686,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
     const key = this.draftKey();
     // Serialize snapshots so an older request cannot overwrite a cleared stage.
     const saving = this.pendingDraftSave.catch(() => undefined)
-      .then(() => this.drafts.save(key, { form }));
+      .then(() => this.drafts.save(key, { form, coding: this.coding }));
     this.pendingDraftSave = saving;
     try {
       await saving;
@@ -695,6 +757,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       this.form.markAllAsTouched();
       return;
     }
+    this.codingErrors = this.codingSection?.blockingIssues() ?? [];
+    if (this.codingErrors.length) return;
 
     const savedDraftKey = this.draftKey();
     this.loading = true;
@@ -817,6 +881,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
         // so it points at itself.
         id = this.assessments.newId(this.patientId);
         basePayload.woundId = woundIdForCreate(this.woundId, id);
+        const coding = this.codingForSave(basePayload.woundId);
+        if (coding) basePayload.clinicalCoding = coding;
         const linkResult = await this.assessments.createWithId(this.patientId, id, basePayload, {
           appointmentId: this.appointmentId,
           fieldEncounterVisitId: this.fieldEncounterVisitId,
@@ -843,6 +909,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
         // the old dressing would survive its own deletion.
         if (!treatment) basePayload.treatment = null;
         if (!v.orders.goalOfCare) basePayload.orders = null;
+        // Cleared coding is erased the same way, never left behind.
+        basePayload.clinicalCoding = this.codingForSave(this.woundId || id);
         delete basePayload.createdAt;
         delete basePayload.createdBy;
         delete basePayload.createdByUid;
