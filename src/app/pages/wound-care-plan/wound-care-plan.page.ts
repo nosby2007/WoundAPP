@@ -30,7 +30,8 @@ import {
   splitLines,
   todayIsoDate,
 } from '../../shared/care-plan';
-import { CarePlanService } from '../../services/care-plan.service';
+import { CarePlanEdit, CarePlanService } from '../../services/care-plan.service';
+import { CarePlanFollowupComponent } from '../../shared/care-plan-followup.component';
 import { AssessmentsService } from '../../services/assessments.service';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { take } from 'rxjs/operators';
@@ -55,7 +56,7 @@ import { take } from 'rxjs/operators';
   templateUrl: './wound-care-plan.page.html',
   styleUrls: ['./wound-care-plan.page.scss'],
   imports: [
-    CommonModule, ReactiveFormsModule,
+    CommonModule, ReactiveFormsModule, CarePlanFollowupComponent,
     IonBackButton, IonButton, IonButtons, IonCheckbox, IonContent, IonHeader,
     IonInput, IonItem, IonLabel, IonList, IonNote, IonSelect, IonSelectOption,
     IonSpinner, IonTextarea, IonTitle, IonToolbar,
@@ -95,6 +96,11 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
   errorMsg = '';
   draftStatus = '';
   private draftTimer?: ReturnType<typeof setTimeout>;
+  editorOpen = false;
+  editing: CarePlanEdit | null = null;
+  draftAvailable = false;
+  draftLoading = true;
+  private draftWrites: Promise<void> = Promise.resolve();
 
   form = this.fb.group({
     title: ['', Validators.required],
@@ -102,6 +108,7 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
     startDate: [todayIsoDate(), Validators.required],
     description: [''],
     customGoals: [''],
+    changeReason: [''],
   });
 
   ngOnInit(): void {
@@ -159,7 +166,7 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
           this.form.patchValue({ title: this.woundLabel });
         }
       },
-      error: (err) => console.warn('[WoundCarePlanPage] wound unavailable', err),
+      error: () => { this.errorMsg = 'The wound could not be loaded. Return to the assessment before continuing.'; },
     });
   }
 
@@ -172,6 +179,7 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
   }
 
   private scheduleDraft(): void {
+    if (!this.editorOpen || this.saving) return;
     if (this.draftTimer) clearTimeout(this.draftTimer);
     this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
   }
@@ -182,22 +190,27 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
       if (!saved?.payload) return;
       this.form.patchValue(saved.payload.form || {}, { emitEvent: false });
       this.selectedGoalIds = new Set(Array.isArray(saved.payload.goalCatalogRefs) ? saved.payload.goalCatalogRefs : []);
+      this.editing = saved.payload.editing || null;
+      this.draftAvailable = true;
       this.draftStatus = saved.updatedAt ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}` : 'Draft restored';
     } catch {
       // Draft recovery cannot block clinical documentation.
-    }
+    } finally { this.draftLoading = false; }
   }
 
   private async persistDraft(): Promise<void> {
-    if (!this.patientId) return;
+    if (!this.patientId || !this.editorOpen || this.saving) return;
     const value = this.form.getRawValue();
     const hasContent = Object.values(value).some((entry) => String(entry ?? '').trim()) || this.selectedGoalIds.size > 0;
     if (!hasContent) return;
     try {
-      await this.drafts.save(this.draftKey(), {
+      const payload = JSON.parse(JSON.stringify({
         form: value,
         goalCatalogRefs: Array.from(this.selectedGoalIds),
-      });
+        editing: this.editing,
+      }));
+      this.draftWrites = this.draftWrites.catch(() => undefined).then(() => this.drafts.save(this.draftKey(), payload));
+      await this.draftWrites;
       this.draftStatus = 'Draft autosaved.';
     } catch {
       this.draftStatus = 'Draft not synced yet.';
@@ -205,7 +218,7 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
   }
 
   async save(): Promise<void> {
-    if (this.form.invalid || this.saving) return;
+    if (!this.editorOpen || !this.woundId || this.form.invalid || this.saving) return;
 
     const customGoals = splitLines(this.form.value.customGoals);
     const goalCatalogRefs = Array.from(this.selectedGoalIds);
@@ -220,7 +233,9 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
     this.errorMsg = '';
 
     try {
-      await this.carePlans.create(this.patientId, {
+      if (this.draftTimer) clearTimeout(this.draftTimer);
+      await this.draftWrites.catch(() => undefined);
+      const draft = {
         title: this.form.value.title!,
         description: this.form.value.description || null,
         startDate: this.form.value.startDate!,
@@ -228,14 +243,18 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
         category: this.form.value.category as CarePlanProblemCategory,
         goalCatalogRefs,
         customGoals,
-      }, {
+      };
+      if (this.editing) {
+        await this.carePlans.updateExisting(this.patientId, this.editing, draft, this.form.value.changeReason || '');
+      } else await this.carePlans.create(this.patientId, draft, {
         visitId: this.woundVisitId || this.appointmentId || null,
         appointmentId: this.appointmentId || null,
         woundId: this.woundId,
         episodeId: this.episodeId || null,
         fieldEncounterVisitId: this.fieldEncounterVisitId || null,
       });
-
+      this.editorOpen = false;
+      this.draftAvailable = false;
       await this.drafts.clear(this.draftKey()).catch(() => undefined);
       this.draftStatus = '';
             const toast = await this.toastCtrl.create({ message: 'Care plan saved', duration: 2000 });
@@ -258,5 +277,22 @@ export class WoundCarePlanPage implements OnInit, OnDestroy {
     } finally {
       this.saving = false;
     }
+  }
+
+  beginNewPlan(): void {
+    this.editing = null; this.selectedGoalIds.clear(); this.draftAvailable = false;
+    this.form.reset({ title: this.woundLabel, category: '', startDate: todayIsoDate(), description: '', customGoals: '', changeReason: '' });
+    this.editorOpen = true;
+  }
+  editPlan(edit: CarePlanEdit): void {
+    this.editing = edit;
+    this.form.patchValue({ ...edit.draft, customGoals: edit.draft.customGoals.join('\n'), changeReason: '' }, { emitEvent: false });
+    this.selectedGoalIds = new Set(edit.draft.goalCatalogRefs); this.editorOpen = true;
+  }
+  async cancelEdit(): Promise<void> {
+    this.editorOpen = false; this.draftAvailable = false;
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    await this.draftWrites.catch(() => undefined);
+    await this.drafts.clear(this.draftKey()).catch(() => { this.errorMsg = 'Changes cancelled, but the recovery draft could not be cleared.'; });
   }
 }

@@ -5,6 +5,7 @@ import { VisitWorkflowPolicyService, WorkflowCircle } from './visit-workflow-pol
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 import { isCurrentOrder, orderAppliesToEncounter } from '../shared/active-orders';
 import { resolveWoundId } from '../shared/wound-identity';
+import { isActiveCarePlan, todayIsoDate } from '../shared/care-plan';
 
 export interface WorkflowCompletionItem {
   circle: WorkflowCircle;
@@ -56,7 +57,7 @@ export class VisitCompletenessService {
       assessment: assessments.filter((r) => r.kind !== 'braden' && r.kind !== 'systemic_assessment' && scoped(r)).length,
       braden: assessments.filter((r) => r.kind === 'braden' && scoped(r)).length,
       systemic: assessments.filter((r) => r.kind === 'systemic_assessment' && scoped(r)).length,
-      carePlan: carePlans.filter(scoped).length,
+      carePlan: carePlans.filter(plan => isActiveCarePlan(plan, todayIsoDate(day)) && orderAppliesToEncounter(plan, link, woundIds)).length,
       order: orders.filter(order => isCurrentOrder(order, day) && orderAppliesToEncounter(order, link, woundIds)).length,
       education: education.filter(scoped).length,
       woundAssessment: wounds.filter(scoped).length,

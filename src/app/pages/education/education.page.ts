@@ -103,11 +103,14 @@ export class EducationPage implements OnInit, OnDestroy {
   errorMsg = '';
   draftStatus = '';
   private draftTimer?: ReturnType<typeof setTimeout>;
+  editorOpen = false; loading = true; historyError = ''; reviewMessage = ''; draftAvailable = false;
+  previousEducationId: string | null = null;
+  private draftWrites: Promise<void> = Promise.resolve();
 
-  ngOnInit(): void {
-    void this.loadTopics();
-    void this.loadHistory();
-    void this.restoreDraft();
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.loadTopics(), this.loadHistory()]);
+    await this.restoreDraft();
+    this.loading = false;
   }
 
   ngOnDestroy(): void {
@@ -138,7 +141,7 @@ export class EducationPage implements OnInit, OnDestroy {
   }
 
   get canSave(): boolean {
-    return !this.saving && educationIsRecordable(this.draft);
+    return this.editorOpen && !this.loading && !this.saving && educationIsRecordable(this.draft);
   }
 
   /**
@@ -156,6 +159,7 @@ export class EducationPage implements OnInit, OnDestroy {
   }
 
   scheduleDraft(): void {
+    if (!this.editorOpen || this.loading || this.saving) return;
     if (this.draftTimer) clearTimeout(this.draftTimer);
     this.draftTimer = setTimeout(() => void this.persistDraft(), 900);
   }
@@ -183,6 +187,8 @@ export class EducationPage implements OnInit, OnDestroy {
       this.method = Array.isArray(value.method) ? value.method : [];
       this.response = Array.isArray(value.response) ? value.response : [];
       this.notes = String(value.notes || '');
+      this.previousEducationId = value.previousEducationId || null;
+      this.draftAvailable = true;
       this.draftStatus = saved?.updatedAt
         ? `Draft restored from ${new Date(saved.updatedAt).toLocaleString()}`
         : 'Draft restored';
@@ -192,7 +198,7 @@ export class EducationPage implements OnInit, OnDestroy {
   }
 
   private async persistDraft(): Promise<void> {
-    if (!this.patientId) return;
+    if (!this.patientId || !this.editorOpen || this.loading || this.saving) return;
     const payload = {
       selectedTopicId: this.selectedTopicId,
       customTopic: this.customTopic,
@@ -201,13 +207,16 @@ export class EducationPage implements OnInit, OnDestroy {
       method: this.method,
       response: this.response,
       notes: this.notes,
+      previousEducationId: this.previousEducationId,
     };
     const hasContent = Object.values(payload).some((value) =>
       Array.isArray(value) ? value.length > 0 : String(value ?? '').trim().length > 0
     );
     if (!hasContent) return;
     try {
-      await this.drafts.save(this.draftKey(), payload as any);
+      const snapshot = JSON.parse(JSON.stringify(payload));
+      this.draftWrites = this.draftWrites.catch(() => undefined).then(() => this.drafts.save(this.draftKey(), snapshot));
+      await this.draftWrites;
       this.draftStatus = 'Draft autosaved.';
     } catch {
       this.draftStatus = 'Draft not synced yet.';
@@ -227,10 +236,11 @@ export class EducationPage implements OnInit, OnDestroy {
 
   private async loadHistory(): Promise<void> {
     try {
-      this.history = await this.education.list(this.patientId, 8);
+      this.history = await this.education.list(this.patientId, 50, { woundId: this.woundId, episodeId: this.episodeId });
     } catch (err) {
       // A history that will not load is not a reason to block recording.
       console.warn('[EducationPage] history unavailable', err);
+      this.historyError = 'Previous education could not be loaded. Do not assume that no education exists.';
     }
   }
 
@@ -240,13 +250,16 @@ export class EducationPage implements OnInit, OnDestroy {
     this.errorMsg = '';
 
     try {
+      if (this.draftTimer) clearTimeout(this.draftTimer);
+      await this.draftWrites.catch(() => undefined);
       await this.education.create(this.patientId, this.draft, {
         visitId: this.woundVisitId || null,
         appointmentId: this.appointmentId || null,
         woundId: this.woundId || null,
         episodeId: this.episodeId || null,
         fieldEncounterVisitId: this.woundVisitId || null,
-      });
+      }, this.previousEducationId);
+      this.editorOpen = false; this.draftAvailable = false;
       await this.drafts.clear(this.draftKey()).catch(() => undefined);
       this.draftStatus = '';
       const toast = await this.toastCtrl.create({
@@ -270,5 +283,31 @@ export class EducationPage implements OnInit, OnDestroy {
     } finally {
       this.saving = false;
     }
+  }
+
+  beginSession(row?: EducationRow): void {
+    if (this.loading || this.saving) return;
+    // Reuse the topic only, never the prior encounter's learner response or delivery facts.
+    this.selectedTopicId = null; this.customTopic = row?.topic || '';
+    this.previousEducationId = row?.id || null;
+    this.learners = []; this.readiness = null; this.method = []; this.response = []; this.notes = '';
+    this.errorMsg = ''; this.reviewMessage = ''; this.draftStatus = ''; this.draftAvailable = false;
+    this.editorOpen = true;
+  }
+  async keepHistory(): Promise<void> {
+    if (this.loading || this.saving || this.editorOpen) return;
+    this.saving = true;
+    try {
+      await this.education.reviewHistory(this.patientId, { woundId: this.woundId, episodeId: this.episodeId,
+        visitId: this.woundVisitId, appointmentId: this.appointmentId });
+      this.reviewMessage = 'Previous education retained. No new teaching session recorded.';
+    } catch (e: any) { this.reviewMessage = e?.message || 'History review could not be saved.'; }
+    finally { this.saving = false; }
+  }
+  async cancelSession(): Promise<void> {
+    this.editorOpen = false; this.draftAvailable = false;
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    await this.draftWrites.catch(() => undefined);
+    await this.drafts.clear(this.draftKey()).catch(() => { this.errorMsg = 'Session cancelled, but the recovery draft could not be cleared.'; });
   }
 }

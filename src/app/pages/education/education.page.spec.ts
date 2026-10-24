@@ -18,6 +18,8 @@ describe('EducationPage', () => {
   });
 
   it('will not save a topic with nobody taught', () => {
+    component.loading = false;
+    component.beginSession();
     component.customTopic = 'Pressure relief';
     expect(component.canSave).toBe(false);
 

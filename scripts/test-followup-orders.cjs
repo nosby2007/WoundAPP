@@ -132,6 +132,7 @@ test('completion reader accepts prior active order for current assessed wound', 
   const { VisitCompletenessService } = load('src/app/services/visit-completeness.service.ts', {
     '@angular/core': { Injectable: () => x => x }, '../shared/active-orders': active,
     '../shared/clinical-visit-link': links, '../shared/wound-identity': { resolveWoundId: r => r.woundId || r.id },
+    '../shared/care-plan': load('src/app/shared/care-plan.ts'),
   });
   const completion = Object.create(VisitCompletenessService.prototype);
   completion.policies = { get: async () => ({ required: ['order'] }) };

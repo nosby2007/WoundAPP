@@ -1,18 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import {
-  addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
-  limit,
-  orderBy,
-  query,
+  writeBatch,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
 
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
-import { EducationDraft, EducationTopicOption } from '../shared/education';
+import { EducationDraft, EducationTopicOption, educationIsRecordable } from '../shared/education';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
 
@@ -53,6 +52,9 @@ export interface EducationRow {
   deliveredAt: Date | null;
   deliveredByName: string;
   woundId: string | null;
+  episodeId?: string | null;
+  category?: string | null;
+  notes?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -88,7 +90,7 @@ export class EducationService {
       .sort((a, b) => a.category.localeCompare(b.category) || a.topic.localeCompare(b.topic));
   }
 
-  async create(patientId: string, draft: EducationDraft, visitLink: ClinicalVisitLink = {}): Promise<string> {
+  async create(patientId: string, draft: EducationDraft, visitLink: ClinicalVisitLink = {}, previousEducationId?: string | null): Promise<string> {
     if (!patientId) throw new Error('EducationService.create(): patientId is missing.');
 
     const user = auth.currentUser;
@@ -96,6 +98,15 @@ export class EducationService {
 
     const orgId = await this.tenant.currentOrgId();
     if (!orgId) throw new NoOrgError();
+    if (!educationIsRecordable(draft)) throw new Error('Record the topic and the learner for this actual session.');
+    if (previousEducationId) {
+      const previous = (await getDoc(doc(db, `patients/${patientId}/educationRecords/${previousEducationId}`))).data();
+      if (!previous || previous['orgId'] !== orgId || previous['patientId'] !== patientId ||
+          previous['archivedAt'] || previous['status'] === 'cancelled' ||
+          (draft.woundId && previous['woundId'] && previous['woundId'] !== draft.woundId)) {
+        throw new Error('The previous education record is not available for this wound.');
+      }
+    }
 
     const actor = {
       uid: user.uid,
@@ -104,7 +115,9 @@ export class EducationService {
     };
     const now = serverTimestamp();
 
-    const ref = await addDoc(collection(db, `patients/${patientId}/educationRecords`), {
+    const ref = doc(collection(db, `patients/${patientId}/educationRecords`));
+    const batch = writeBatch(db);
+    batch.set(ref, {
       orgId,
       patientId,
       ...clinicalVisitLinkFields({
@@ -114,10 +127,11 @@ export class EducationService {
       woundId: draft.woundId ?? visitLink.woundId ?? null,
       topic: draft.topic.trim(),
       category: draft.category || null,
+      previousEducationId: previousEducationId || null,
       learners: draft.learners,
       readiness: draft.readiness,
-      method: draft.method,
-      response: draft.response,
+      method: draft.readiness === 'refuses' ? [] : draft.method,
+      response: draft.readiness === 'refuses' ? [] : draft.response,
       deliveredBy: actor,
       // The moment it happened is the server's, not the handset's.
       deliveredAt: now,
@@ -140,22 +154,28 @@ export class EducationService {
       createdBy: actor,
     });
 
-    await this.audit.record({ action: 'education_recorded', patientId, entityType: 'educationRecord', entityId: ref.id, metadata: { learnerCount: draft.learners?.length || 0 } });
+    const auditRef = doc(collection(db, 'clinicalAuditEvents'));
+    batch.set(auditRef, { orgId, actorUid: user.uid, patientId, entityType: 'educationRecord', entityId: ref.id,
+      action: 'education_recorded', occurredAt: now, outcome: 'success',
+      metadata: { learnerCount: draft.learners.length, previousEducationId: previousEducationId || null }, client: { platform: 'woundapp' } });
+    await batch.commit();
     return ref.id;
   }
 
   /** What this patient has already been taught, newest first. */
-  async list(patientId: string, max = 10): Promise<EducationRow[]> {
+  async list(patientId: string, max = 10, link: ClinicalVisitLink = {}): Promise<EducationRow[]> {
     if (!patientId) throw new Error('EducationService.list(): patientId is missing.');
 
-    const q = query(
-      collection(db, `patients/${patientId}/educationRecords`),
-      orderBy('deliveredAt', 'desc'),
-      limit(max),
-    );
-    const snap = await getDocs(q);
+    const orgId = await this.tenant.currentOrgId();
+    if (!orgId) throw new NoOrgError();
+    const snap = await getDocs(collection(db, `patients/${patientId}/educationRecords`));
 
-    return snap.docs.map((d) => {
+    return snap.docs.filter(d => {
+      const data = d.data();
+      return data['orgId'] === orgId && !data['archivedAt'] && !['cancelled','voided','archived'].includes(data['status']) &&
+        (!link.woundId || !data['woundId'] || data['woundId'] === link.woundId) &&
+        (!link.episodeId || !data['episodeId'] || data['episodeId'] === link.episodeId);
+    }).map((d) => {
       const data: any = d.data();
       return {
         id: d.id,
@@ -165,7 +185,17 @@ export class EducationService {
         deliveredAt: typeof data.deliveredAt?.toDate === 'function' ? data.deliveredAt.toDate() : null,
         deliveredByName: data.deliveredBy?.displayName || '',
         woundId: typeof data.woundId === 'string' ? data.woundId : null,
+        episodeId: data.episodeId || null,
+        category: data.category || null,
+        notes: data.notes || null,
       };
-    });
+    }).sort((a, b) => (b.deliveredAt?.getTime() || 0) - (a.deliveredAt?.getTime() || 0)).slice(0, max);
+  }
+
+  async reviewHistory(patientId: string, link: ClinicalVisitLink): Promise<void> {
+    const rows = await this.list(patientId, 50, link);
+    if (!rows.length) throw new Error('No prior education is available for this selection.');
+    await this.audit.record({ action: 'education_history_reviewed', patientId, entityType: 'educationRecord',
+      metadata: { visitId: link.visitId || null, woundId: link.woundId || null, newTeachingRecorded: false } });
   }
 }
