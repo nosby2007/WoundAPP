@@ -114,7 +114,97 @@ export interface WoundNoteWound {
   goalOfCare?: string | null;
   /** The procedure recorded on this assessment; never inferred from wound depth. */
   debridementProcedure?: WoundNoteDebridement | null;
+  /** ICD-10-CM codes recorded in this assessment's Diagnosis & Procedure Coding. */
+  diagnoses?: WoundNoteDiagnosis[];
   orders: WoundNoteOrder[];
+}
+
+export interface WoundNoteDiagnosis {
+  code: string;
+  description: string | null;
+  status: 'proposed' | 'provider_confirmed' | 'rejected' | string;
+}
+
+/** One row of a JADE chart section (patients/{id}/diagnostic|medicalHistory|allergy). */
+export interface WoundNoteChartFact {
+  code?: string | null;
+  description?: string | null;
+  status?: string | null;
+  reviewStatus?: string | null;
+  reaction?: string | null;
+  severity?: string | null;
+  rank?: number | null;
+}
+
+export interface WoundNoteChartContext {
+  diagnostic: WoundNoteChartFact[];
+  medicalHistory: WoundNoteChartFact[];
+  allergy: WoundNoteChartFact[];
+  /** Free-text lists captured at intake on the patient document. */
+  intakeDiagnoses?: string[];
+  intakeMedicalHistory?: string[];
+  intakeAllergies?: string[];
+}
+
+const textOf = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/**
+ * Turns the chart's clinical-background sections into the note's problem
+ * list, past medical history and allergies.
+ *
+ * The note states where each fact stands rather than promoting it: a chart
+ * diagnosis no provider has approved yet says so, and an intake entry is
+ * labelled as reported at intake. Entered-in-error rows never print; a
+ * resolved problem leaves the active problem list but stays in the history.
+ */
+export function noteChartContext(context: WoundNoteChartContext): Pick<WoundNotePatient, 'diagnoses' | 'pastMedicalHistory' | 'allergies'> {
+  const live = (rows: WoundNoteChartFact[]) => rows.filter((row) => textOf(row.description) && row.status !== 'entered_in_error');
+  const withIntake = (facts: string[], intake: string[] | undefined, label: string) => [
+    ...facts,
+    ...(intake ?? []).map(textOf).filter(Boolean)
+      .filter((entry) => !facts.some((fact) => fact.toLowerCase().includes(entry.toLowerCase())))
+      .filter((entry, index, all) => all.findIndex((other) => sameText(other, entry)) === index)
+      .map((entry) => `${entry} (${label})`),
+  ];
+
+  const problems = live(context.diagnostic)
+    .filter((row) => row.status !== 'resolved')
+    .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
+    .map((row) => {
+      const code = textOf(row.code);
+      const text = code ? `${code} — ${textOf(row.description)}` : textOf(row.description);
+      return row.reviewStatus === 'approved' ? text : `${text} (pending provider review)`;
+    });
+
+  const history = live(context.medicalHistory).map((row) => {
+    const code = textOf(row.code);
+    return `${textOf(row.description)}${code ? ` (${code})` : ''}${row.status === 'resolved' ? ' — resolved' : ''}`;
+  });
+
+  const allergies = live(context.allergy)
+    .filter((row) => row.status !== 'resolved')
+    .map((row) => {
+      const detail = [textOf(row.reaction), textOf(row.severity)].filter(Boolean).join(', ');
+      return `${textOf(row.description)}${detail ? ` (${detail})` : ''}`;
+    });
+
+  const pastMedicalHistory = withIntake(history, context.intakeMedicalHistory, 'reported at intake');
+  return {
+    diagnoses: withIntake(problems, context.intakeDiagnoses, 'reported at intake'),
+    pastMedicalHistory: pastMedicalHistory.length ? pastMedicalHistory.join('; ') : null,
+    allergies: withIntake(allergies, context.intakeAllergies, 'reported at intake'),
+  };
+}
+
+function diagnosesBlock(wound: WoundNoteWound): string | null {
+  const rows = (wound.diagnoses ?? []).filter((row) => textOf(row.code) && row.status !== 'rejected');
+  if (!rows.length) return null;
+  return ['Wound Diagnoses', ...rows.map((row) => {
+    const description = textOf(row.description);
+    const pending = row.status === 'provider_confirmed' ? '' : ' (proposed, pending provider confirmation)';
+    return `•\t${textOf(row.code)}${description ? ` — ${description}` : ''}${pending}`;
+  })].join('\n');
 }
 
 export interface WoundNoteDebridement {
@@ -338,7 +428,7 @@ function woundBlock(wound: WoundNoteWound): string {
     line('Notes', wound.progress?.notes),
   ].filter((l): l is string => !!l).join('\n');
 
-  return [header, assessment, debridementBlock(wound), ordersBlock(wound)]
+  return [header, assessment, diagnosesBlock(wound), debridementBlock(wound), ordersBlock(wound)]
     .filter((section): section is string => !!section).join('\n\n');
 }
 

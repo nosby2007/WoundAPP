@@ -3,6 +3,7 @@ import {
   buildWoundProgressNote,
   defaultReasonForConsult,
   defaultRecommendation,
+  noteChartContext,
   noteDateTime,
   WoundNoteInput,
   WoundNoteWound,
@@ -263,6 +264,75 @@ describe('wound progress note', () => {
       const note = buildWoundProgressNote(input());
       expect(note).toContain('Recorded by: A. Nurse');
       expect(note).toContain('Date: 09/06/26 1816');
+    });
+  });
+
+  describe('chart clinical background (JADE diagnostic / medicalHistory / allergy)', () => {
+    const chart = noteChartContext({
+      diagnostic: [
+        { code: 'E11.9', description: 'Type 2 diabetes mellitus without complications', status: 'active', reviewStatus: 'approved', rank: 2 },
+        { code: 'I10', description: 'Essential (primary) hypertension', status: 'active', reviewStatus: 'approved', rank: 1 },
+        { code: 'N18.3', description: 'Chronic kidney disease, stage 3', status: 'active', reviewStatus: 'needs_review' },
+        { code: 'J18.9', description: 'Pneumonia, unspecified organism', status: 'resolved', reviewStatus: 'approved' },
+        { code: 'Z99.9', description: 'Recorded on the wrong chart', status: 'entered_in_error', reviewStatus: 'approved' },
+      ],
+      medicalHistory: [
+        { description: 'Right hip fracture', status: 'resolved' },
+        { description: 'Peripheral vascular disease', code: 'I73.9', status: 'active' },
+      ],
+      allergy: [
+        { description: 'Penicillin', reaction: 'Hives', severity: 'moderate', status: 'active' },
+        { description: 'Latex', status: 'entered_in_error' },
+      ],
+      intakeDiagnoses: ['Essential (primary) hypertension', 'Dementia'],
+      intakeAllergies: ['Sulfa'],
+    });
+
+    it('lists active chart diagnoses by rank and says which are not provider-approved', () => {
+      expect(chart.diagnoses).toEqual([
+        'I10 — Essential (primary) hypertension',
+        'E11.9 — Type 2 diabetes mellitus without complications',
+        'N18.3 — Chronic kidney disease, stage 3 (pending provider review)',
+        'Dementia (reported at intake)',
+      ]);
+    });
+
+    it('keeps resolved history, drops entered-in-error rows everywhere', () => {
+      expect(chart.pastMedicalHistory).toBe('Right hip fracture — resolved; Peripheral vascular disease (I73.9)');
+      expect(chart.allergies).toEqual(['Penicillin (Hives, moderate)', 'Sulfa (reported at intake)']);
+      expect(JSON.stringify(chart)).not.toContain('wrong chart');
+      expect(JSON.stringify(chart)).not.toContain('Latex');
+    });
+
+    it('prints the chart background in the note instead of "on file"', () => {
+      const note = buildWoundProgressNote(input({ patient: { name: 'Test Patient', dob: '1972-04-18', gender: 'female', ...chart } }));
+      expect(note).toContain('•\tI10 — Essential (primary) hypertension');
+      expect(note).toContain('Past Medical History: Right hip fracture — resolved; Peripheral vascular disease (I73.9)');
+      expect(note).toContain('Allergies: Penicillin (Hives, moderate) and Sulfa (reported at intake)');
+      expect(note).not.toContain('No active problems on file.');
+      expect(note).not.toContain('No known allergies on file.');
+    });
+
+    it('still says "on file" when the chart is empty', () => {
+      const empty = noteChartContext({ diagnostic: [], medicalHistory: [], allergy: [] });
+      expect(empty).toEqual({ diagnoses: [], pastMedicalHistory: null, allergies: [] });
+    });
+  });
+
+  describe('wound diagnoses from the assessment coding', () => {
+    it('prints each wound\'s recorded ICD-10-CM codes and marks unconfirmed ones', () => {
+      const note = buildWoundProgressNote(input({ wounds: [wound({ diagnoses: [
+        { code: 'L89.614', description: 'Pressure ulcer of right heel, stage 4', status: 'provider_confirmed' },
+        { code: 'E11.621', description: 'Type 2 diabetes mellitus with foot ulcer', status: 'proposed' },
+        { code: 'L97.419', description: 'Rejected during coding review', status: 'rejected' },
+      ] })] }));
+      expect(note).toContain('Wound Diagnoses\n•\tL89.614 — Pressure ulcer of right heel, stage 4\n');
+      expect(note).toContain('•\tE11.621 — Type 2 diabetes mellitus with foot ulcer (proposed, pending provider confirmation)');
+      expect(note).not.toContain('L97.419');
+    });
+
+    it('prints no diagnosis section for a wound with none recorded', () => {
+      expect(buildWoundProgressNote(input())).not.toContain('Wound Diagnoses');
     });
   });
 });

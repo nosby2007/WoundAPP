@@ -13,7 +13,10 @@ import { auth, db } from '../firebase';
 import { PatientAssessmentService } from './patient-assessment.service';
 import { latestAssessmentPerWound, resolveWoundId } from '../shared/wound-identity';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
+import { clinicalCodingOf } from '../shared/clinical-coding';
 import {
+  noteChartContext,
+  WoundNoteChartFact,
   WoundNoteEducation,
   WoundNoteInput,
   WoundNoteOrder,
@@ -124,6 +127,10 @@ export class WoundProgressNoteService {
       progress: assessment.progress ?? null,
       treatment: assessment.treatment ?? null,
       debridementProcedure: assessment.debridementProcedure ?? null,
+      // Codes recorded on this assessment for this wound, or for the patient.
+      diagnoses: (clinicalCodingOf(assessment)?.diagnoses ?? [])
+        .filter((row) => !row.woundId || row.woundId === woundId)
+        .map((row) => ({ code: row.code, description: row.description ?? null, status: row.status })),
       goalOfCare: assessment.orders?.goalOfCare ?? null,
       // Orders filed against this wound, plus the patient-level ones, which
       // are about every wound and would otherwise appear against none.
@@ -156,24 +163,71 @@ export class WoundProgressNoteService {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
+  /**
+   * The patient, with the clinical background JADE keeps in the chart's
+   * diagnostic / medicalHistory / allergy subcollections. Those sections are
+   * the record; the flat arrays on the patient document are intake capture
+   * and are printed as such. Each section fails on its own, so one unreadable
+   * section never blanks the others.
+   */
   private async readPatient(patientId: string) {
+    const [patientSnap, diagnostic, medicalHistory, allergy] = await Promise.all([
+      getDoc(doc(db, 'patients', patientId)).catch(() => null),
+      this.readChartSection(patientId, 'diagnostic'),
+      this.readChartSection(patientId, 'medicalHistory'),
+      this.readChartSection(patientId, 'allergy'),
+    ]);
+    const data: any = patientSnap?.data() ?? {};
+    const intake = data.clinical || {};
+    const context = noteChartContext({
+      diagnostic,
+      medicalHistory,
+      allergy,
+      intakeDiagnoses: this.intakeTexts(data.diagnoses ?? intake.diagnoses),
+      intakeMedicalHistory: this.intakeTexts(data.medicalHistory ?? intake.medicalHistory),
+      intakeAllergies: this.intakeTexts(data.allergies ?? intake.allergies),
+    });
+    const legacyHistory = typeof data.pastMedicalHistory === 'string' ? data.pastMedicalHistory.trim() : '';
+    return {
+      name: data.name || data.displayName || 'Patient',
+      dob: data.dob ?? null,
+      gender: data.gender ?? null,
+      diagnoses: context.diagnoses,
+      allergies: context.allergies,
+      pastMedicalHistory: [context.pastMedicalHistory, legacyHistory].filter(Boolean).join('; ') || null,
+      // JADE has no surgical-history section yet; only a value on the patient
+      // document prints, otherwise the note says "on file".
+      pastSurgicalHistory: data.pastSurgicalHistory ?? null,
+    };
+  }
+
+  private async readChartSection(patientId: string, kind: 'diagnostic' | 'medicalHistory' | 'allergy'): Promise<WoundNoteChartFact[]> {
     try {
-      const snap = await getDoc(doc(db, 'patients', patientId));
-      const data: any = snap.data() ?? {};
-      return {
-        name: data.name || data.displayName || 'Patient',
-        dob: data.dob ?? null,
-        gender: data.gender ?? null,
-        diagnoses: Array.isArray(data.diagnoses) ? data.diagnoses : [],
-        allergies: Array.isArray(data.allergies) ? data.allergies : [],
-        // Absent from the patient model today. Left null so the note prints
-        // "on file" wording rather than inventing a history.
-        pastMedicalHistory: data.pastMedicalHistory ?? null,
-        pastSurgicalHistory: data.pastSurgicalHistory ?? null,
-      };
-    } catch {
-      return { name: 'Patient', dob: null, gender: null, diagnoses: [], allergies: [] };
+      const snap = await getDocs(collection(db, `patients/${patientId}/${kind}`));
+      return snap.docs.map((d) => {
+        const row: any = d.data();
+        return {
+          code: row.code ?? null,
+          description: row.description || row.name || null,
+          status: row.status ?? null,
+          reviewStatus: row.reviewStatus ?? null,
+          reaction: row.reaction ?? null,
+          severity: row.severity ?? null,
+          rank: Number.isInteger(row.rank) ? Number(row.rank) : null,
+        };
+      });
+    } catch (error) {
+      console.warn(`WoundProgressNoteService: chart section ${kind} could not be read.`, error);
+      return [];
     }
+  }
+
+  private intakeTexts(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) =>
+      typeof item === 'string' ? item.trim()
+        : item && typeof item === 'object' ? String((item as any).description || (item as any).name || '').trim() : ''
+    ).filter(Boolean);
   }
 
   private async readAssessments(patientId: string, visitLink: ClinicalVisitLink): Promise<any[]> {
