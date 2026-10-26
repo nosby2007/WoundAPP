@@ -57,6 +57,8 @@ const routes: Routes = [
       { path: 'wound-rounds/:roundId', component: WoundRoundDetailPage, canActivate: [fieldAccessGuard], data: { access: 'wound-round-review' } },
       { path: 'chat', component: ChatPage },
       { path: 'more', component: MorePage },
+      { path: 'event-portal', loadComponent: () => import('../pages/event-portal/event-portal.page').then(m => m.EventPortalPage) },
+      { path: 'event-portal/report/:eventClass', loadComponent: () => import('../pages/event-report/event-report.page').then(m => m.EventReportPage) },
       { path: 'visit-history', component: VisitHistoryPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'visit-history/:patientId/:visitId', component: VisitHistoryDetailPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'scheduler', component: SchedulerWorkspacePage, canActivate: [fieldAccessGuard], data: { access: 'scheduling' } },
