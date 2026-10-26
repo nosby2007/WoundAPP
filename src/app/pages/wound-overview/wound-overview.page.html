@@ -1,0 +1,61 @@
+<ion-header class="ion-no-border"><ion-toolbar>
+  <ion-buttons slot="start"><ion-back-button [defaultHref]="'/tabs/skin-wound/' + patientId + '/assessments'"></ion-back-button></ion-buttons>
+  <ion-title>Wound Overview</ion-title>
+</ion-toolbar></ion-header>
+
+<ion-content>
+  <main class="page">
+    <section class="hero">
+      <div><p class="eyebrow">ANATOMY &amp; HEALING</p><h1>{{ patientName() }}</h1><p>Current wound positions and measurement trends from documented assessments.</p></div>
+      <ion-button color="light" fill="outline" (click)="newAssessment()"><ion-icon slot="start" [icon]="addOutline"></ion-icon>New assessment</ion-button>
+    </section>
+
+    <div class="state" *ngIf="loading()"><ion-spinner></ion-spinner><p>Loading wound summary…</p></div>
+    <div class="state error" *ngIf="!loading() && error()">{{ error() }}</div>
+
+    <ng-container *ngIf="!loading() && !error()">
+      <section class="metrics">
+        <article><strong>{{ woundGroups().length }}</strong><span>Current wounds</span></article>
+        <article><strong>{{ assessments().length }}</strong><span>Total assessments</span></article>
+        <article><strong>{{ markers().length }}</strong><span>Mapped wounds</span></article>
+      </section>
+
+      <section class="panel map-panel">
+        <div class="panel-head"><div><p class="eyebrow dark">BODY MAP</p><h2>Wound locations</h2></div><ion-icon [icon]="locateOutline"></ion-icon></div>
+        <app-wound-body-map [interactive]="false" [markers]="markers()" (markerSelect)="selectMarker($event)"></app-wound-body-map>
+        <p class="legacy-note" *ngIf="unlocatedCount()">{{ unlocatedCount() }} historical wound{{ unlocatedCount() === 1 ? '' : 's' }} ha{{ unlocatedCount() === 1 ? 's' : 've' }} no saved body-map position. The text location remains available.</p>
+      </section>
+
+      <section class="panel" *ngIf="woundGroups().length; else empty">
+        <div class="panel-head"><div><p class="eyebrow dark">WOUNDS</p><h2>Select a healing trajectory</h2></div></div>
+        <div class="wound-tabs">
+          <button type="button" *ngFor="let group of woundGroups(); let index = index" [class.active]="resolveWoundId(group.latest) === resolveWoundId(selectedWound())" (click)="selectWound(group.woundId)">
+            <span>{{ index + 1 }}</span><strong>{{ group.latest.location || 'Location not recorded' }}</strong><small>{{ group.assessmentCount }} assessment{{ group.assessmentCount === 1 ? '' : 's' }}</small>
+          </button>
+        </div>
+
+        <div class="selected" *ngIf="selectedWound() as wound">
+          <div><span>{{ wound.type || 'Wound' }}</span><strong>{{ wound.location }}</strong><small>{{ wound.stage ? 'Stage ' + wound.stage + ' · ' : '' }}{{ wound.status || 'Status not recorded' }}</small></div>
+          <ion-button fill="outline" size="small" (click)="history()">Open full history</ion-button>
+        </div>
+
+        <div class="charts">
+          <article class="chart-card">
+            <div class="chart-head"><div><span>WOUND AREA</span><strong>{{ lastValue(areaTrend()) ?? '—' }} cm²</strong></div><em *ngIf="areaChange() !== null" [class.improving]="areaChange()! < 0">{{ areaChange()! > 0 ? '+' : '' }}{{ areaChange() }}%</em></div>
+            <svg viewBox="0 0 100 46" preserveAspectRatio="none" aria-label="Wound area trend chart"><path class="grid" d="M5 5H95 M5 23H95 M5 41H95"></path><polyline *ngIf="areaPolyline()" class="line area" [attr.points]="areaPolyline()"></polyline></svg>
+            <p>{{ areaTrend().length }} documented area measurement{{ areaTrend().length === 1 ? '' : 's' }}. A downward line indicates decreasing area.</p>
+          </article>
+
+          <article class="chart-card">
+            <div class="chart-head"><div><span>DIMENSIONS</span><strong>cm</strong></div></div>
+            <svg viewBox="0 0 100 46" preserveAspectRatio="none" aria-label="Wound dimensions trend chart"><path class="grid" d="M5 5H95 M5 23H95 M5 41H95"></path><polyline *ngIf="lengthPolyline()" class="line length" [attr.points]="lengthPolyline()"></polyline><polyline *ngIf="widthPolyline()" class="line width" [attr.points]="widthPolyline()"></polyline><polyline *ngIf="depthPolyline()" class="line depth" [attr.points]="depthPolyline()"></polyline></svg>
+            <div class="legend"><span class="length">Length {{ lastValue(lengthTrend()) ?? '—' }}</span><span class="width">Width {{ lastValue(widthTrend()) ?? '—' }}</span><span class="depth">Depth {{ lastValue(depthTrend()) ?? '—' }}</span></div>
+          </article>
+        </div>
+        <p class="chart-note">Charts display only recorded numeric measurements. Missing values are not converted to zero.</p>
+      </section>
+
+      <ng-template #empty><div class="state"><ion-icon [icon]="analyticsOutline"></ion-icon><h2>No wound assessments yet</h2><p>Create the first assessment to start the anatomical map and trend summary.</p><ion-button (click)="newAssessment()">New assessment</ion-button></div></ng-template>
+    </ng-container>
+  </main>
+</ion-content>

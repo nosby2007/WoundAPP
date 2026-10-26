@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { AssessmentsService } from '../../services/assessments.service';
 import { assessmentDebridementPayload } from '../../shared/assessment-debridement';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
+import { positionForZone } from '../../shared/wound-anatomy';
 
 describe('AssessmentFormPage', () => {
   let component: AssessmentFormPage;
@@ -122,5 +123,12 @@ describe('AssessmentFormPage', () => {
     await (component as any).loadReevaluationBaseline();
     expect(component.form.controls.measurements.controls.depth.value).toBe(1.5);
     expect(assessmentDebridementPayload(component.form.controls.debridementProcedure.getRawValue())).toBeNull();
+  });
+
+  it('stores the structured anatomical marker and its confirmed text label together', () => {
+    const position = positionForZone('back-right-heel', 'male')!;
+    component.onAnatomyChange(position);
+    expect(component.form.controls.describe.controls.anatomy.value).toEqual(position);
+    expect(component.form.controls.describe.controls.location.value).toBe('Right posterior heel');
   });
 });

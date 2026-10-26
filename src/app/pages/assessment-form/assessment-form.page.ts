@@ -81,6 +81,8 @@ import { WoundCodingChartDiagnosis, WoundCodingSectionComponent } from '../../sh
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { WoundBodyMapComponent } from '../../shared/wound-body-map.component';
+import { normalizeWoundAnatomy, WoundAnatomyPosition } from '../../shared/wound-anatomy';
 
 /** Stands in for a new wound's id until the assessment id is allocated on save. */
 const THIS_WOUND = 'this-wound';
@@ -131,6 +133,7 @@ const THIS_WOUND = 'this-wound';
     IonTitle,
     IonToolbar,
     WoundCodingSectionComponent,
+    WoundBodyMapComponent,
   ],
 })
 export class AssessmentFormPage implements OnInit, OnDestroy {
@@ -296,6 +299,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       type: ['Pressure', Validators.required],
       stage: [''],
       location: ['', Validators.required],
+      anatomy: this.fb.control<WoundAnatomyPosition | null>(null),
       acquired: ['In-House Acquired'],
       notes: [''],
     }),
@@ -427,6 +431,13 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
     stage.markAsDirty();
   }
 
+  onAnatomyChange(position: WoundAnatomyPosition): void {
+    const describe = this.form.controls.describe.controls;
+    describe.anatomy.setValue(position);
+    describe.location.setValue(position.label);
+    describe.location.markAsDirty();
+  }
+
   private normalizeStage(): void {
     const describe = this.form.controls.describe.controls;
     const stage = stageForWoundType(describe.type.value, describe.stage.value);
@@ -456,6 +467,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           type: data.describe?.type || data.type || '',
           stage: assessmentStageFromRecord(data),
           location: data.describe?.location || data.location || '',
+          anatomy: normalizeWoundAnatomy(data.describe?.anatomy),
           acquired: data.describe?.acquired || data.acquired || '',
           notes: '',
         },
@@ -550,6 +562,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
               type: data.describe?.type || data.type || '',
               stage: assessmentStageFromRecord(data),
               location: data.describe?.location || data.location || '',
+              anatomy: normalizeWoundAnatomy(data.describe?.anatomy),
               acquired: data.describe?.acquired || data.acquired || '',
               notes: data.describe?.notes || '',
             },
@@ -799,6 +812,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           type: v.describe.type || 'Other',
           stage: stageForWoundType(v.describe.type, v.describe.stage) || null,
           location: v.describe.location || '',
+          anatomy: v.describe.anatomy || null,
           acquired: v.describe.acquired || 'In-House Acquired',
           ageCategory: '',
           exactDate: null,

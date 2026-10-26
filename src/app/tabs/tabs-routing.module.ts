@@ -68,6 +68,7 @@ const routes: Routes = [
       { path: 'progress-note', component: ProgressNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'progress-note/:patientId', component: ProgressNoteFormPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/assessments', component: PatientAssessmentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
+      { path: 'skin-wound/:patientId/wound-overview', loadComponent: () => import('../pages/wound-overview/wound-overview.page').then(m => m.WoundOverviewPage), canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/signatures', component: FieldSignatureCenterPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/documents', component: PatientDocumentsPage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },
       { path: 'skin-wound/:patientId/wound-note', component: WoundNotePage, canActivate: [fieldAccessGuard], data: { access: 'clinical' } },

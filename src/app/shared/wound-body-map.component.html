@@ -1,0 +1,55 @@
+<section class="body-map" [class.readonly]="!interactive">
+  <div class="map-toolbar">
+    <div class="segmented" aria-label="Body profile">
+      <button type="button" [class.active]="profile === 'female'" (click)="chooseProfile('female')">Female</button>
+      <button type="button" [class.active]="profile === 'male'" (click)="chooseProfile('male')">Male</button>
+    </div>
+    <div class="segmented" aria-label="Body view">
+      <button type="button" [class.active]="view === 'front'" (click)="chooseView('front')">Front</button>
+      <button type="button" [class.active]="view === 'back'" (click)="chooseView('back')">Back</button>
+    </div>
+  </div>
+
+  <div class="map-layout">
+    <div class="canvas">
+      <svg viewBox="0 0 100 100" role="img" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
+        <g class="silhouette">
+          <ellipse cx="50" cy="8" rx="7" ry="6.5"></ellipse>
+          <rect x="47" y="13" width="6" height="6" rx="2"></rect>
+          <path [attr.d]="torsoPath"></path>
+          <path class="limb" d="M37 23 Q29 27 27 39 L22 51"></path>
+          <path class="limb" d="M63 23 Q71 27 73 39 L78 51"></path>
+          <circle cx="21" cy="53" r="4"></circle><circle cx="79" cy="53" r="4"></circle>
+          <path class="limb leg" d="M44 47 Q41 60 43 72 L42 94"></path>
+          <path class="limb leg" d="M56 47 Q59 60 57 72 L58 94"></path>
+          <ellipse cx="41" cy="96" rx="6" ry="3"></ellipse><ellipse cx="59" cy="96" rx="6" ry="3"></ellipse>
+          <path *ngIf="view === 'front'" class="detail" d="M40 34 Q50 37 60 34 M50 19 L50 45"></path>
+          <path *ngIf="view === 'back'" class="detail" d="M50 19 L50 46 M40 43 Q50 47 60 43"></path>
+        </g>
+
+        <g *ngFor="let marker of visibleMarkers" class="marker saved" tabindex="0" role="button"
+           [attr.aria-label]="marker.woundLabel + ', ' + marker.label"
+           (click)="activateMarker($event, marker)" (keydown.enter)="activateMarker($event, marker)">
+          <circle [attr.cx]="markerX(marker)" [attr.cy]="markerY(marker)" r="4.2"></circle>
+          <text [attr.x]="markerX(marker)" [attr.y]="markerY(marker) + 1.5">{{ marker.index || '•' }}</text>
+        </g>
+
+        <g *ngIf="visiblePosition" class="marker selected" aria-hidden="true">
+          <circle [attr.cx]="visiblePosition!.x" [attr.cy]="visiblePosition!.y" r="5"></circle>
+          <path [attr.d]="'M ' + (visiblePosition!.x - 2) + ' ' + visiblePosition!.y + ' h 4 M ' + visiblePosition!.x + ' ' + (visiblePosition!.y - 2) + ' v 4'"></path>
+        </g>
+      </svg>
+      <span class="orientation">Patient {{ view }} view · patient left/right</span>
+    </div>
+
+    <div class="map-side" *ngIf="interactive">
+      <label for="anatomical-zone">Anatomical region</label>
+      <select id="anatomical-zone" [value]="position?.id || ''" (change)="selectZone($any($event.target).value)">
+        <option value="">Select a region</option>
+        <option *ngFor="let zone of zones" [value]="zone.id">{{ zone.label }}</option>
+      </select>
+      <p class="selected-label" [class.hint]="!position">{{ position?.label || selectionMessage || 'Tap the silhouette or use the region list.' }}</p>
+      <small>The marker supports localization; the clinician remains responsible for confirming the documented site.</small>
+    </div>
+  </div>
+</section>

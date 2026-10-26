@@ -25,6 +25,7 @@ import { ClinicalIdentityService } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { normalizeFieldRole } from './field-role-policy.service';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
+import { normalizeWoundAnatomy, WoundAnatomyPosition } from '../shared/wound-anatomy';
 
 export interface FieldAssessmentContext {
   appointmentId?: string | null;
@@ -59,6 +60,14 @@ export interface MobileAssessment {
   appointmentId?: string | null;
   authorName?: string | null;
   reviewed?: boolean;
+  anatomy?: WoundAnatomyPosition | null;
+  measurements?: {
+    length: number | null;
+    width: number | null;
+    depth: number | null;
+    area: number | null;
+    volume: number | null;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -90,6 +99,8 @@ export class AssessmentsService {
         fieldEncounterVisitId: d.fieldEncounterVisitId || null, appointmentId: d.appointmentId || null,
         authorName: d.authorIdentity?.displayName || d.createdByName || null,
         reviewed: d.providerReview?.reviewed === true,
+        anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        measurements: this.mobileMeasurements(d.measurements),
       })))
     );
   }
@@ -116,6 +127,8 @@ export class AssessmentsService {
           : d.assessedAt ? new Date(d.assessedAt)
           : d.createdAt ? new Date(d.createdAt) : undefined,
         photoURL: d.photoURL || null,
+        anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        measurements: this.mobileMeasurements(d.measurements),
       } : undefined)
     );
   }
@@ -297,6 +310,7 @@ export class AssessmentsService {
         stage: payload.describe?.stage || null,
         acquired: payload.describe?.acquired || null,
         location: payload.describe?.location || null,
+        anatomy: payload.describe?.anatomy || null,
         firstAssessmentId: id,
         latestAssessmentId: id,
         latestAssessedAt: payload.assessedAt ?? now,
@@ -515,6 +529,21 @@ export class AssessmentsService {
     return this.listForPatient(patientId).pipe(
       map(list => (list || []).filter(a => (a.woundId || a.id) === woundId))
     );
+  }
+
+  private mobileMeasurements(value: any): MobileAssessment['measurements'] {
+    const numberOrNull = (raw: unknown): number | null => {
+      if (raw === null || raw === undefined || raw === '') return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    return {
+      length: numberOrNull(value?.length),
+      width: numberOrNull(value?.width),
+      depth: numberOrNull(value?.depth),
+      area: numberOrNull(value?.area),
+      volume: numberOrNull(value?.volume),
+    };
   }
 
   private async withCanonicalAuthor(data: any): Promise<any> {

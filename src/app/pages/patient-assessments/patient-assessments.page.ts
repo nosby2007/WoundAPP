@@ -37,6 +37,7 @@ import { addIcons } from 'ionicons';
 import {
   add,
   addOutline,
+  analyticsOutline,
   bodyOutline,
   chevronBackOutline,
   chevronForwardOutline,
@@ -135,6 +136,7 @@ export class PatientAssessmentsPage implements OnInit {
     addIcons({
       add,
       addOutline,
+      analyticsOutline,
       bodyOutline,
       chevronBackOutline,
       chevronForwardOutline,
@@ -680,6 +682,10 @@ export class PatientAssessmentsPage implements OnInit {
       // woundId here would silently turn "New wound" into a re-evaluation.
       { queryParams: this.encounterQueryParams() },
     );
+  }
+
+  openWoundOverview(): void {
+    void this.router.navigate(['/tabs/skin-wound', this.patientId, 'wound-overview']);
   }
 
   // ✅ NOUVEAU : ouvrir l’historique de la plaie de cette évaluation

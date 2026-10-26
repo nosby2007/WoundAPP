@@ -65,6 +65,13 @@
           </ion-item>
 
           <div slot="content" class="section-body" formGroupName="describe">
+            <div class="anatomy-block">
+              <div class="anatomy-copy"><strong>Anatomical wound position</strong><span>Choose female or male view, then tap the front or back body map. Confirm the generated site below.</span></div>
+              <app-wound-body-map
+                [position]="form.controls.describe.controls.anatomy.value"
+                (positionChange)="onAnatomyChange($event)">
+              </app-wound-body-map>
+            </div>
             <ion-item>
               <ion-label position="stacked">Type of wound</ion-label>
               <ion-select formControlName="type" interface="popover">
@@ -91,6 +98,7 @@
               <ion-label position="stacked">Location</ion-label>
               <ion-input type="text" placeholder="Right lateral foot" formControlName="location"></ion-input>
             </ion-item>
+            <ion-note>Confirm or refine the anatomical label. The body-map marker and this clinical description are saved together.</ion-note>
 
             <ion-item>
               <ion-label position="stacked">Acquired</ion-label>
