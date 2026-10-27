@@ -32,11 +32,9 @@ export class WoundBodyMapComponent implements OnChanges {
   get visibleMarkers(): WoundMapMarker[] { return this.markers.filter(marker => marker.view === this.view); }
   get visiblePosition(): WoundAnatomyPosition | null { return this.position?.view === this.view ? this.position : null; }
   get zones() { return zonesForView(this.view); }
-  get torsoPath(): string {
-    return this.profile === 'female'
-      ? 'M38 20 Q33 25 36 34 Q39 41 39 47 Q50 52 61 47 Q61 41 64 34 Q67 25 62 20 Q50 17 38 20Z'
-      : 'M36 20 Q32 27 37 38 L40 48 Q50 51 60 48 L63 38 Q68 27 64 20 Q50 16 36 20Z';
-  }
+  get avatarSrc(): string { return `assets/body-map/${this.profile}-${this.view}.png`; }
+  get patientScreenLeft(): 'L' | 'R' { return this.view === 'front' ? 'R' : 'L'; }
+  get patientScreenRight(): 'L' | 'R' { return this.view === 'front' ? 'L' : 'R'; }
 
   constructor() {
     this.syncFromPosition();
@@ -90,6 +88,8 @@ export class WoundBodyMapComponent implements OnChanges {
     const index = Math.max(0, peers.findIndex(item => item.woundId === marker.woundId));
     return marker.y + Math.floor(index / 5) * 4;
   }
+
+  displayY(value: number): number { return value * 1.5; }
 
   private emit(position: WoundAnatomyPosition): void {
     this.position = position;

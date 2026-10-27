@@ -1,4 +1,8 @@
 <section class="body-map" [class.readonly]="!interactive">
+  <div class="map-heading">
+    <div><span class="kicker">CLINICAL BODY MAP</span><strong>Anatomical wound location</strong></div>
+    <span class="view-status">{{ profile }} · {{ view }}</span>
+  </div>
   <div class="map-toolbar">
     <div class="segmented" aria-label="Body profile">
       <button type="button" [class.active]="profile === 'female'" (click)="chooseProfile('female')">Female</button>
@@ -12,34 +16,29 @@
 
   <div class="map-layout">
     <div class="canvas">
-      <svg viewBox="0 0 100 100" role="img" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
-        <g class="silhouette">
-          <ellipse cx="50" cy="8" rx="7" ry="6.5"></ellipse>
-          <rect x="47" y="13" width="6" height="6" rx="2"></rect>
-          <path [attr.d]="torsoPath"></path>
-          <path class="limb" d="M37 23 Q29 27 27 39 L22 51"></path>
-          <path class="limb" d="M63 23 Q71 27 73 39 L78 51"></path>
-          <circle cx="21" cy="53" r="4"></circle><circle cx="79" cy="53" r="4"></circle>
-          <path class="limb leg" d="M44 47 Q41 60 43 72 L42 94"></path>
-          <path class="limb leg" d="M56 47 Q59 60 57 72 L58 94"></path>
-          <ellipse cx="41" cy="96" rx="6" ry="3"></ellipse><ellipse cx="59" cy="96" rx="6" ry="3"></ellipse>
-          <path *ngIf="view === 'front'" class="detail" d="M40 34 Q50 37 60 34 M50 19 L50 45"></path>
-          <path *ngIf="view === 'back'" class="detail" d="M50 19 L50 46 M40 43 Q50 47 60 43"></path>
-        </g>
+      <svg viewBox="0 0 100 150" role="img" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
+        <defs>
+          <linearGradient id="clinicalCanvas" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fbfc"></stop><stop offset="1" stop-color="#eef4f6"></stop></linearGradient>
+        </defs>
+        <rect class="canvas-bg" x="0.5" y="0.5" width="99" height="149" rx="7"></rect>
+        <path class="axis" d="M50 4V146"></path>
+        <text class="side-label" x="6" y="77">{{ patientScreenLeft }}</text>
+        <text class="side-label" x="94" y="77" text-anchor="end">{{ patientScreenRight }}</text>
+        <image class="clinical-avatar" [attr.href]="avatarSrc" x="0" y="0" width="100" height="150" preserveAspectRatio="xMidYMid meet"></image>
 
         <g *ngFor="let marker of visibleMarkers" class="marker saved" tabindex="0" role="button"
            [attr.aria-label]="marker.woundLabel + ', ' + marker.label"
            (click)="activateMarker($event, marker)" (keydown.enter)="activateMarker($event, marker)">
-          <circle [attr.cx]="markerX(marker)" [attr.cy]="markerY(marker)" r="4.2"></circle>
-          <text [attr.x]="markerX(marker)" [attr.y]="markerY(marker) + 1.5">{{ marker.index || '•' }}</text>
+          <circle [attr.cx]="markerX(marker)" [attr.cy]="displayY(markerY(marker))" r="4.2"></circle>
+          <text [attr.x]="markerX(marker)" [attr.y]="displayY(markerY(marker)) + 1.5">{{ marker.index || '•' }}</text>
         </g>
 
         <g *ngIf="visiblePosition" class="marker selected" aria-hidden="true">
-          <circle [attr.cx]="visiblePosition!.x" [attr.cy]="visiblePosition!.y" r="5"></circle>
-          <path [attr.d]="'M ' + (visiblePosition!.x - 2) + ' ' + visiblePosition!.y + ' h 4 M ' + visiblePosition!.x + ' ' + (visiblePosition!.y - 2) + ' v 4'"></path>
+          <circle [attr.cx]="visiblePosition!.x" [attr.cy]="displayY(visiblePosition!.y)" r="5"></circle>
+          <path [attr.d]="'M ' + (visiblePosition!.x - 2) + ' ' + displayY(visiblePosition!.y) + ' h 4 M ' + visiblePosition!.x + ' ' + (displayY(visiblePosition!.y) - 2) + ' v 4'"></path>
         </g>
       </svg>
-      <span class="orientation">Patient {{ view }} view · patient left/right</span>
+      <span class="orientation"><strong>{{ patientScreenLeft }}</strong> and <strong>{{ patientScreenRight }}</strong> indicate the patient’s laterality · {{ view }} view</span>
     </div>
 
     <div class="map-side" *ngIf="interactive">
