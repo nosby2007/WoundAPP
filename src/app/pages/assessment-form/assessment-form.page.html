@@ -66,9 +66,10 @@
 
           <div slot="content" class="section-body" formGroupName="describe">
             <div class="anatomy-block">
-              <div class="anatomy-copy"><strong>Anatomical wound position</strong><span>Choose female or male view, then tap the front or back body map. Confirm the generated site below.</span></div>
+              <div class="anatomy-copy"><strong>Anatomical wound position</strong><span>The avatar follows the patient chart. Rotate, zoom, then tap the clinical body map and confirm the generated site below.</span></div>
               <app-wound-body-map
                 [position]="form.controls.describe.controls.anatomy.value"
+                [patientProfile]="patientProfile"
                 (positionChange)="onAnatomyChange($event)">
               </app-wound-body-map>
             </div>

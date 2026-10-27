@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addOutline, analyticsOutline, locateOutline } from 'ionicons/icons';
 import { AssessmentsService, MobileAssessment } from '../../services/assessments.service';
-import { WoundAnatomyPosition, WoundMapMarker } from '../../shared/wound-anatomy';
+import { bodyProfileFromPatientGender, BodyProfile, WoundAnatomyPosition, WoundMapMarker } from '../../shared/wound-anatomy';
 import { WoundBodyMapComponent } from '../../shared/wound-body-map.component';
 import { groupAssessmentsByWound, resolveWoundId } from '../../shared/wound-identity';
 import { percentChange, trendPolyline, woundTrend } from '../../shared/wound-trend';
@@ -29,6 +29,7 @@ export class WoundOverviewPage {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly patientName = signal('Patient');
+  readonly patientProfile = signal<BodyProfile | null>(null);
   readonly assessments = signal<MobileAssessment[]>([]);
   readonly selectedWoundId = signal('');
 
@@ -64,7 +65,10 @@ export class WoundOverviewPage {
 
   constructor() {
     this.assessmentsService.getPatient(this.patientId).subscribe(patient => {
-      if (patient) this.patientName.set(patient.name);
+      if (patient) {
+        this.patientName.set(patient.name);
+        this.patientProfile.set(bodyProfileFromPatientGender(patient.gender));
+      }
     });
     this.assessmentsService.listForPatient(this.patientId).subscribe({
       next: list => {

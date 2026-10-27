@@ -35,6 +35,7 @@ export interface Patient {
   payor?: string;
   admissionDate?: string;
   preferredName?: string;
+  gender?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
 }

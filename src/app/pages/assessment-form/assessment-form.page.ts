@@ -82,7 +82,7 @@ import { ClinicalIdentityService } from '../../services/clinical-identity.servic
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { WoundBodyMapComponent } from '../../shared/wound-body-map.component';
-import { normalizeWoundAnatomy, WoundAnatomyPosition } from '../../shared/wound-anatomy';
+import { bodyProfileFromPatientGender, BodyProfile, normalizeWoundAnatomy, WoundAnatomyPosition } from '../../shared/wound-anatomy';
 
 /** Stands in for a new wound's id until the assessment id is allocated on save. */
 const THIS_WOUND = 'this-wound';
@@ -285,6 +285,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   private pendingDraftSave: Promise<void> = Promise.resolve();
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
+  patientProfile: BodyProfile | null = null;
 
   /**
    * Mirrors the web app's WoundAssessment form group, section for section, so
@@ -397,6 +398,9 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.loadCodingContext();
+    this.assessments.getPatient(this.patientId).pipe(take(1)).subscribe(patient => {
+      this.patientProfile = bodyProfileFromPatientGender(patient?.gender);
+    });
     this.formChanges?.unsubscribe();
     this.formChanges = this.form.valueChanges.subscribe(() => {
       this.formRevision++;

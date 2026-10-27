@@ -105,9 +105,12 @@ export class AssessmentsService {
     );
   }
 
-  getPatient(patientId: string): Observable<{ name: string } | null> {
+  getPatient(patientId: string): Observable<{ name: string; gender: string | null } | null> {
     const refDoc = doc(this.firestore, `patients/${patientId}`);
-    return docData(refDoc).pipe(map((d: any) => d ? { name: d.name || d.displayName || 'Patient' } : null));
+    return docData(refDoc).pipe(map((d: any) => d ? {
+      name: d.name || d.displayName || 'Patient',
+      gender: d.gender || d.demographics?.gender || d.sex || d.administrativeGender || d.birthSex || d.sexAtBirth || null,
+    } : null));
   }
 
   get(patientId: string, assessmentId: string): Observable<MobileAssessment | undefined> {

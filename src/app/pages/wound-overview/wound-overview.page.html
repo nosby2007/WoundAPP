@@ -22,7 +22,7 @@
 
       <section class="panel map-panel">
         <div class="panel-head"><div><p class="eyebrow dark">BODY MAP</p><h2>Wound locations</h2></div><ion-icon [icon]="locateOutline"></ion-icon></div>
-        <app-wound-body-map [interactive]="false" [markers]="markers()" (markerSelect)="selectMarker($event)"></app-wound-body-map>
+        <app-wound-body-map [interactive]="false" [patientProfile]="patientProfile()" [markers]="markers()" (markerSelect)="selectMarker($event)"></app-wound-body-map>
         <p class="legacy-note" *ngIf="unlocatedCount()">{{ unlocatedCount() }} historical wound{{ unlocatedCount() === 1 ? '' : 's' }} ha{{ unlocatedCount() === 1 ? 's' : 've' }} no saved body-map position. The text location remains available.</p>
       </section>
 

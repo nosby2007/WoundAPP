@@ -4,19 +4,29 @@
     <span class="view-status">{{ profile }} · {{ view }}</span>
   </div>
   <div class="map-toolbar">
-    <div class="segmented" aria-label="Body profile">
+    <div class="profile-source" *ngIf="patientProfile; else profileFallback">
+      <span>Patient chart</span><strong>{{ profile }} avatar</strong>
+    </div>
+    <ng-template #profileFallback><div class="segmented" aria-label="Body profile">
       <button type="button" [class.active]="profile === 'female'" (click)="chooseProfile('female')">Female</button>
       <button type="button" [class.active]="profile === 'male'" (click)="chooseProfile('male')">Male</button>
-    </div>
-    <div class="segmented" aria-label="Body view">
-      <button type="button" [class.active]="view === 'front'" (click)="chooseView('front')">Front</button>
-      <button type="button" [class.active]="view === 'back'" (click)="chooseView('back')">Back</button>
+    </div></ng-template>
+    <div class="map-actions">
+      <button type="button" class="rotate-control" (click)="rotateView()" [attr.aria-label]="'Rotate to ' + (view === 'front' ? 'back' : 'front') + ' view'">
+        <span aria-hidden="true">↻</span><strong>{{ view === 'front' ? 'View back' : 'View front' }}</strong>
+      </button>
+      <div class="zoom-controls" aria-label="Body map zoom controls">
+        <button type="button" (click)="zoomOut()" [disabled]="zoom === 1" aria-label="Zoom out">−</button>
+        <button type="button" class="zoom-value" (click)="resetZoom()" aria-label="Reset zoom">{{ zoom * 100 | number:'1.0-0' }}%</button>
+        <button type="button" (click)="zoomIn()" [disabled]="zoom === 2" aria-label="Zoom in">+</button>
+      </div>
     </div>
   </div>
 
   <div class="map-layout">
     <div class="canvas">
-      <svg viewBox="0 0 100 150" role="img" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
+      <div class="viewport">
+      <svg viewBox="0 0 100 150" role="img" [style.width.%]="zoom * 100" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
         <defs>
           <linearGradient id="clinicalCanvas" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fbfc"></stop><stop offset="1" stop-color="#eef4f6"></stop></linearGradient>
         </defs>
@@ -38,6 +48,7 @@
           <path [attr.d]="'M ' + (visiblePosition!.x - 2) + ' ' + displayY(visiblePosition!.y) + ' h 4 M ' + visiblePosition!.x + ' ' + (displayY(visiblePosition!.y) - 2) + ' v 4'"></path>
         </g>
       </svg>
+      </div>
       <span class="orientation"><strong>{{ patientScreenLeft }}</strong> and <strong>{{ patientScreenRight }}</strong> indicate the patient’s laterality · {{ view }} view</span>
     </div>
 

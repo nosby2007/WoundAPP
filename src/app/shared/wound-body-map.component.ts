@@ -22,16 +22,18 @@ export class WoundBodyMapComponent implements OnChanges {
   @Input() position: WoundAnatomyPosition | null = null;
   @Input() markers: WoundMapMarker[] = [];
   @Input() interactive = true;
+  @Input() patientProfile: BodyProfile | null = null;
   @Output() positionChange = new EventEmitter<WoundAnatomyPosition>();
   @Output() markerSelect = new EventEmitter<WoundMapMarker>();
 
   view: BodyView = 'front';
   profile: BodyProfile = 'female';
+  zoom = 1;
   selectionMessage = '';
 
   get visibleMarkers(): WoundMapMarker[] { return this.markers.filter(marker => marker.view === this.view); }
   get visiblePosition(): WoundAnatomyPosition | null { return this.position?.view === this.view ? this.position : null; }
-  get zones() { return zonesForView(this.view); }
+  get zones() { return zonesForView(this.view, this.profile); }
   get avatarSrc(): string { return `assets/body-map/${this.profile}-${this.view}.png`; }
   get patientScreenLeft(): 'L' | 'R' { return this.view === 'front' ? 'R' : 'L'; }
   get patientScreenRight(): 'L' | 'R' { return this.view === 'front' ? 'L' : 'R'; }
@@ -43,13 +45,19 @@ export class WoundBodyMapComponent implements OnChanges {
   ngOnChanges(): void { this.syncFromPosition(); }
 
   chooseView(view: BodyView): void { this.view = view; this.selectionMessage = ''; }
+  rotateView(): void { this.chooseView(this.view === 'front' ? 'back' : 'front'); }
   chooseProfile(profile: BodyProfile): void {
+    if (this.patientProfile) return;
     this.profile = profile;
     if (this.position) {
       const updated = positionForZone(this.position.id, profile);
       if (updated) this.emit(updated);
     }
   }
+
+  zoomIn(): void { this.zoom = Math.min(2, Number((this.zoom + 0.25).toFixed(2))); }
+  zoomOut(): void { this.zoom = Math.max(1, Number((this.zoom - 0.25).toFixed(2))); }
+  resetZoom(): void { this.zoom = 1; }
 
   selectFromPointer(event: MouseEvent): void {
     if (!this.interactive) return;
@@ -100,8 +108,7 @@ export class WoundBodyMapComponent implements OnChanges {
   }
 
   private syncFromPosition(): void {
-    if (!this.position) return;
-    this.view = this.position.view;
-    this.profile = this.position.profile;
+    if (this.position) this.view = this.position.view;
+    this.profile = this.patientProfile || this.position?.profile || this.profile;
   }
 }
