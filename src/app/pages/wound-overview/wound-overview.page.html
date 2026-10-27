@@ -7,7 +7,7 @@
   <main class="page">
     <section class="hero">
       <div><p class="eyebrow">ANATOMY &amp; HEALING</p><h1>{{ patientName() }}</h1><p>Current wound positions and measurement trends from documented assessments.</p></div>
-      <ion-button color="light" fill="outline" (click)="newAssessment()"><ion-icon slot="start" [icon]="addOutline"></ion-icon>New assessment</ion-button>
+      <div class="hero-actions"><ion-button color="light" fill="outline" (click)="fullChart()">Full clinical chart</ion-button><ion-button color="light" fill="outline" (click)="newAssessment()"><ion-icon slot="start" [icon]="addOutline"></ion-icon>New assessment</ion-button></div>
     </section>
 
     <div class="state" *ngIf="loading()"><ion-spinner></ion-spinner><p>Loading wound summary…</p></div>
@@ -19,10 +19,12 @@
         <article><strong>{{ assessments().length }}</strong><span>Total assessments</span></article>
         <article><strong>{{ markers().length }}</strong><span>Mapped wounds</span></article>
       </section>
+      <p class="notice" *ngIf="notice()">{{ notice() }}</p>
 
       <section class="panel map-panel">
         <div class="panel-head"><div><p class="eyebrow dark">BODY MAP</p><h2>Wound locations</h2></div><ion-icon [icon]="locateOutline"></ion-icon></div>
-        <app-wound-body-map [interactive]="false" [patientProfile]="patientProfile()" [markers]="markers()" (markerSelect)="selectMarker($event)"></app-wound-body-map>
+        <app-wound-body-map [interactive]="false" [allowStickerPlacement]="true" [movableMarkers]="true" [patientProfile]="patientProfile()" [markers]="markers()"
+          (markerSelect)="selectMarker($event)" (stickerPlace)="placeSticker($event)" (markerMove)="moveSticker($event)"></app-wound-body-map>
         <p class="legacy-note" *ngIf="unlocatedCount()">{{ unlocatedCount() }} historical wound{{ unlocatedCount() === 1 ? '' : 's' }} ha{{ unlocatedCount() === 1 ? 's' : 've' }} no saved body-map position. The text location remains available.</p>
       </section>
 
@@ -36,7 +38,7 @@
 
         <div class="selected" *ngIf="selectedWound() as wound">
           <div><span>{{ wound.type || 'Wound' }}</span><strong>{{ wound.location }}</strong><small>{{ wound.stage ? 'Stage ' + wound.stage + ' · ' : '' }}{{ wound.status || 'Status not recorded' }}</small></div>
-          <ion-button fill="outline" size="small" (click)="history()">Open full history</ion-button>
+          <div class="selected-actions"><ion-button fill="outline" size="small" (click)="history()">Open full history</ion-button><ion-button color="danger" fill="outline" size="small" [disabled]="saving()" (click)="archiveSelected()">Remove &amp; archive</ion-button></div>
         </div>
 
         <div class="charts">
@@ -53,6 +55,14 @@
           </article>
         </div>
         <p class="chart-note">Charts display only recorded numeric measurements. Missing values are not converted to zero.</p>
+      </section>
+
+      <section class="panel archive-panel" *ngIf="archivedWoundGroups().length">
+        <div class="panel-head"><div><p class="eyebrow dark">ARCHIVE</p><h2>Archived wounds</h2></div><span>{{ archivedWoundGroups().length }}</span></div>
+        <div class="archive-row" *ngFor="let group of archivedWoundGroups()">
+          <div><strong>{{ group.latest.location || 'Location not recorded' }}</strong><small>{{ group.assessmentCount }} assessment{{ group.assessmentCount === 1 ? '' : 's' }} preserved</small></div>
+          <ion-button size="small" fill="outline" [disabled]="saving()" (click)="reactivate(group.latest)">Reactivate wound</ion-button>
+        </div>
       </section>
 
       <ng-template #empty><div class="state"><ion-icon [icon]="analyticsOutline"></ion-icon><h2>No wound assessments yet</h2><p>Create the first assessment to start the anatomical map and trend summary.</p><ion-button (click)="newAssessment()">New assessment</ion-button></div></ng-template>

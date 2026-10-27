@@ -82,7 +82,7 @@ import { ClinicalIdentityService } from '../../services/clinical-identity.servic
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { WoundBodyMapComponent } from '../../shared/wound-body-map.component';
-import { bodyProfileFromPatientGender, BodyProfile, normalizeWoundAnatomy, WoundAnatomyPosition } from '../../shared/wound-anatomy';
+import { bodyProfileFromPatientGender, BodyProfile, normalizeWoundAnatomy, positionForZone, WoundAnatomyPosition } from '../../shared/wound-anatomy';
 
 /** Stands in for a new wound's id until the assessment id is allocated on save. */
 const THIS_WOUND = 'this-wound';
@@ -286,6 +286,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
   patientProfile: BodyProfile | null = null;
+  private readonly stickerZoneId = this.route.snapshot.queryParamMap.get('anatomyZone') || '';
+  private readonly stickerProfile = this.route.snapshot.queryParamMap.get('anatomyProfile');
 
   /**
    * Mirrors the web app's WoundAssessment form group, section for section, so
@@ -400,6 +402,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
     void this.loadCodingContext();
     this.assessments.getPatient(this.patientId).pipe(take(1)).subscribe(patient => {
       this.patientProfile = bodyProfileFromPatientGender(patient?.gender);
+      this.applyStickerPosition();
     });
     this.formChanges?.unsubscribe();
     this.formChanges = this.form.valueChanges.subscribe(() => {
@@ -416,7 +419,16 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       void this.loadReevaluationBaseline();
       return;
     }
-    void this.restoreDraft();
+    void this.restoreDraft().then(() => this.applyStickerPosition());
+  }
+
+  private applyStickerPosition(): void {
+    if (!this.stickerZoneId || this.assessmentId || this.isReevaluation) return;
+    const profile: BodyProfile = this.stickerProfile === 'male' || this.stickerProfile === 'female'
+      ? this.stickerProfile
+      : this.patientProfile || 'female';
+    const position = positionForZone(this.stickerZoneId, profile);
+    if (position) this.onAnatomyChange(position);
   }
 
   ngOnDestroy(): void {

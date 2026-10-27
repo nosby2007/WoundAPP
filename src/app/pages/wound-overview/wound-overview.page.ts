@@ -32,8 +32,12 @@ export class WoundOverviewPage {
   readonly patientProfile = signal<BodyProfile | null>(null);
   readonly assessments = signal<MobileAssessment[]>([]);
   readonly selectedWoundId = signal('');
+  readonly saving = signal(false);
+  readonly notice = signal('');
 
-  readonly woundGroups = computed(() => groupAssessmentsByWound(this.assessments()));
+  readonly allWoundGroups = computed(() => groupAssessmentsByWound(this.assessments()));
+  readonly woundGroups = computed(() => this.allWoundGroups().filter(group => group.latest.woundLifecycleStatus !== 'archived'));
+  readonly archivedWoundGroups = computed(() => this.allWoundGroups().filter(group => group.latest.woundLifecycleStatus === 'archived'));
   readonly latestWounds = computed(() => this.woundGroups().map(group => group.latest));
   readonly markers = computed<WoundMapMarker[]>(() => this.latestWounds()
     .filter(item => !!item.anatomy && !!resolveWoundId(item))
@@ -83,6 +87,61 @@ export class WoundOverviewPage {
   selectWound(woundId: string): void { this.selectedWoundId.set(woundId); }
   selectMarker(marker: WoundMapMarker): void { this.selectWound(marker.woundId); }
   newAssessment(): void { void this.router.navigate(['/tabs/skin-wound', this.patientId, 'assessments', 'new']); }
+  placeSticker(position: WoundAnatomyPosition): void {
+    void this.router.navigate(
+      ['/tabs/skin-wound', this.patientId, 'assessments', 'new'],
+      { queryParams: { anatomyZone: position.id, anatomyProfile: position.profile, fromBodyMap: '1' } },
+    );
+  }
+  async moveSticker(event: { marker: WoundMapMarker; position: WoundAnatomyPosition }): Promise<void> {
+    const latest = this.latestWounds().find(item => resolveWoundId(item) === event.marker.woundId);
+    if (!latest || this.saving()) return;
+    this.saving.set(true);
+    this.notice.set('');
+    try {
+      await this.assessmentsService.updateWoundAnatomy(this.patientId, latest.id, event.marker.woundId, event.position);
+      this.notice.set(`Wound moved to ${event.position.label}.`);
+    } catch {
+      this.notice.set('The wound sticker could not be moved. Please retry.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+  async archiveSelected(): Promise<void> {
+    const wound = this.selectedWound();
+    const woundId = resolveWoundId(wound);
+    if (!wound || !woundId || this.saving()) return;
+    if (!window.confirm('Remove this sticker from the active body map and archive the wound? Its history will remain available.')) return;
+    this.saving.set(true);
+    this.notice.set('');
+    try {
+      await this.assessmentsService.setWoundArchived(this.patientId, wound.id, woundId, true);
+      this.selectedWoundId.set('');
+      this.notice.set('Wound archived. It can be reactivated below if it reopens.');
+    } catch {
+      this.notice.set('The wound could not be archived. Please retry.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+  async reactivate(wound: MobileAssessment): Promise<void> {
+    const woundId = resolveWoundId(wound);
+    if (!woundId || this.saving()) return;
+    this.saving.set(true);
+    this.notice.set('');
+    try {
+      await this.assessmentsService.setWoundArchived(this.patientId, wound.id, woundId, false);
+      this.selectedWoundId.set(woundId);
+      this.notice.set('Wound reactivated and restored to the body map.');
+    } catch {
+      this.notice.set('The wound could not be reactivated. Please retry.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+  fullChart(): void {
+    void this.router.navigate(['/tabs/skin-wound', this.patientId, 'assessments'], { queryParams: this.route.snapshot.queryParams });
+  }
   history(): void {
     const woundId = resolveWoundId(this.selectedWound());
     if (woundId) void this.router.navigate(['/tabs/skin-wound', this.patientId, 'wounds', woundId, 'history']);

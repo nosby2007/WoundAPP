@@ -26,7 +26,9 @@
   <div class="map-layout">
     <div class="canvas">
       <div class="viewport">
-      <svg viewBox="0 0 100 150" role="img" [style.width.%]="zoom * 100" [attr.aria-label]="profile + ' body, ' + view + ' view'" (click)="selectFromPointer($event)">
+      <svg viewBox="0 0 100 150" role="img" [class.placing]="placingSticker" [style.width.%]="zoom * 100" [attr.aria-label]="profile + ' body, ' + view + ' view'"
+           (click)="selectFromPointer($event)" (dragover)="allowStickerDrop($event)" (drop)="dropSticker($event)"
+           (pointermove)="moveMarker($event)" (pointerup)="finishMarkerDrag($event)" (pointercancel)="finishMarkerDrag($event)">
         <defs>
           <linearGradient id="clinicalCanvas" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fbfc"></stop><stop offset="1" stop-color="#eef4f6"></stop></linearGradient>
         </defs>
@@ -38,6 +40,7 @@
 
         <g *ngFor="let marker of visibleMarkers" class="marker saved" tabindex="0" role="button"
            [attr.aria-label]="marker.woundLabel + ', ' + marker.label"
+           [class.movable]="movableMarkers" (pointerdown)="startMarkerDrag($event, marker)"
            (click)="activateMarker($event, marker)" (keydown.enter)="activateMarker($event, marker)">
           <circle [attr.cx]="markerX(marker)" [attr.cy]="displayY(markerY(marker))" r="4.2"></circle>
           <text [attr.x]="markerX(marker)" [attr.y]="displayY(markerY(marker)) + 1.5">{{ marker.index || '•' }}</text>
@@ -52,7 +55,16 @@
       <span class="orientation"><strong>{{ patientScreenLeft }}</strong> and <strong>{{ patientScreenRight }}</strong> indicate the patient’s laterality · {{ view }} view</span>
     </div>
 
-    <div class="map-side" *ngIf="interactive">
+    <div class="map-side" *ngIf="interactive || allowStickerPlacement">
+      <ng-container *ngIf="allowStickerPlacement">
+        <label>New wound</label>
+        <button type="button" class="wound-sticker" draggable="true" [class.active]="placingSticker"
+                (dragstart)="dragStickerStarted($event)" (click)="toggleStickerPlacement()">
+          <span aria-hidden="true">+</span><strong>{{ placingSticker ? 'Tap the body' : 'Drag wound sticker' }}</strong>
+        </button>
+        <small class="sticker-help">Drag on desktop, or tap the sticker then tap the body. Dropping it opens a new wound assessment.</small>
+      </ng-container>
+      <ng-container *ngIf="interactive">
       <label for="anatomical-zone">Anatomical region</label>
       <select id="anatomical-zone" [value]="position?.id || ''" (change)="selectZone($any($event.target).value)">
         <option value="">Select a region</option>
@@ -60,6 +72,7 @@
       </select>
       <p class="selected-label" [class.hint]="!position">{{ position?.label || selectionMessage || 'Tap the silhouette or use the region list.' }}</p>
       <small>The marker supports localization; the clinician remains responsible for confirming the documented site.</small>
+      </ng-container>
     </div>
   </div>
 </section>

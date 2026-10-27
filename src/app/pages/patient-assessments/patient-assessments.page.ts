@@ -430,7 +430,7 @@ export class PatientAssessmentsPage implements OnInit {
    * Grouped by the same rule the web registry uses, so the two agree.
    */
   wounds = computed(() =>
-    groupAssessmentsByWound(this.assessments()).map((group) => ({
+    groupAssessmentsByWound(this.assessments()).filter(group => group.latest.woundLifecycleStatus !== 'archived').map((group) => ({
       ...group.latest,
       assessmentCount: group.assessmentCount,
     })));
@@ -685,7 +685,10 @@ export class PatientAssessmentsPage implements OnInit {
   }
 
   openWoundOverview(): void {
-    void this.router.navigate(['/tabs/skin-wound', this.patientId, 'wound-overview']);
+    void this.router.navigate(
+      ['/tabs/skin-wound', this.patientId, 'wound-overview'],
+      { queryParams: this.visitQueryParams() },
+    );
   }
 
   // ✅ NOUVEAU : ouvrir l’historique de la plaie de cette évaluation

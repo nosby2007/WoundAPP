@@ -185,6 +185,12 @@
   cursor: crosshair;
 }
 
+.canvas svg.placing {
+  cursor: copy;
+  outline: 2px dashed #8b2fc9;
+  outline-offset: -5px;
+}
+
 .canvas-bg {
   fill: url(#clinicalCanvas);
   stroke: #dbe6ea;
@@ -220,6 +226,15 @@
 
 .marker {
   cursor: pointer;
+}
+
+.marker.movable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.marker.movable:active {
+  cursor: grabbing;
 }
 
 .marker circle {
@@ -290,6 +305,40 @@
   color: #687e8e;
   font-size: 10px;
   line-height: 1.5;
+}
+
+.wound-sticker {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  border: 1px dashed #9b61c3;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f8f0fd;
+  color: #64268e;
+  cursor: grab;
+}
+
+.wound-sticker span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #8b2fc9;
+  color: #fff;
+  font-size: 23px;
+}
+
+.wound-sticker.active {
+  border-style: solid;
+  background: #efe0f8;
+}
+
+.sticker-help {
+  margin-bottom: 15px;
 }
 
 .readonly .map-layout {

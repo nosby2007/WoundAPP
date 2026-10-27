@@ -61,6 +61,7 @@ export interface MobileAssessment {
   authorName?: string | null;
   reviewed?: boolean;
   anatomy?: WoundAnatomyPosition | null;
+  woundLifecycleStatus?: 'active' | 'archived';
   measurements?: {
     length: number | null;
     width: number | null;
@@ -100,6 +101,7 @@ export class AssessmentsService {
         authorName: d.authorIdentity?.displayName || d.createdByName || null,
         reviewed: d.providerReview?.reviewed === true,
         anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        woundLifecycleStatus: d.woundLifecycle?.status === 'archived' ? 'archived' : 'active',
         measurements: this.mobileMeasurements(d.measurements),
       })))
     );
@@ -131,6 +133,7 @@ export class AssessmentsService {
           : d.createdAt ? new Date(d.createdAt) : undefined,
         photoURL: d.photoURL || null,
         anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        woundLifecycleStatus: d.woundLifecycle?.status === 'archived' ? 'archived' : 'active',
         measurements: this.mobileMeasurements(d.measurements),
       } : undefined)
     );
@@ -526,6 +529,73 @@ export class AssessmentsService {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
     await updateDoc(refDoc, data);
     await this.audit.record({ action: 'wound_assessment_updated', patientId, entityType: 'woundAssessment', entityId: id });
+  }
+
+  async updateWoundAnatomy(
+    patientId: string,
+    assessmentId: string,
+    woundId: string,
+    anatomy: WoundAnatomyPosition,
+  ): Promise<void> {
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
+    const woundSnap = await getDoc(woundRef);
+    const batch = writeBatch(this.firestore);
+    batch.update(assessmentRef, {
+      'describe.anatomy': anatomy,
+      'describe.location': anatomy.label,
+      updatedAt: serverTimestamp(),
+    });
+    if (woundSnap.exists()) {
+      batch.update(woundRef, { anatomy, location: anatomy.label, label: anatomy.label, updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
+    await this.audit.record({
+      action: 'wound_anatomy_repositioned', patientId, entityType: 'wound', entityId: woundId,
+      metadata: { assessmentId, anatomicalZoneId: anatomy.id, view: anatomy.view },
+    }).catch(() => {});
+  }
+
+  async setWoundArchived(
+    patientId: string,
+    assessmentId: string,
+    woundId: string,
+    archived: boolean,
+  ): Promise<void> {
+    const actor = await this.clinicalIdentity.requireCurrentIdentity();
+    const updatedBy = {
+      uid: actor.uid,
+      displayName: actor.displayName,
+      role: actor.role,
+      credentials: actor.credentials ?? null,
+      npi: actor.npi ?? null,
+    };
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
+    const woundSnap = await getDoc(woundRef);
+    const now = serverTimestamp();
+    const lifecycle = archived
+      ? { status: 'archived', archivedAt: now, archivedByUid: actor.uid, reopenedAt: null, reopenedByUid: null }
+      : { status: 'active', archivedAt: null, archivedByUid: null, reopenedAt: now, reopenedByUid: actor.uid };
+    const batch = writeBatch(this.firestore);
+    batch.update(assessmentRef, { woundLifecycle: lifecycle, updatedAt: now });
+    if (woundSnap.exists()) {
+      batch.update(woundRef, {
+        lifecycleStatus: lifecycle.status,
+        active: !archived,
+        lifecycle,
+        updatedAt: now,
+        updatedBy,
+      });
+    }
+    await batch.commit();
+    await this.audit.record({
+      action: archived ? 'wound_archived' : 'wound_reactivated',
+      patientId,
+      entityType: 'wound',
+      entityId: woundId,
+      metadata: { assessmentId },
+    }).catch(() => {});
   }
 
   listForWound(patientId: string, woundId: string): Observable<MobileAssessment[]> {
