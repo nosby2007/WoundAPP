@@ -50,6 +50,11 @@ export class HomeCareEventService {
 
     const identity = await this.identityService.requireCurrentIdentity();
     const patient = input.patientId ? await this.patients.getPatient(input.patientId) : null;
+    const facilityId = this.firstString(
+      patient?.['facilityId'],
+      patient?.['primaryFacilityId'],
+      identity.facilityIds[0],
+    );
     const location = HOME_CARE_LOCATIONS.find(item => item.value === input.locationType);
     if (!location) throw new Error('Select where the event occurred.');
 
@@ -66,7 +71,10 @@ export class HomeCareEventService {
       sourceApp: 'woundapp',
       careSetting: 'home_care',
       orgId: identity.orgId,
-      facilityId: null,
+      // A facility assignment is an access boundary when one exists. Pure
+      // home-care organizations may legitimately have no facility, so the
+      // security rules separately validate the signed same-org reporter.
+      facilityId,
 
       incidentDate: Timestamp.fromDate(input.occurredAt),
       eventClass: input.eventClass,
@@ -110,5 +118,12 @@ export class HomeCareEventService {
     });
 
     return created.id;
+  }
+
+  private firstString(...values: unknown[]): string | null {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return null;
   }
 }
