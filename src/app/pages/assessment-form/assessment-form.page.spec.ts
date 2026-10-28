@@ -35,6 +35,18 @@ describe('AssessmentFormPage', () => {
     expect(component.patientProfile).toBe('female');
   });
 
+  it('opens the Treatment accordion from its header', async () => {
+    await fixture.whenStable();
+    const group = fixture.nativeElement.querySelector('ion-accordion-group') as HTMLIonAccordionGroupElement;
+    const treatment = fixture.nativeElement.querySelector('ion-accordion[value="treatment"]') as HTMLIonAccordionElement;
+    const header = treatment.querySelector('[slot="header"]') as HTMLElement;
+    header.click();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const openValues = Array.isArray(group.value) ? group.value : [group.value];
+    expect(openValues).toContain('treatment');
+    expect(treatment.querySelector('[formControlName="primary"]')).toBeTruthy();
+  });
+
   it('lets the clinician clear a pressure stage and keeps it blank in the draft', async () => {
     await fixture.whenStable();
     component.form.controls.describe.patchValue({ type: 'Pressure', stage: 'Stage 3' });
