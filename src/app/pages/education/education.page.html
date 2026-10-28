@@ -9,7 +9,33 @@
 
 <ion-content class="education-page ion-padding">
   <ion-note class="wound" *ngIf="woundLabel">About {{ woundLabel }}</ion-note>
+  <h2>Review previous education</h2>
+  <p>Keep prior education without creating a new record. Document a new session only when teaching or reinforcement actually occurs.</p>
+  <ion-spinner *ngIf="loading"></ion-spinner>
+  <div role="alert" *ngIf="historyError">{{ historyError }}</div>
+  <section class="history" *ngIf="history.length">
+    <h2>Previously documented</h2>
+    <ion-list lines="full">
+      <ion-item *ngFor="let row of history">
+        <ion-label class="ion-text-wrap">
+          <h3>{{ row.topic }}</h3>
+          <p>{{ row.deliveredAt ? (row.deliveredAt | date: 'medium') : 'Date not available' }} · {{ row.deliveredByName }}</p>
+          <p>{{ row.notes }}</p>
+          <ion-button fill="outline" [disabled]="loading || saving || editorOpen" (click)="beginSession(row)">Reinforce / adapt this topic</ion-button>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+    <ion-button expand="block" [disabled]="loading || saving || editorOpen" (click)="keepHistory()">Keep previous education — no new session</ion-button>
+  </section>
+  <p *ngIf="!loading && !history.length && !historyError">No previous education for this selection.</p>
+  <p role="status" *ngIf="reviewMessage">{{ reviewMessage }}</p>
+  <ion-button *ngIf="!editorOpen" expand="block" [disabled]="loading || saving" (click)="beginSession()">Record new teaching if needed</ion-button>
+  <ion-button *ngIf="draftAvailable && !editorOpen" fill="outline" [disabled]="loading" (click)="editorOpen = true">Resume saved session draft</ion-button>
+  <div role="alert" *ngIf="errorMsg && !editorOpen">{{ errorMsg }}</div>
 
+  <ng-container *ngIf="editorOpen">
+  <h2>{{ previousEducationId ? 'Reinforce / adapt previous education' : 'New teaching session' }}</h2>
+  <p>Enter only what happened during this visit. Prior understanding, method and response are not carried forward.</p>
   <ion-list lines="full">
     <ion-item>
       <ion-label position="stacked">Topic</ion-label>
@@ -95,19 +121,6 @@
     <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
     Record education
   </ion-button>
-
-  <section class="history" *ngIf="history.length">
-    <h2>Already taught</h2>
-    <ion-list lines="full">
-      <ion-item *ngFor="let row of history">
-        <ion-label class="ion-text-wrap">
-          <h3>{{ row.topic }}</h3>
-          <p>
-            {{ row.deliveredAt ? (row.deliveredAt | date: 'medium') : 'Just now' }}
-            <ng-container *ngIf="row.deliveredByName"> · {{ row.deliveredByName }}</ng-container>
-          </p>
-        </ion-label>
-      </ion-item>
-    </ion-list>
-  </section>
+  <ion-button fill="clear" [disabled]="saving" (click)="cancelSession()">Cancel session</ion-button>
+  </ng-container>
 </ion-content>

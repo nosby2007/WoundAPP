@@ -16,6 +16,7 @@ import {
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from '../../services/clinical-identity.service';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
 import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../shared/mobile-order-guidance';
+import { orderEditFingerprint } from '../../shared/active-orders';
 
 @Component({
   selector: 'app-clinical-order',
@@ -30,8 +31,8 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
   </ion-toolbar></ion-header>
   <ion-content>
     <div class="page">
-      <section class="hero"><p class="eyebrow">ORG-GOVERNED ORDERING</p><h1>Place from a published treatment protocol</h1>
-        <p>Clinical content comes from treatment protocol templates published by your organization admin. WoundAPP uses assessment data only to guide the category.</p></section>
+      <section class="hero"><p class="eyebrow">ORG-GOVERNED ORDERING</p><h1>Review current orders</h1>
+        <p>Follow-up visits continue existing active orders. Create or modify an order only when the care plan changes.</p></section>
 
       <ion-card *ngIf="loading"><ion-card-content class="center"><ion-spinner></ion-spinner> Loading clinical catalog…</ion-card-content></ion-card>
       <ion-card *ngIf="!loading && error"><ion-card-content class="error">{{ error }}</ion-card-content></ion-card>
@@ -40,18 +41,22 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
         <ion-card>
           <ion-card-content>
             <p class="eyebrow dark">CURRENT ORDERS</p>
-            <div class="current-orders" *ngIf="orders.length; else noCurrentOrders">
-              <div class="order-row" *ngFor="let order of orders">
+            <div class="current-orders" *ngIf="currentOrders.length; else noCurrentOrders">
+              <div class="order-row" *ngFor="let order of currentOrders">
                 <div>
                   <strong>{{ order.treatmentProtocol?.templateName || order.orderType }}</strong>
                   <span>{{ order.description }}</span>
+                  <ion-button size="small" fill="outline" *ngIf="isPrescriber" [disabled]="saving || editorOpen" (click)="editOrder(order)">Modify care plan</ion-button>
                 </div>
                 <ion-badge>{{ order.workflow?.state || 'created' }}</ion-badge>
               </div>
             </div>
             <ng-template #noCurrentOrders>
-              <div class="empty">No current orders are linked to this encounter yet.</div>
+              <div class="empty">No active orders for this selection. A follow-up does not automatically create an order.</div>
             </ng-template>
+            <ion-button *ngIf="currentOrders.length" expand="block" [disabled]="saving || editorOpen" (click)="continueOrders()">Continue existing orders — no change</ion-button>
+            <ion-note *ngIf="currentOrders.length && !isPrescriber">A prescriber must replace an existing order if the care plan changes. Signed orders are not edited in place.</ion-note>
+            <div class="notice" *ngIf="orderMessage">{{ orderMessage }}</div>
           </ion-card-content>
         </ion-card>
 
@@ -59,13 +64,24 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
           <ion-card-content>
             <p class="eyebrow dark">1 · TARGET</p>
             <ion-item lines="full">
-              <ion-select label="Wound (optional)" labelPlacement="stacked" [(ngModel)]="woundId" (ionChange)="onWoundChanged()" placeholder="Patient-level order">
+              <ion-select label="Wound (optional)" labelPlacement="stacked" [(ngModel)]="woundId" [disabled]="saving || editorOpen" (ionChange)="onWoundChanged()" placeholder="Patient-level order">
                 <ion-select-option value="">Patient-level / no wound link</ion-select-option>
                 <ion-select-option *ngFor="let wound of wounds" [value]="wound.woundId">{{ wound.label }}</ion-select-option>
               </ion-select>
             </ion-item>
           </ion-card-content>
         </ion-card>
+
+        <ion-button *ngIf="!editorOpen" expand="block" fill="outline" (click)="beginNewOrder()" [disabled]="saving">{{ currentOrders.length ? 'Care plan changed — add an order' : 'Create an order if needed' }}</ion-button>
+        <ng-container *ngIf="editorOpen">
+        <ion-card><ion-card-content>
+          <strong>{{ replacingOrderId ? 'Modify care plan: replacement order' : 'New order' }}</strong>
+          <p *ngIf="replacingOrderId">The previous prescription and signature remain in history. Saving stops only the selected order and creates its replacement.</p>
+          <ion-item *ngIf="replacingOrderId || currentOrders.length">
+            <ion-textarea label="Reason for care-plan change" labelPlacement="stacked" [(ngModel)]="changeReason" autoGrow="true"></ion-textarea>
+          </ion-item>
+          <ion-button fill="clear" [disabled]="saving" (click)="cancelEdit()">Cancel changes</ion-button>
+        </ion-card-content></ion-card>
 
         <ion-card>
           <ion-card-content>
@@ -226,9 +242,10 @@ import { MobileAlgorithmGuidance, deriveMobileAlgorithmGuidance } from '../../sh
         </ion-card>
 
         <ion-note *ngIf="draftStatus">{{ draftStatus }}</ion-note>
-        <ion-button expand="block" size="large" [disabled]="saving || !selectedWoundType || !selectedTreatmentTemplate || (!isPrescriber && (!prescriberUid || !readBackConfirmed))" (click)="save()">
-          <ion-spinner *ngIf="saving" name="crescent"></ion-spinner><span *ngIf="!saving">Place order</span>
+        <ion-button expand="block" size="large" [disabled]="saving || !selectedWoundType || !selectedTreatmentTemplate || ((replacingOrderId || currentOrders.length) && changeReason.trim().length < 5) || (!isPrescriber && (!prescriberUid || !readBackConfirmed))" (click)="save()">
+          <ion-spinner *ngIf="saving" name="crescent"></ion-spinner><span *ngIf="!saving">{{ replacingOrderId ? 'Save changed plan and replace order' : 'Place order' }}</span>
         </ion-button>
+        </ng-container>
       </ng-container>
     </div>
   </ion-content>`,
@@ -250,7 +267,13 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
   private lastDraftFingerprint = '';
   private restoringDraft = false;
   treatmentTemplates: MobileTreatmentProtocolTemplate[] = []; prescribers: MobilePrescriber[] = []; wounds: MobileWoundOption[] = []; orders: MobileClinicalOrderRow[] = [];
-  identity: ClinicalIdentitySnapshot | null = null; woundId = ''; woundLabel = '';
+  identity: ClinicalIdentitySnapshot | null = null; woundId = this.route.snapshot.queryParamMap.get('woundId') || ''; woundLabel = '';
+  editorOpen = false; replacingOrderId = ''; changeReason = ''; orderMessage = '';
+  expectedOrderFingerprint = '';
+  private draftWrites: Promise<void> = Promise.resolve();
+  get currentOrders() {
+    return this.orders.filter(order => !this.woundId || !order.woundId || order.woundId === this.woundId);
+  }
   treatmentTemplateId = ''; selectedTreatmentTemplate: MobileTreatmentProtocolTemplate | null = null;
   treatmentSelections: Partial<Record<keyof MobileTreatmentProtocolSections, string[]>> = {};
   routineWoundManagement = 'Wound care per specified treatment protocol/order';
@@ -318,6 +341,7 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
         this.orderService.listPrescribers(),
         this.orderService.listWounds(this.patientId)
       ]);
+      this.onWoundChanged();
       await this.refreshOrders();
       await this.restoreDraft();
     } catch(e:any){ this.error = e?.message || 'Clinical ordering workspace could not be loaded.'; }
@@ -325,7 +349,7 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
   }
 
   ngDoCheck(): void {
-    if (this.loading || this.restoringDraft) return;
+    if (this.loading || this.restoringDraft || !this.editorOpen || this.saving) return;
     const fingerprint = JSON.stringify(this.draftPayload());
     if (fingerprint !== this.lastDraftFingerprint) {
       this.lastDraftFingerprint = fingerprint;
@@ -369,6 +393,10 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
       : current.filter(value => value !== label);
   }
   onWoundChanged(){
+    this.editorOpen = false;
+    this.replacingOrderId = '';
+    this.changeReason = '';
+    this.orderMessage = '';
     const wound = this.wounds.find(w => w.woundId === this.woundId) || null;
     this.woundLabel = wound?.label || '';
     this.guidance = deriveMobileAlgorithmGuidance(wound?.guidanceInput);
@@ -399,6 +427,10 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
 
   private draftPayload() {
     return {
+      editorOpen: this.editorOpen,
+      replacingOrderId: this.replacingOrderId,
+      changeReason: this.changeReason,
+      expectedOrderFingerprint: this.expectedOrderFingerprint,
       woundId: this.woundId,
       selectedWoundType: this.selectedWoundType,
       treatmentTemplateId: this.treatmentTemplateId,
@@ -424,6 +456,12 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
       const saved = await this.drafts.load<any>(this.draftKey());
       const value = saved?.payload;
       if (!value) return;
+
+      // Legacy drafts can be reviewed, but never create an order automatically.
+      this.editorOpen = value.editorOpen !== false;
+      this.replacingOrderId = String(value.replacingOrderId || '');
+      this.changeReason = String(value.changeReason || '');
+      this.expectedOrderFingerprint = String(value.expectedOrderFingerprint || '');
 
       this.restoringDraft = true;
       this.woundId = String(value.woundId || '');
@@ -458,7 +496,7 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
   }
 
   private async persistDraft(): Promise<void> {
-    if (!this.patientId || this.loading || this.restoringDraft) return;
+    if (!this.patientId || this.loading || this.restoringDraft || !this.editorOpen || this.saving) return;
     const payload = this.draftPayload();
     const hasContent = !!(
       payload.woundId ||
@@ -470,7 +508,10 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
     );
     if (!hasContent) return;
     try {
-      await this.drafts.save(this.draftKey(), payload as any);
+      const key = this.draftKey();
+      const snapshot = JSON.parse(JSON.stringify(payload));
+      this.draftWrites = this.draftWrites.catch(() => undefined).then(() => this.drafts.save(key, snapshot)).then(() => undefined);
+      await this.draftWrites;
       this.draftStatus = 'Draft autosaved.';
     } catch {
       this.draftStatus = 'Draft not synced yet.';
@@ -501,15 +542,22 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
       visitId: this.woundVisitId || null,
       fieldEncounterVisitId: this.woundVisitId || null,
       appointmentId: this.appointmentId || null,
-      woundId: this.woundId || null,
+      woundId: null,
       episodeId: this.episodeId || null,
     });
   }
 
   async save(){
-    if(!this.selectedTreatmentTemplate || !this.selectedWoundType || this.saving) return; this.saving = true;
+    if(!this.editorOpen || !this.selectedTreatmentTemplate || !this.selectedWoundType || this.saving) return;
+    if ((this.replacingOrderId || this.currentOrders.length) && this.changeReason.trim().length < 5) return;
+    this.saving = true;
     try {
+      if (this.draftTimer) clearTimeout(this.draftTimer);
+      await this.draftWrites.catch(() => undefined);
       await this.orderService.createTreatmentProtocolOrder(this.patientId, {
+        replacesOrderId: this.replacingOrderId || null,
+        changeReason: this.changeReason,
+        expectedOrderFingerprint: this.expectedOrderFingerprint,
         treatmentProtocol: this.selectedTreatmentTemplate,
         selectedCategory: this.selectedWoundType,
         woundId: this.woundId || null,
@@ -541,7 +589,8 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
           fieldEncounterVisitId: this.woundVisitId || null,
         },
       });
-      await this.refreshOrders();
+      this.editorOpen = false; // Prevent a refresh failure or destroy from recreating this order.
+      this.replacingOrderId = '';
       await this.drafts.clear(this.draftKey()).catch(() => undefined);
       this.draftStatus = '';
       this.lastDraftFingerprint = '';
@@ -550,7 +599,68 @@ export class ClinicalOrderPage implements OnInit, OnDestroy, DoCheck {
       this.selectedTreatmentTemplate = null;
       this.treatmentSelections = {};
       this.resetRoutine();
+      try { await this.refreshOrders(); }
+      catch { this.orderMessage = 'Order saved. Refresh the page to reload current orders.'; }
     } catch(e:any){ const t = await this.toast.create({message:e?.message || 'Order could not be saved', duration:3200, color:'danger'}); await t.present(); }
+    finally { this.saving = false; }
+  }
+
+  beginNewOrder(): void {
+    this.replacingOrderId = ''; this.changeReason = ''; this.orderMessage = '';
+    this.treatmentTemplateId = ''; this.selectedTreatmentTemplate = null;
+    this.treatmentSelections = {}; this.selectedWoundType = ''; this.resetRoutine();
+    this.readBackConfirmed = false; this.prescriberUid = ''; this.editorOpen = true;
+  }
+
+  editOrder(order: MobileClinicalOrderRow): void {
+    if (!this.isPrescriber || this.saving) return;
+    const template = this.treatmentTemplates.find(t => t.id === order.treatmentProtocol?.templateId);
+    if (!template || !order.clinical) {
+      this.orderMessage = 'This legacy order or retired protocol must be reviewed and replaced by the prescriber in JADE.';
+      return;
+    }
+    if (template.version !== order.treatmentProtocol?.templateVersion) {
+      this.orderMessage = 'The published protocol changed. Review and replace this order in JADE; its old choices will not be silently changed.';
+      return;
+    }
+    if (order.clinical.compression?.length || order.clinical.offloading?.length ||
+        order.clinical.contingencies?.length || order.clinical.priority || order.clinical.schedule?.endAt) {
+      this.orderMessage = 'This order includes additional clinical instructions. Modify it in JADE to preserve all instructions.';
+      return;
+    }
+    this.woundId = order.woundId || ''; this.onWoundChanged();
+    this.editorOpen = true; this.replacingOrderId = order.id;
+    this.expectedOrderFingerprint = orderEditFingerprint(order);
+    this.selectedWoundType = template.category;
+    this.treatmentTemplateId = template.id; this.selectedTreatmentTemplate = template;
+    const c = order.clinical;
+    this.treatmentSelections = JSON.parse(JSON.stringify({ specialInstructions: c.specialInstructions || [],
+      cleanse: c.cleanse || [], prep: c.prep || [], fillApply: c.apply || [], cover: c.cover || [],
+      secureWith: c.secure || [], changePrn: c.schedule?.prn || [] }));
+    this.routineWoundManagement = c.woundManagement || '';
+    this.routineFrequency = c.schedule?.frequency || '';
+    this.routineDuration = c.schedule?.duration || '';
+    this.routineComments = c.comments || '';
+  }
+
+  async cancelEdit(): Promise<void> {
+    const key = this.draftKey();
+    this.editorOpen = false; this.replacingOrderId = ''; this.changeReason = '';
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    await this.draftWrites.catch(() => undefined);
+    await this.drafts.clear(key).catch(() => { this.orderMessage = 'Changes cancelled. The saved recovery draft could not be cleared.'; });
+  }
+
+  async continueOrders(): Promise<void> {
+    if (this.saving || this.editorOpen) return;
+    this.saving = true;
+    try {
+      await this.orderService.continueExistingOrders(this.patientId, {
+        visitId: this.woundVisitId || null, appointmentId: this.appointmentId || null,
+        woundId: this.woundId || null, episodeId: this.episodeId || null,
+      });
+      this.orderMessage = 'Existing orders reviewed — no new order created.';
+    } catch (e: any) { this.orderMessage = e?.message || 'Could not confirm the order review.'; }
     finally { this.saving = false; }
   }
 }

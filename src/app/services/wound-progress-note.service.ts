@@ -14,6 +14,7 @@ import { PatientAssessmentService } from './patient-assessment.service';
 import { latestAssessmentPerWound, resolveWoundId } from '../shared/wound-identity';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 import { clinicalCodingOf } from '../shared/clinical-coding';
+import { isCurrentOrder, orderAppliesToWound } from '../shared/active-orders';
 import {
   noteChartContext,
   WoundNoteChartFact,
@@ -268,11 +269,9 @@ export class WoundProgressNoteService {
         // Archived orders are not active orders. A note that lists a
         // discontinued dressing tells the next clinician to keep applying it.
         .filter((row) =>
-          row.state !== 'archived' &&
+          isCurrentOrder(row.raw) &&
           row.note.description &&
-          (!visitLink.visitId && !visitLink.appointmentId
-            ? true
-            : matchesClinicalVisitLink(row.raw, visitLink))
+          orderAppliesToWound(row.raw, visitLink.woundId, visitLink.episodeId)
         )
         .map(({ woundId, note }) => ({ woundId, note }));
     } catch {
