@@ -1,5 +1,8 @@
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { WoundCodingSectionComponent } from './wound-coding-section.component';
-import { ClinicalCoding, clinicalCodingOf, validateClinicalCoding } from './clinical-coding';
+import { ClinicalCoding, clinicalCodingOf, emptyClinicalCoding, validateClinicalCoding } from './clinical-coding';
 
 // Synthetic clinicians and wound only.
 const rn = { uid: 'rn-1', displayName: 'Synthetic RN', role: 'rn', credentials: 'RN' };
@@ -11,7 +14,39 @@ function section(extra: Partial<WoundCodingSectionComponent> = {}): WoundCodingS
   return component;
 }
 
+@Component({
+  standalone: true,
+  imports: [WoundCodingSectionComponent],
+  template: '<app-wound-coding-section [coding]="coding" woundId="wound-1" (codingChange)="coding = $event"></app-wound-coding-section>',
+})
+class CodingHostComponent {
+  coding: ClinicalCoding = emptyClinicalCoding();
+}
+
 describe('WoundCodingSectionComponent', () => {
+  it('keeps the diagnosis input focused while the parent echoes each letter', async () => {
+    await TestBed.configureTestingModule({ imports: [CodingHostComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(CodingHostComponent);
+    fixture.detectChanges();
+    const component = fixture.debugElement.query(By.directive(WoundCodingSectionComponent)).componentInstance as WoundCodingSectionComponent;
+    component.addDiagnosis();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const input = fixture.nativeElement.querySelector('ion-input') as HTMLIonInputElement;
+    await input.setFocus();
+    const nativeInput = await input.getInputElement();
+    for (const code of ['L', 'L8', 'L89', 'L89.', 'L89.1', 'L89.15', 'L89.153']) {
+      component.onDiagnosisCode(component.model.diagnoses[0], code);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('ion-input')).toBe(input);
+      expect(document.activeElement).toBe(nativeInput);
+    }
+    expect(fixture.componentInstance.coding.diagnoses[0].code).toBe('L89.153');
+    fixture.destroy();
+  });
+
   it('records an RN diagnosis as a proposal on this wound', () => {
     const component = section();
     let emitted: ClinicalCoding | null = null;

@@ -57,7 +57,7 @@ export interface WoundCodingChartDiagnosis { id: string; code: string; descripti
         <ion-button size="small" fill="clear" *ngFor="let dx of availableChartDiagnoses" (click)="addDiagnosis(dx)">{{ dx.code }}</ion-button>
       </div>
       <ion-note *ngIf="!model.diagnoses.length">No diagnosis recorded.</ion-note>
-      <div class="row" *ngFor="let row of model.diagnoses; let i = index">
+      <div class="row" *ngFor="let row of model.diagnoses; let i = index; trackBy: trackCodingRow">
         <ion-item>
           <ion-label position="stacked">ICD-10-CM code</ion-label>
           <ion-input [ngModel]="row.code" (ngModelChange)="onDiagnosisCode(row, $event)" placeholder="e.g. L89.153" autocapitalize="characters" [disabled]="disabled"></ion-input>
@@ -85,7 +85,7 @@ export interface WoundCodingChartDiagnosis { id: string; code: string; descripti
         <ion-button size="small" fill="outline" (click)="addProcedure()" [disabled]="disabled"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Procedure</ion-button>
       </div>
       <ion-note *ngIf="!model.procedures.length">No procedure recorded.</ion-note>
-      <div class="row" *ngFor="let row of model.procedures; let i = index">
+      <div class="row" *ngFor="let row of model.procedures; let i = index; trackBy: trackCodingRow">
         <ion-item>
           <ion-label position="stacked">CPT / HCPCS code</ion-label>
           <ion-input [ngModel]="row.code" (ngModelChange)="onProcedureCode(row, $event)" placeholder="e.g. 97597" autocapitalize="characters" [disabled]="disabled"></ion-input>
@@ -147,6 +147,13 @@ export class WoundCodingSectionComponent implements OnChanges {
 
   constructor() {
     addIcons({ addCircleOutline, trashOutline });
+  }
+
+  // Draft autosave and the assessment parent echo cloned rows after every
+  // keystroke. Keep the existing Ionic controls attached so the keyboard
+  // focus and caret do not jump between letters.
+  trackCodingRow(index: number, row: { id: string }): string | number {
+    return row.id || index;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -268,8 +275,8 @@ export class WoundCodingSectionComponent implements OnChanges {
     this.validate();
     this.codingChange.emit({
       ...this.model,
-      diagnoses: this.model.diagnoses.map((row) => ({ ...row, description: row.description?.trim() || null })),
-      procedures: this.model.procedures.map((row) => ({ ...row, units: Number(row.units) || 0, description: row.description?.trim() || null })),
+      diagnoses: this.model.diagnoses.map((row) => ({ ...row, description: row.description || null })),
+      procedures: this.model.procedures.map((row) => ({ ...row, units: Number(row.units) || 0, description: row.description || null })),
     });
   }
 
