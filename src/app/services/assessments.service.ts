@@ -25,6 +25,7 @@ import { ClinicalIdentityService } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { normalizeFieldRole } from './field-role-policy.service';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
+import { normalizeWoundAnatomy, WoundAnatomyPosition } from '../shared/wound-anatomy';
 
 export interface FieldAssessmentContext {
   appointmentId?: string | null;
@@ -59,6 +60,15 @@ export interface MobileAssessment {
   appointmentId?: string | null;
   authorName?: string | null;
   reviewed?: boolean;
+  anatomy?: WoundAnatomyPosition | null;
+  woundLifecycleStatus?: 'active' | 'archived';
+  measurements?: {
+    length: number | null;
+    width: number | null;
+    depth: number | null;
+    area: number | null;
+    volume: number | null;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -90,13 +100,19 @@ export class AssessmentsService {
         fieldEncounterVisitId: d.fieldEncounterVisitId || null, appointmentId: d.appointmentId || null,
         authorName: d.authorIdentity?.displayName || d.createdByName || null,
         reviewed: d.providerReview?.reviewed === true,
+        anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        woundLifecycleStatus: d.woundLifecycle?.status === 'archived' ? 'archived' : 'active',
+        measurements: this.mobileMeasurements(d.measurements),
       })))
     );
   }
 
-  getPatient(patientId: string): Observable<{ name: string } | null> {
+  getPatient(patientId: string): Observable<{ name: string; gender: string | null } | null> {
     const refDoc = doc(this.firestore, `patients/${patientId}`);
-    return docData(refDoc).pipe(map((d: any) => d ? { name: d.name || d.displayName || 'Patient' } : null));
+    return docData(refDoc).pipe(map((d: any) => d ? {
+      name: d.name || d.displayName || 'Patient',
+      gender: d.gender || d.demographics?.gender || d.sex || d.administrativeGender || d.birthSex || d.sexAtBirth || null,
+    } : null));
   }
 
   get(patientId: string, assessmentId: string): Observable<MobileAssessment | undefined> {
@@ -116,6 +132,9 @@ export class AssessmentsService {
           : d.assessedAt ? new Date(d.assessedAt)
           : d.createdAt ? new Date(d.createdAt) : undefined,
         photoURL: d.photoURL || null,
+        anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
+        woundLifecycleStatus: d.woundLifecycle?.status === 'archived' ? 'archived' : 'active',
+        measurements: this.mobileMeasurements(d.measurements),
       } : undefined)
     );
   }
@@ -297,6 +316,7 @@ export class AssessmentsService {
         stage: payload.describe?.stage || null,
         acquired: payload.describe?.acquired || null,
         location: payload.describe?.location || null,
+        anatomy: payload.describe?.anatomy || null,
         firstAssessmentId: id,
         latestAssessmentId: id,
         latestAssessedAt: payload.assessedAt ?? now,
@@ -511,10 +531,92 @@ export class AssessmentsService {
     await this.audit.record({ action: 'wound_assessment_updated', patientId, entityType: 'woundAssessment', entityId: id });
   }
 
+  async updateWoundAnatomy(
+    patientId: string,
+    assessmentId: string,
+    woundId: string,
+    anatomy: WoundAnatomyPosition,
+  ): Promise<void> {
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
+    const woundSnap = await getDoc(woundRef);
+    const batch = writeBatch(this.firestore);
+    batch.update(assessmentRef, {
+      'describe.anatomy': anatomy,
+      'describe.location': anatomy.label,
+      updatedAt: serverTimestamp(),
+    });
+    if (woundSnap.exists()) {
+      batch.update(woundRef, { anatomy, location: anatomy.label, label: anatomy.label, updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
+    await this.audit.record({
+      action: 'wound_anatomy_repositioned', patientId, entityType: 'wound', entityId: woundId,
+      metadata: { assessmentId, anatomicalZoneId: anatomy.id, view: anatomy.view },
+    }).catch(() => {});
+  }
+
+  async setWoundArchived(
+    patientId: string,
+    assessmentId: string,
+    woundId: string,
+    archived: boolean,
+  ): Promise<void> {
+    const actor = await this.clinicalIdentity.requireCurrentIdentity();
+    const updatedBy = {
+      uid: actor.uid,
+      displayName: actor.displayName,
+      role: actor.role,
+      credentials: actor.credentials ?? null,
+      npi: actor.npi ?? null,
+    };
+    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
+    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
+    const woundSnap = await getDoc(woundRef);
+    const now = serverTimestamp();
+    const lifecycle = archived
+      ? { status: 'archived', archivedAt: now, archivedByUid: actor.uid, reopenedAt: null, reopenedByUid: null }
+      : { status: 'active', archivedAt: null, archivedByUid: null, reopenedAt: now, reopenedByUid: actor.uid };
+    const batch = writeBatch(this.firestore);
+    batch.update(assessmentRef, { woundLifecycle: lifecycle, updatedAt: now });
+    if (woundSnap.exists()) {
+      batch.update(woundRef, {
+        lifecycleStatus: lifecycle.status,
+        active: !archived,
+        lifecycle,
+        updatedAt: now,
+        updatedBy,
+      });
+    }
+    await batch.commit();
+    await this.audit.record({
+      action: archived ? 'wound_archived' : 'wound_reactivated',
+      patientId,
+      entityType: 'wound',
+      entityId: woundId,
+      metadata: { assessmentId },
+    }).catch(() => {});
+  }
+
   listForWound(patientId: string, woundId: string): Observable<MobileAssessment[]> {
     return this.listForPatient(patientId).pipe(
       map(list => (list || []).filter(a => (a.woundId || a.id) === woundId))
     );
+  }
+
+  private mobileMeasurements(value: any): MobileAssessment['measurements'] {
+    const numberOrNull = (raw: unknown): number | null => {
+      if (raw === null || raw === undefined || raw === '') return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    return {
+      length: numberOrNull(value?.length),
+      width: numberOrNull(value?.width),
+      depth: numberOrNull(value?.depth),
+      area: numberOrNull(value?.area),
+      volume: numberOrNull(value?.volume),
+    };
   }
 
   private async withCanonicalAuthor(data: any): Promise<any> {

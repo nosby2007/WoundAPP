@@ -31,6 +31,7 @@ import {
   navigateOutline,
   shieldCheckmarkOutline,
   timeOutline,
+  warningOutline,
 } from 'ionicons/icons';
 import { FieldVisit, FieldWorkService } from '../../services/field-work.service';
 import { FieldVisit as EvvVisit, VisitService } from '../../services/visit.service';
@@ -96,6 +97,7 @@ import { DurableClinicalMutationService } from '../../services/durable-clinical-
           <a class="quick" *ngIf="phone" [href]="'tel:' + phone"><ion-icon [icon]="callOutline"></ion-icon><span>Call</span></a>
           <button class="quick" *ngIf="visit.patientId" (click)="chart()"><ion-icon [icon]="folderOpenOutline"></ion-icon><span>Chart</span></button>
           <button class="quick" *ngIf="visit.patientId" (click)="telehealth()"><span>New Telehealth</span></button>
+          <button class="quick event" *ngIf="visit.patientId" (click)="reportEvent()"><ion-icon [icon]="warningOutline"></ion-icon><span>Report event</span></button>
         </section>
 
         <ion-card class="command-card">
@@ -225,6 +227,7 @@ export class FieldVisitPage implements OnInit {
   readonly navigateOutline = navigateOutline;
   readonly shieldCheckmarkOutline = shieldCheckmarkOutline;
   readonly timeOutline = timeOutline;
+  readonly warningOutline = warningOutline;
   readonly attestationOptions = EVV_ATTESTATION_METHODS;
 
   visit: FieldVisit | null = null;
@@ -335,6 +338,17 @@ export class FieldVisitPage implements OnInit {
     void this.router.navigate(
       ['/tabs/skin-wound', this.visit.patientId, 'assessments'],
       { queryParams: { appointmentId: this.visit.id, woundVisitId: this.visit.woundVisitId ?? '' } }
+    );
+  }
+  reportEvent(): void {
+    if (!this.visit?.patientId) return;
+    void this.router.navigate(
+      ['/tabs/event-portal/report', 'patient_safety'],
+      { queryParams: {
+        patientId: this.visit.patientId,
+        appointmentId: this.visit.id,
+        woundVisitId: this.visit.woundVisitId || this.activeEvv?.id || '',
+      } }
     );
   }
   directions(): void { if (this.address) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(this.address), '_blank', 'noopener'); }
