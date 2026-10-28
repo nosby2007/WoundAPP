@@ -18,7 +18,7 @@ import {
   arrayUnion,
   runTransaction,
 } from '@angular/fire/firestore';
-import { Observable } from 'rxjs';
+import { combineLatest, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Storage, ref, uploadString, getDownloadURL } from '@angular/fire/storage';
 import { ClinicalIdentityService } from './clinical-identity.service';
@@ -78,17 +78,49 @@ export class AssessmentsService {
   private clinicalIdentity = inject(ClinicalIdentityService);
   private audit = inject(ClinicalAuditService);
 
+  private async resolveBillingEntity(orgId: string): Promise<{
+    billingEntityId: string;
+    billingEntityName: string;
+    billingEntityNpi: string;
+  } | null> {
+    const organization = await getDoc(doc(this.firestore, `organizations/${orgId}`))
+      .then(snapshot => snapshot.data() as any)
+      .catch(() => null);
+    const configured = organization?.billingProfile;
+    const configuredName = String(configured?.billingProviderName || '').trim();
+    const configuredNpi = String(configured?.billingNpi || '').trim();
+    if (configuredName && /^\d{10}$/.test(configuredNpi)) {
+      return { billingEntityId: orgId, billingEntityName: configuredName, billingEntityNpi: configuredNpi };
+    }
+
+    if (orgId.toUpperCase() === 'PHWC') {
+      return {
+        billingEntityId: orgId,
+        billingEntityName: 'PERRY HOME WOUND CARE LLC',
+        billingEntityNpi: '1740152511',
+      };
+    }
+    return null;
+  }
+
   listForPatient(patientId: string): Observable<MobileAssessment[]> {
-    const colRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
-    const q = query(colRef, orderBy('createdAt', 'desc'));
-    return collectionData(q, { idField: 'id' }).pipe(
-      map((docs: any[]) => docs.map((d) => ({
+    const assessmentsRef = collection(this.firestore, `patients/${patientId}/woundAssessments`);
+    const woundsRef = collection(this.firestore, `patients/${patientId}/wounds`);
+    const assessments$ = collectionData(query(assessmentsRef, orderBy('createdAt', 'desc')), { idField: 'id' });
+    const wounds$ = collectionData(woundsRef, { idField: 'id' });
+    return combineLatest([assessments$, wounds$]).pipe(
+      map(([docs, wounds]: [any[], any[]]) => {
+        const registryById = new Map(wounds.map(wound => [wound.id, wound]));
+        return docs.map((d) => {
+          const registry = registryById.get(d.woundId || d.id) as any;
+          const lifecycleStatus = registry?.lifecycle?.status || registry?.lifecycleStatus;
+          return {
         id: d.id,
         woundId: d.woundId || null,
         episodeId: d.episodeId || null,
         type: d.describe?.type || d.type || 'Unknown',
         stage: d.describe?.stage || d.stage,
-        location: d.describe?.location || d.location || 'Unknown',
+        location: registry?.location || d.describe?.location || d.location || 'Unknown',
         acquired: (d.describe?.acquired || d.acquired || '').toString().toLowerCase(),
         status: (d.progress?.status || d.status || 'unknown').toString().toLowerCase(),
         assessedAt: d.assessedAt?.toDate ? d.assessedAt.toDate()
@@ -100,10 +132,12 @@ export class AssessmentsService {
         fieldEncounterVisitId: d.fieldEncounterVisitId || null, appointmentId: d.appointmentId || null,
         authorName: d.authorIdentity?.displayName || d.createdByName || null,
         reviewed: d.providerReview?.reviewed === true,
-        anatomy: normalizeWoundAnatomy(d.describe?.anatomy),
-        woundLifecycleStatus: d.woundLifecycle?.status === 'archived' ? 'archived' : 'active',
+        anatomy: normalizeWoundAnatomy(registry?.anatomy || d.describe?.anatomy),
+        woundLifecycleStatus: lifecycleStatus === 'archived' ? 'archived' : 'active',
         measurements: this.mobileMeasurements(d.measurements),
-      })))
+          };
+        });
+      })
     );
   }
 
@@ -306,6 +340,7 @@ export class AssessmentsService {
       const episodeRef = doc(collection(this.firestore, `patients/${patientId}/woundEpisodes`));
       episodeId = episodeRef.id;
       payload.episodeId = episodeId;
+      const billingEntity = await this.resolveBillingEntity(identity.orgId);
 
       batch.set(doc(this.firestore, `patients/${patientId}/wounds/${woundId}`), {
         orgId: identity.orgId,
@@ -365,6 +400,9 @@ export class AssessmentsService {
         billingProviderName: identity.role === 'np' ? identity.displayName : null,
         billingProviderNpi: identity.role === 'np' ? identity.npi : null,
         ...scheduledBilling,
+        billingEntityId: billingEntity?.billingEntityId ?? null,
+        billingEntityName: billingEntity?.billingEntityName ?? null,
+        billingEntityNpi: billingEntity?.billingEntityNpi ?? null,
         needsProviderAssignment: identity.role !== 'np',
         startDate: new Date().toISOString().slice(0, 10),
         notes: 'Created from WoundAPP first field assessment.',
@@ -537,19 +575,12 @@ export class AssessmentsService {
     woundId: string,
     anatomy: WoundAnatomyPosition,
   ): Promise<void> {
-    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
-    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
-    const woundSnap = await getDoc(woundRef);
-    const batch = writeBatch(this.firestore);
-    batch.update(assessmentRef, {
-      'describe.anatomy': anatomy,
-      'describe.location': anatomy.label,
-      updatedAt: serverTimestamp(),
-    });
-    if (woundSnap.exists()) {
-      batch.update(woundRef, { anatomy, location: anatomy.label, label: anatomy.label, updatedAt: serverTimestamp() });
-    }
-    await batch.commit();
+    const actor = await this.clinicalIdentity.requireCurrentIdentity();
+    await this.upsertWoundRegistry(patientId, assessmentId, woundId, actor, {
+      anatomy,
+      location: anatomy.label,
+      label: anatomy.label,
+    }, 'in_progress', 'Wound position restored from the WoundAPP body map.');
     await this.audit.record({
       action: 'wound_anatomy_repositioned', patientId, entityType: 'wound', entityId: woundId,
       metadata: { assessmentId, anatomicalZoneId: anatomy.id, view: anatomy.view },
@@ -570,25 +601,18 @@ export class AssessmentsService {
       credentials: actor.credentials ?? null,
       npi: actor.npi ?? null,
     };
-    const assessmentRef = doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`);
-    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
-    const woundSnap = await getDoc(woundRef);
     const now = serverTimestamp();
     const lifecycle = archived
       ? { status: 'archived', archivedAt: now, archivedByUid: actor.uid, reopenedAt: null, reopenedByUid: null }
       : { status: 'active', archivedAt: null, archivedByUid: null, reopenedAt: now, reopenedByUid: actor.uid };
-    const batch = writeBatch(this.firestore);
-    batch.update(assessmentRef, { woundLifecycle: lifecycle, updatedAt: now });
-    if (woundSnap.exists()) {
-      batch.update(woundRef, {
-        lifecycleStatus: lifecycle.status,
-        active: !archived,
-        lifecycle,
-        updatedAt: now,
-        updatedBy,
-      });
-    }
-    await batch.commit();
+    await this.upsertWoundRegistry(patientId, assessmentId, woundId, actor, {
+      lifecycleStatus: lifecycle.status,
+      active: !archived,
+      lifecycle,
+      updatedBy,
+    }, archived ? 'archived' : 'in_progress', archived
+      ? 'Legacy wound archived from WoundAPP.'
+      : 'Legacy wound reopened from WoundAPP.');
     await this.audit.record({
       action: archived ? 'wound_archived' : 'wound_reactivated',
       patientId,
@@ -596,6 +620,72 @@ export class AssessmentsService {
       entityId: woundId,
       metadata: { assessmentId },
     }).catch(() => {});
+  }
+
+  private async upsertWoundRegistry(
+    patientId: string,
+    assessmentId: string,
+    woundId: string,
+    actor: Awaited<ReturnType<ClinicalIdentityService['requireCurrentIdentity']>>,
+    patch: Record<string, unknown>,
+    workflowState: 'archived' | 'in_progress',
+    historyComment: string,
+  ): Promise<void> {
+    const woundRef = doc(this.firestore, `patients/${patientId}/wounds/${woundId}`);
+    const woundSnap = await getDoc(woundRef);
+    const updatedBy = {
+      uid: actor.uid,
+      displayName: actor.displayName,
+      role: actor.role,
+      credentials: actor.credentials ?? null,
+      npi: actor.npi ?? null,
+    };
+    if (woundSnap.exists()) {
+      await updateDoc(woundRef, { ...patch, updatedAt: serverTimestamp(), updatedBy });
+      return;
+    }
+
+    const [assessmentSnap, patientSnap] = await Promise.all([
+      getDoc(doc(this.firestore, `patients/${patientId}/woundAssessments/${assessmentId}`)),
+      getDoc(doc(this.firestore, `patients/${patientId}`)),
+    ]);
+    if (!assessmentSnap.exists() || !patientSnap.exists()) {
+      throw new Error('The wound registry could not be reconstructed from the clinical chart.');
+    }
+    const assessment = assessmentSnap.data() as any;
+    const patient = patientSnap.data() as any;
+    const now = serverTimestamp();
+    await setDoc(woundRef, {
+      orgId: actor.orgId,
+      facilityId: patient.facilityId ?? patient.primaryFacilityId ?? null,
+      patientId,
+      label: assessment.describe?.location || assessment.location || `Wound ${woundId.slice(0, 6)}`,
+      type: assessment.describe?.type || assessment.type || 'Other',
+      stage: assessment.describe?.stage || assessment.stage || null,
+      acquired: assessment.describe?.acquired || assessment.acquired || null,
+      location: assessment.describe?.location || assessment.location || null,
+      anatomy: normalizeWoundAnatomy(assessment.describe?.anatomy),
+      firstAssessmentId: assessmentId,
+      latestAssessmentId: assessmentId,
+      latestAssessedAt: assessment.assessedAt ?? assessment.createdAt ?? now,
+      activeEpisodeId: assessment.episodeId ?? null,
+      workflow: {
+        state: workflowState,
+        history: [{
+          toState: workflowState,
+          fromState: null,
+          occurredAt: new Date(),
+          actor: updatedBy,
+          comment: historyComment,
+        }],
+      },
+      sourceOfTruth: 'derived_backfill',
+      createdAt: now,
+      updatedAt: now,
+      createdBy: updatedBy,
+      updatedBy,
+      ...patch,
+    });
   }
 
   listForWound(patientId: string, woundId: string): Observable<MobileAssessment[]> {
