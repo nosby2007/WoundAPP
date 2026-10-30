@@ -28,6 +28,7 @@ import {
   suggestedDebridementUnits,
   validateClinicalCoding,
 } from './clinical-coding';
+import { cptCodingEnabled } from './billing-capabilities';
 
 export interface WoundCodingChartDiagnosis { id: string; code: string; description?: string | null; }
 
@@ -47,7 +48,8 @@ export interface WoundCodingChartDiagnosis { id: string; code: string; descripti
   imports: [CommonModule, FormsModule, IonButton, IonIcon, IonInput, IonItem, IonLabel, IonNote, IonSelect, IonSelectOption],
   template: `
     <div class="coding">
-      <p class="intro">Record the ICD-10-CM diagnoses you assessed for this wound and any CPT/HCPCS procedure you performed on it. Billing review happens in JADE.</p>
+      <p class="intro" *ngIf="procedureCodingEnabled">Record the ICD-10-CM diagnoses you assessed for this wound and any CPT/HCPCS procedure you performed on it. Billing review happens in JADE.</p>
+      <p class="intro" *ngIf="!procedureCodingEnabled">Record the ICD-10-CM diagnoses you assessed for this wound. Document any procedure in the Debridement section in your own words; the billing partner assigns procedure codes from the signed record.</p>
 
       <div class="head"><strong>Diagnoses</strong>
         <ion-button size="small" fill="outline" (click)="addDiagnosis()" [disabled]="disabled"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Diagnosis</ion-button>
@@ -81,6 +83,7 @@ export interface WoundCodingChartDiagnosis { id: string; code: string; descripti
         <ion-note *ngFor="let issue of issuesFor('diagnoses.' + i + '.')" [color]="issue.level === 'error' ? 'danger' : 'warning'">{{ issue.message }}</ion-note>
       </div>
 
+      <ng-container *ngIf="procedureCodingEnabled">
       <div class="head"><strong>Procedures on this wound</strong>
         <ion-button size="small" fill="outline" (click)="addProcedure()" [disabled]="disabled"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Procedure</ion-button>
       </div>
@@ -114,6 +117,7 @@ export interface WoundCodingChartDiagnosis { id: string; code: string; descripti
         </div>
         <ion-note *ngFor="let issue of issuesFor('procedures.' + i + '.')" [color]="issue.level === 'error' ? 'danger' : 'warning'">{{ issue.message }}</ion-note>
       </div>
+      </ng-container>
       <ion-note class="disclaimer">Entering a code does not establish medical necessity. The claim still needs the signed documentation behind it.</ion-note>
     </div>
   `,
@@ -144,6 +148,11 @@ export class WoundCodingSectionComponent implements OnChanges {
 
   model: ClinicalCoding = emptyClinicalCoding();
   issues: ClinicalCodingIssue[] = [];
+  /**
+   * Clinical-only production mode: no CPT/HCPCS entry and no CPT unit
+   * suggestion. Procedure rows already on a record are kept untouched.
+   */
+  readonly procedureCodingEnabled = cptCodingEnabled();
 
   constructor() {
     addIcons({ addCircleOutline, trashOutline });
@@ -192,6 +201,7 @@ export class WoundCodingSectionComponent implements OnChanges {
   }
 
   addProcedure(): void {
+    if (!this.procedureCodingEnabled) return;
     this.model.procedures.push({
       id: this.newId('px'),
       codeSystem: 'CPT',
@@ -243,7 +253,7 @@ export class WoundCodingSectionComponent implements OnChanges {
   }
 
   suggestedUnits(row: ClinicalProcedureCode): { units: number; area: number } | null {
-    if (!this.debridementDocumented) return null;
+    if (!this.procedureCodingEnabled || !this.debridementDocumented) return null;
     const area = Number(this.debridementAreaCm2);
     const units = suggestedDebridementUnits(row.code, area);
     return units == null ? null : { units, area };
@@ -289,7 +299,8 @@ export class WoundCodingSectionComponent implements OnChanges {
         debridementProcedureWounds: this.debridementDocumented && this.woundId ? { assessment: this.woundId } : {},
       }).filter((issue) => !extra.some((item) => item.field === issue.field && /evaluation and management/.test(issue.message))),
       ...extra,
-    ];
+      // Hidden historical procedure rows never block saving in clinical-only mode.
+    ].filter((issue) => this.procedureCodingEnabled || !issue.field.startsWith('procedures.'));
   }
 
   private newId(prefix: string): string {
