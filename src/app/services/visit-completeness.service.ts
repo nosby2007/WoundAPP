@@ -3,6 +3,9 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VisitWorkflowPolicyService, WorkflowCircle } from './visit-workflow-policy.service';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
+import { isCurrentOrder, orderAppliesToEncounter } from '../shared/active-orders';
+import { resolveWoundId } from '../shared/wound-identity';
+import { isActiveCarePlan, todayIsoDate } from '../shared/care-plan';
 
 export interface WorkflowCompletionItem {
   circle: WorkflowCircle;
@@ -47,14 +50,15 @@ export class VisitCompletenessService {
 
     const scoped = (row: any) => this.matchesVisit(row, link) ||
       (!link.visitId && !link.appointmentId && this.isSameLocalDay(this.extractDate(row), day));
+    const woundIds = wounds.filter(scoped).map(resolveWoundId).filter((id): id is string => !!id);
 
     const counts: Record<WorkflowCircle, number> = {
       visit: visits.filter((row) => scoped(row)).length,
       assessment: assessments.filter((r) => r.kind !== 'braden' && r.kind !== 'systemic_assessment' && scoped(r)).length,
       braden: assessments.filter((r) => r.kind === 'braden' && scoped(r)).length,
       systemic: assessments.filter((r) => r.kind === 'systemic_assessment' && scoped(r)).length,
-      carePlan: carePlans.filter(scoped).length,
-      order: orders.filter(scoped).length,
+      carePlan: carePlans.filter(plan => isActiveCarePlan(plan, todayIsoDate(day)) && orderAppliesToEncounter(plan, link, woundIds)).length,
+      order: orders.filter(order => isCurrentOrder(order, day) && orderAppliesToEncounter(order, link, woundIds)).length,
       education: education.filter(scoped).length,
       woundAssessment: wounds.filter(scoped).length,
       progressNote: notes.filter(scoped).length,

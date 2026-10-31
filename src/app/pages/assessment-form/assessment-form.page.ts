@@ -81,6 +81,8 @@ import { WoundCodingChartDiagnosis, WoundCodingSectionComponent } from '../../sh
 import { ClinicalIdentityService } from '../../services/clinical-identity.service';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { WoundBodyMapComponent } from '../../shared/wound-body-map.component';
+import { bodyProfileFromPatientGender, BodyProfile, normalizeWoundAnatomy, positionForZone, WoundAnatomyPosition } from '../../shared/wound-anatomy';
 
 /** Stands in for a new wound's id until the assessment id is allocated on save. */
 const THIS_WOUND = 'this-wound';
@@ -131,6 +133,7 @@ const THIS_WOUND = 'this-wound';
     IonTitle,
     IonToolbar,
     WoundCodingSectionComponent,
+    WoundBodyMapComponent,
   ],
 })
 export class AssessmentFormPage implements OnInit, OnDestroy {
@@ -282,6 +285,9 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
   private pendingDraftSave: Promise<void> = Promise.resolve();
   previousAssessmentId: string | null = null;
   previousAssessmentDate: Date | null = null;
+  patientProfile: BodyProfile | null = null;
+  private readonly stickerZoneId = this.route.snapshot.queryParamMap.get('anatomyZone') || '';
+  private readonly stickerProfile = this.route.snapshot.queryParamMap.get('anatomyProfile');
 
   /**
    * Mirrors the web app's WoundAssessment form group, section for section, so
@@ -296,6 +302,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       type: ['Pressure', Validators.required],
       stage: [''],
       location: ['', Validators.required],
+      anatomy: this.fb.control<WoundAnatomyPosition | null>(null),
       acquired: ['In-House Acquired'],
       notes: [''],
     }),
@@ -393,6 +400,10 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.loadCodingContext();
+    this.assessments.getPatient(this.patientId).pipe(take(1)).subscribe(patient => {
+      this.patientProfile = bodyProfileFromPatientGender(patient?.gender);
+      this.applyStickerPosition();
+    });
     this.formChanges?.unsubscribe();
     this.formChanges = this.form.valueChanges.subscribe(() => {
       this.formRevision++;
@@ -408,7 +419,16 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       void this.loadReevaluationBaseline();
       return;
     }
-    void this.restoreDraft();
+    void this.restoreDraft().then(() => this.applyStickerPosition());
+  }
+
+  private applyStickerPosition(): void {
+    if (!this.stickerZoneId || this.assessmentId || this.isReevaluation) return;
+    const profile: BodyProfile = this.stickerProfile === 'male' || this.stickerProfile === 'female'
+      ? this.stickerProfile
+      : this.patientProfile || 'female';
+    const position = positionForZone(this.stickerZoneId, profile);
+    if (position) this.onAnatomyChange(position);
   }
 
   ngOnDestroy(): void {
@@ -425,6 +445,13 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
     const stage = this.form.controls.describe.controls.stage;
     stage.setValue('');
     stage.markAsDirty();
+  }
+
+  onAnatomyChange(position: WoundAnatomyPosition): void {
+    const describe = this.form.controls.describe.controls;
+    describe.anatomy.setValue(position);
+    describe.location.setValue(position.label);
+    describe.location.markAsDirty();
   }
 
   private normalizeStage(): void {
@@ -456,6 +483,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           type: data.describe?.type || data.type || '',
           stage: assessmentStageFromRecord(data),
           location: data.describe?.location || data.location || '',
+          anatomy: normalizeWoundAnatomy(data.describe?.anatomy),
           acquired: data.describe?.acquired || data.acquired || '',
           notes: '',
         },
@@ -550,6 +578,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
               type: data.describe?.type || data.type || '',
               stage: assessmentStageFromRecord(data),
               location: data.describe?.location || data.location || '',
+              anatomy: normalizeWoundAnatomy(data.describe?.anatomy),
               acquired: data.describe?.acquired || data.acquired || '',
               notes: data.describe?.notes || '',
             },
@@ -799,6 +828,7 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           type: v.describe.type || 'Other',
           stage: stageForWoundType(v.describe.type, v.describe.stage) || null,
           location: v.describe.location || '',
+          anatomy: v.describe.anatomy || null,
           acquired: v.describe.acquired || 'In-House Acquired',
           ageCategory: '',
           exactDate: null,

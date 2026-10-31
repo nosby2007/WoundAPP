@@ -1,0 +1,112 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start"><ion-back-button defaultHref="/tabs/event-portal"></ion-back-button></ion-buttons>
+    <ion-title>Report Event</ion-title>
+  </ion-toolbar>
+  <ion-progress-bar [value]="progress"></ion-progress-bar>
+</ion-header>
+
+<ion-content>
+  <main class="page" *ngIf="!loading && definition; else loadingTpl">
+    <section class="success" *ngIf="confirmationId; else reportForm">
+      <span class="success-icon"><ion-icon [icon]="checkmarkCircleOutline"></ion-icon></span>
+      <p class="eyebrow">REPORT SUBMITTED</p>
+      <h1>Thank you for reporting promptly.</h1>
+      <p>The event is now available to the authorized Risk Management team in JADE.</p>
+      <div class="reference"><span>Reference</span><strong>{{ confirmationId }}</strong></div>
+      <ion-button expand="block" size="large" (click)="close()">Return to Event Portal</ion-button>
+    </section>
+
+    <ng-template #reportForm>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">HOME CARE EVENT · STEP {{ step + 1 }} OF 3</p>
+          <h1>{{ definition.label }}</h1>
+          <p>{{ definition.description }}</p>
+        </div>
+        <ion-badge color="light">{{ step === 0 ? 'General information' : step === 1 ? 'Event details' : 'Review & submit' }}</ion-badge>
+      </section>
+
+      <aside class="emergency"><ion-icon [icon]="warningOutline"></ion-icon><span>For an active emergency, call 911 before completing this report.</span></aside>
+
+      <form [formGroup]="form" novalidate>
+        <ion-card *ngIf="step === 0"><ion-card-content>
+          <div class="section-head"><p class="eyebrow dark">GENERAL INFORMATION</p><h2>When and where?</h2></div>
+
+          <ion-item lines="full" *ngIf="definition.requiresPatient">
+            <ion-select formControlName="patientId" label="Patient *" labelPlacement="stacked" interface="action-sheet" placeholder="Select patient">
+              <ion-select-option *ngFor="let patient of patients" [value]="patient.id">{{ patient.name }}{{ patient.mrn ? ' · MRN ' + patient.mrn : '' }}</ion-select-option>
+            </ion-select>
+          </ion-item>
+          <ion-note class="field-error" *ngIf="form.controls.patientId.touched && form.controls.patientId.invalid">Select the patient connected to this report.</ion-note>
+
+          <div class="two-col">
+            <ion-item lines="full"><ion-input type="date" formControlName="eventDate" label="Date of event *" labelPlacement="stacked"></ion-input></ion-item>
+            <ion-item lines="full"><ion-input type="time" formControlName="eventTime" label="Time of event *" labelPlacement="stacked"></ion-input></ion-item>
+          </div>
+
+          <ion-item lines="full">
+            <ion-select formControlName="locationType" label="Location *" labelPlacement="stacked" interface="action-sheet">
+              <ion-select-option *ngFor="let location of locations" [value]="location.value">{{ location.label }}</ion-select-option>
+            </ion-select>
+          </ion-item>
+          <ion-item lines="none"><ion-input formControlName="locationDetails" label="Location details" labelPlacement="stacked" placeholder="Optional room, address context, or community location"></ion-input></ion-item>
+
+          <div class="reporter">
+            <span>Reporter</span><strong>{{ identity?.displayName }}</strong><small>{{ identity?.role }} · {{ identity?.orgId }}</small>
+          </div>
+        </ion-card-content></ion-card>
+
+        <ion-card *ngIf="step === 1"><ion-card-content>
+          <div class="section-head"><p class="eyebrow dark">EVENT DETAILS</p><h2>What happened?</h2></div>
+          <div class="type-grid">
+            <button type="button" *ngFor="let option of definition.options" [class.selected]="form.controls.eventType.value === option.value" (click)="form.controls.eventType.setValue(option.value)">
+              <strong>{{ option.label }}</strong><small *ngIf="option.description">{{ option.description }}</small>
+            </button>
+          </div>
+          <ion-note class="field-error" *ngIf="form.controls.eventType.touched && form.controls.eventType.invalid">Select the event type.</ion-note>
+
+          <ion-item lines="full"><ion-textarea formControlName="description" label="Objective description *" labelPlacement="stacked" rows="5" autoGrow="true" placeholder="Describe what was observed or reported, in chronological order."></ion-textarea></ion-item>
+          <ion-note class="help">Record facts, not conclusions or blame. Do not alter the clinical record to match this report.</ion-note>
+          <ion-item lines="full"><ion-textarea formControlName="immediateActions" label="Immediate actions taken *" labelPlacement="stacked" rows="3" autoGrow="true" placeholder="Care provided, scene made safe, escalation, or None"></ion-textarea></ion-item>
+          <ion-item lines="full"><ion-select formControlName="severity" label="Known outcome / harm severity *" labelPlacement="stacked" interface="action-sheet"><ion-select-option *ngFor="let severity of severities" [value]="severity">{{ severity }}</ion-select-option></ion-select></ion-item>
+
+          <div class="toggle-list">
+            <ion-item lines="full"><ion-toggle formControlName="witnessed" justify="space-between">Event was witnessed</ion-toggle></ion-item>
+            <ion-item lines="full"><ion-toggle formControlName="emergencyServicesCalled" justify="space-between">911 / emergency services called</ion-toggle></ion-item>
+            <ion-item lines="full"><ion-toggle formControlName="providerNotified" justify="space-between">Provider notified</ion-toggle></ion-item>
+            <ion-item lines="full"><ion-toggle formControlName="familyNotified" justify="space-between">Patient / family notified</ion-toggle></ion-item>
+            <ion-item lines="none"><ion-toggle formControlName="supervisorNotified" justify="space-between">Supervisor notified</ion-toggle></ion-item>
+          </div>
+        </ion-card-content></ion-card>
+
+        <ion-card *ngIf="step === 2"><ion-card-content>
+          <div class="section-head"><p class="eyebrow dark">REVIEW & SUBMIT</p><h2>Confirm the report</h2></div>
+          <dl class="summary">
+            <div *ngIf="selectedPatient"><dt>Patient</dt><dd>{{ selectedPatient.name }}</dd></div>
+            <div><dt>Report</dt><dd>{{ definition.label }} · {{ selectedTypeLabel }}</dd></div>
+            <div><dt>Date / time</dt><dd>{{ form.controls.eventDate.value }} · {{ form.controls.eventTime.value }}</dd></div>
+            <div><dt>Location</dt><dd>{{ selectedLocationLabel }}{{ form.controls.locationDetails.value ? ' · ' + form.controls.locationDetails.value : '' }}</dd></div>
+            <div><dt>Severity</dt><dd>{{ form.controls.severity.value }}</dd></div>
+            <div><dt>Description</dt><dd>{{ form.controls.description.value }}</dd></div>
+            <div><dt>Immediate actions</dt><dd>{{ form.controls.immediateActions.value }}</dd></div>
+          </dl>
+
+          <div class="attestation">
+            <ion-checkbox formControlName="attestation" labelPlacement="end" justify="start">I confirm this report is accurate to the best of my knowledge and contains only information necessary for follow-up.</ion-checkbox>
+          </div>
+          <ion-note class="field-error" *ngIf="form.controls.attestation.touched && form.controls.attestation.invalid">Attestation is required.</ion-note>
+        </ion-card-content></ion-card>
+
+        <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <div class="actions">
+          <ion-button type="button" fill="outline" color="medium" *ngIf="step > 0" [disabled]="saving" (click)="previous()">Back</ion-button>
+          <ion-button type="button" *ngIf="step < 2" (click)="next()">Save & Continue</ion-button>
+          <ion-button type="button" color="success" *ngIf="step === 2" [disabled]="saving" (click)="submit()"><ion-spinner *ngIf="saving" name="crescent"></ion-spinner><span *ngIf="!saving">Submit Event Report</span></ion-button>
+        </div>
+      </form>
+    </ng-template>
+  </main>
+
+  <ng-template #loadingTpl><div class="loading"><ion-spinner></ion-spinner><p>Preparing secure report…</p></div></ng-template>
+</ion-content>

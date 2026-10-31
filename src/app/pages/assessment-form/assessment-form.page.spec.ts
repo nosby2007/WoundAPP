@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { AssessmentsService } from '../../services/assessments.service';
 import { assessmentDebridementPayload } from '../../shared/assessment-debridement';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
+import { positionForZone } from '../../shared/wound-anatomy';
 
 describe('AssessmentFormPage', () => {
   let component: AssessmentFormPage;
@@ -13,6 +14,11 @@ describe('AssessmentFormPage', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [
       ...pageTestProviders({ patientId: 'p1' }),
+      { provide: AssessmentsService, useValue: {
+        getPatient: jasmine.createSpy('getPatient').and.returnValue(of({ name: 'Patient', gender: 'female' })),
+        getRaw: jasmine.createSpy('getRaw').and.returnValue(of(null)),
+        getLatestRawForWound: jasmine.createSpy('getLatestRawForWound').and.resolveTo(null),
+      } },
       { provide: ClinicalDraftService, useValue: {
         load: jasmine.createSpy('load').and.resolveTo(null),
         save: jasmine.createSpy('save').and.resolveTo(undefined),
@@ -26,6 +32,7 @@ describe('AssessmentFormPage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+    expect(component.patientProfile).toBe('female');
   });
 
   it('lets the clinician clear a pressure stage and keeps it blank in the draft', async () => {
@@ -101,7 +108,7 @@ describe('AssessmentFormPage', () => {
   it('loads recorded procedure fields when editing the same assessment', () => {
     const procedure = { performed: true, instrument: 'Curette', tissueLevel: 'Slough only',
       areaDebridedCm2: 1.56, postMeasurements: { depth: 0.4 } };
-    spyOn(TestBed.inject(AssessmentsService), 'getRaw').and.returnValue(of({
+    (TestBed.inject(AssessmentsService).getRaw as jasmine.Spy).and.returnValue(of({
       woundId: 'w1', measurements: { depth: 1.5 }, debridementProcedure: procedure,
     }));
     component.assessmentId = 'a1';
@@ -114,7 +121,7 @@ describe('AssessmentFormPage', () => {
   });
 
   it('does not carry a prior procedure into a new re-evaluation', async () => {
-    spyOn(TestBed.inject(AssessmentsService), 'getLatestRawForWound').and.resolveTo({
+    (TestBed.inject(AssessmentsService).getLatestRawForWound as jasmine.Spy).and.resolveTo({
       id: 'previous', measurements: { depth: 1.5 },
       debridementProcedure: { performed: true, instrument: 'Scalpel', areaDebridedCm2: 3 },
     });
@@ -122,5 +129,12 @@ describe('AssessmentFormPage', () => {
     await (component as any).loadReevaluationBaseline();
     expect(component.form.controls.measurements.controls.depth.value).toBe(1.5);
     expect(assessmentDebridementPayload(component.form.controls.debridementProcedure.getRawValue())).toBeNull();
+  });
+
+  it('stores the structured anatomical marker and its confirmed text label together', () => {
+    const position = positionForZone('back-right-heel', 'male')!;
+    component.onAnatomyChange(position);
+    expect(component.form.controls.describe.controls.anatomy.value).toEqual(position);
+    expect(component.form.controls.describe.controls.location.value).toBe('Right posterior heel');
   });
 });

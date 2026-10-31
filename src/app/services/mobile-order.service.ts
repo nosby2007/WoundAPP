@@ -1,11 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { ClinicalIdentityService, ClinicalIdentitySnapshot } from './clinical-identity.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import { MobileAlgorithmGuidance, MobileWoundGuidanceInput } from '../shared/mobile-order-guidance';
 import { ClinicalVisitLink, clinicalVisitLinkFields } from '../shared/clinical-visit-link';
+import { isCurrentOrder, orderAppliesToWound, orderEditFingerprint } from '../shared/active-orders';
 
 export interface MobileTreatmentProtocolOption {
   id: string;
@@ -90,6 +91,11 @@ export interface MobileTreatmentRoutine {
 }
 
 export interface MobileClinicalOrderRow {
+  orgId?: string;
+  patientId?: string;
+  episodeId?: string | null;
+  status?: string;
+  clinical?: any;
   id: string;
   orderType: string;
   description: string;
@@ -193,19 +199,10 @@ export class MobileOrderService {
     const snap = await getDocs(collection(db, `patients/${patientId}/orders`));
     const rows = snap.docs
       .map(d => ({ id: d.id, ...(d.data() as any) } as MobileClinicalOrderRow))
-      .filter(order => !order.archivedAt);
-
-    const visitId = String(link?.visitId || '').trim();
-    const woundId = String(link?.woundId || '').trim();
+      .filter(order => isCurrentOrder(order));
 
     return rows
-      .filter(order => {
-        if (!visitId) return true;
-        if (order.visitId === visitId) return true;
-        if (order.fieldEncounterVisitId === visitId) return true;
-        if (!order.visitId && woundId && order.woundId === woundId) return true;
-        return false;
-      })
+      .filter(order => orderAppliesToWound(order, link?.woundId, link?.episodeId))
       .sort((a, b) => this.toMillis(b.orderedAt) - this.toMillis(a.orderedAt));
   }
 
@@ -307,6 +304,9 @@ export class MobileOrderService {
     selectedTypeMatchedGuidance?: boolean;
     routine: MobileTreatmentRoutine;
     visitLink?: ClinicalVisitLink | null;
+    replacesOrderId?: string | null;
+    changeReason?: string | null;
+    expectedOrderFingerprint?: string | null;
   }): Promise<string> {
     if (!patientId) throw new Error('Patient is required.');
     const user = auth.currentUser;
@@ -314,6 +314,7 @@ export class MobileOrderService {
 
     const actor = await this.identity.requireCurrentIdentity();
     this.assertClinicalAuthor(actor);
+    if (actor.uid !== user.uid) throw new Error('Clinical identity does not match the signed-in user.');
 
     const orgId = await this.tenant.currentOrgId();
     const treatment = input.treatmentProtocol;
@@ -327,6 +328,10 @@ export class MobileOrderService {
     }
 
     const isPrescriber = ['provider', 'np'].includes(actor.role.toLowerCase());
+    const changeReason = String(input.changeReason || '').trim();
+    if (input.replacesOrderId && (!isPrescriber || changeReason.length < 5)) {
+      throw new Error('A prescriber and a reason for the care-plan change are required to replace an order.');
+    }
     let receiptMethod: MobileOrderReceiptMethod = input.receiptMethod;
     let coSignature: any = null;
 
@@ -392,7 +397,8 @@ export class MobileOrderService {
     const ref = doc(collection(db, `patients/${patientId}/orders`));
     const now = serverTimestamp();
 
-    await setDoc(ref, {
+    const auditRef = doc(collection(db, 'clinicalAuditEvents'));
+    const payload = {
       orgId,
       patientId,
       ...clinicalVisitLinkFields(resolvedVisitLink),
@@ -400,6 +406,9 @@ export class MobileOrderService {
       episodeId: resolvedVisitLink.episodeId || null,
       facilityId: null,
       orderType: 'wound_care_protocol',
+      status: 'active',
+      replacesOrderId: input.replacesOrderId || null,
+      changeReason: changeReason || null,
       description,
       generatedOrderText: treatmentLines.join(' '),
       treatmentProtocol: this.snapshotTreatmentProtocol(treatment),
@@ -451,24 +460,56 @@ export class MobileOrderService {
       updatedAt: now,
       createdBy: actor,
       updatedBy: actor,
-    });
-
-    await this.audit.record({
-      action: 'order_created',
-      patientId,
-      entityType: 'order',
-      entityId: ref.id,
-      metadata: {
-        receiptMethod,
-        treatmentTemplateId: treatment.id,
-        treatmentTemplateVersion: treatment.version ?? 1,
-        treatmentCategory: treatment.category,
-        visitId: resolvedVisitLink.visitId ?? null,
-        fieldEncounterVisitId: resolvedVisitLink.fieldEncounterVisitId ?? null,
-        woundId: selectedWoundId,
-      },
+    };
+    // Stop only the selected old order and create its replacement atomically.
+    // Signed content, signatures and encounter attribution remain untouched.
+    await runTransaction(db, async tx => {
+      if (input.replacesOrderId) {
+        const previousRef = doc(db, `patients/${patientId}/orders/${input.replacesOrderId}`);
+        const previous = (await tx.get(previousRef)).data();
+        if (!previous || previous['orgId'] !== orgId || previous['patientId'] !== patientId ||
+            !isCurrentOrder(previous) || (previous['woundId'] || null) !== selectedWoundId ||
+            orderEditFingerprint(previous) !== input.expectedOrderFingerprint) {
+          throw new Error('The previous order changed or is no longer active for this wound. Reload and review.');
+        }
+        const careContent = (c: any) => JSON.stringify({
+          woundManagement: c?.woundManagement || null, specialInstructions: c?.specialInstructions || [],
+          cleanse: c?.cleanse || [], prep: c?.prep || [], apply: c?.apply || [], cover: c?.cover || [],
+          secure: c?.secure || [], frequency: c?.schedule?.frequency || null,
+          duration: c?.schedule?.duration || null, prn: c?.schedule?.prn || [], comments: c?.comments || null,
+        });
+        if (previous['treatmentProtocol']?.templateId === treatment.id &&
+            careContent(previous['clinical']) === careContent(payload.clinical)) {
+          throw new Error('The care plan is unchanged. Continue the existing order instead of creating a duplicate.');
+        }
+        tx.update(previousRef, {
+          status: 'discontinued', discontinuedAt: now, discontinuedBy: actor,
+          discontinueReason: changeReason, discontinueAuditCode: auditRef.id,
+          updatedAt: now, updatedBy: actor,
+        });
+      }
+      tx.set(ref, payload);
+      tx.set(auditRef, {
+        orgId, actorUid: user.uid, patientId, entityType: 'order', entityId: ref.id,
+        action: input.replacesOrderId ? 'order_replaced' : 'order_created',
+        outcome: 'success', occurredAt: now,
+        metadata: { previousOrderId: input.replacesOrderId || null, actorRole: actor.role, woundId: selectedWoundId,
+          visitId: resolvedVisitLink.visitId || null, treatmentTemplateId: treatment.id },
+        client: { platform: 'woundapp' },
+      });
     });
     return ref.id;
+  }
+
+  async continueExistingOrders(patientId: string, link: ClinicalVisitLink): Promise<void> {
+    const actor = await this.identity.requireCurrentIdentity();
+    this.assertClinicalAuthor(actor);
+    const orders = await this.listOrders(patientId, link);
+    if (!orders.length) throw new Error('No active order remains for this selection. Reload and review.');
+    await this.audit.record({
+      action: 'orders_reviewed_unchanged', patientId, entityType: 'order',
+      metadata: { visitId: link.visitId || null, woundId: link.woundId || null, count: orders.length },
+    });
   }
 
   private assertClinicalAuthor(identity: ClinicalIdentitySnapshot): void {

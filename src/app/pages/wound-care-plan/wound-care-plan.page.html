@@ -11,7 +11,15 @@
 <ion-content class="care-plan-page ion-padding">
   <ion-note class="wound" *ngIf="woundLabel">For {{ woundLabel }}</ion-note>
 
-  <form [formGroup]="form" (ngSubmit)="save()">
+  <app-care-plan-followup *ngIf="woundId" [patientId]="patientId" [woundId]="woundId" [episodeId]="episodeId"
+    [visitId]="woundVisitId" [appointmentId]="appointmentId" [disabled]="editorOpen || saving || draftLoading"
+    (createRequested)="beginNewPlan()" (editRequested)="editPlan($event)"></app-care-plan-followup>
+  <div class="error" role="alert" *ngIf="errorMsg && !editorOpen">{{ errorMsg }}</div>
+  <ion-button *ngIf="draftAvailable && !editorOpen && woundId" fill="outline" (click)="editorOpen = true">Resume saved draft</ion-button>
+  <form *ngIf="editorOpen" [formGroup]="form" (ngSubmit)="save()">
+    <h2>{{ editing ? 'Modify existing care plan' : 'New care plan' }}</h2>
+    <ion-item *ngIf="editing"><ion-label position="stacked">Reason for change</ion-label>
+      <ion-textarea formControlName="changeReason" [autoGrow]="true"></ion-textarea></ion-item>
     <ion-list lines="full">
       <ion-item>
         <ion-label position="stacked">Title</ion-label>
@@ -65,9 +73,10 @@
     <ion-note *ngIf="draftStatus">{{ draftStatus }}</ion-note>
     <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
-    <ion-button expand="block" type="submit" [disabled]="form.invalid || saving">
+    <ion-button expand="block" type="submit" [disabled]="form.invalid || saving || (editing && (form.value.changeReason || '').trim().length < 5)">
       <ion-spinner *ngIf="saving" name="crescent" slot="start"></ion-spinner>
       Save care plan
     </ion-button>
+    <ion-button type="button" fill="clear" [disabled]="saving" (click)="cancelEdit()">Cancel changes</ion-button>
   </form>
 </ion-content>

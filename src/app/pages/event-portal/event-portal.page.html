@@ -1,0 +1,47 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start"><ion-back-button defaultHref="/tabs/more"></ion-back-button></ion-buttons>
+    <ion-title>Event Portal</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">WOUNDAPP · HOME CARE</p>
+        <h1>Healthcare Event Portal</h1>
+        <p>Quick, secure reporting for events connected to care in the home.</p>
+      </div>
+      <ion-badge color="light">Confidential</ion-badge>
+    </section>
+
+    <aside class="emergency" role="note">
+      <ion-icon [icon]="callOutline"></ion-icon>
+      <div><strong>Emergency first</strong><p>Call 911 and provide immediate care before completing a report. This portal does not contact emergency services.</p></div>
+    </aside>
+
+    <section class="intro">
+      <p class="eyebrow dark">SELECT A REPORT</p>
+      <h2>What happened?</h2>
+      <p>Only the event types used in home care are shown.</p>
+    </section>
+
+    <section class="cards">
+      <button type="button" class="event-card" *ngFor="let eventClass of eventClasses" (click)="start(eventClass.value)">
+        <span class="icon"><ion-icon [name]="eventClass.icon"></ion-icon></span>
+        <span class="copy">
+          <strong>{{ eventClass.label }}</strong>
+          <small>{{ eventClass.description }}</small>
+          <span class="examples">{{ examples(eventClass) }}</span>
+        </span>
+        <ion-icon class="go" [icon]="chevronForwardOutline"></ion-icon>
+      </button>
+    </section>
+
+    <section class="privacy">
+      <strong>Minimum necessary information</strong>
+      <p>Document objective facts, immediate actions, and notifications. Do not place blame or copy this report into ordinary visit notes.</p>
+    </section>
+  </main>
+</ion-content>

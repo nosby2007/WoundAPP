@@ -1,0 +1,374 @@
+.body-map {
+  --ink: #17344d;
+  --green: #087252;
+  background: #fff;
+  border: 1px solid #dbe6ea;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 12px 34px rgba(26, 63, 84, .08);
+}
+
+.map-heading,
+.map-toolbar,
+.map-actions {
+  display: flex;
+  align-items: center;
+}
+
+.map-heading,
+.map-toolbar {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.map-heading {
+  margin-bottom: 14px;
+}
+
+.map-heading div {
+  display: grid;
+  gap: 2px;
+}
+
+.map-heading strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.kicker {
+  color: #718595;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+.view-status {
+  background: #e8f5f0;
+  color: var(--green);
+  border-radius: 99px;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.map-toolbar {
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: flex;
+  background: #edf2f5;
+  border-radius: 13px;
+  padding: 3px;
+}
+
+.segmented button,
+.zoom-controls button,
+.rotate-control {
+  border: 0;
+  background: transparent;
+}
+
+.segmented button {
+  color: #52697b;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.segmented button.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 3px 10px rgba(25, 52, 73, .13);
+}
+
+.profile-source {
+  display: grid;
+  padding: 7px 11px;
+  border: 1px solid #d9e8e2;
+  border-radius: 13px;
+  background: #f2faf7;
+}
+
+.profile-source span {
+  color: #6d8179;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.profile-source strong {
+  color: var(--green);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.map-actions {
+  gap: 8px;
+}
+
+.rotate-control,
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid #dce6ea !important;
+  background: #f6f9fa !important;
+  border-radius: 13px !important;
+}
+
+.rotate-control {
+  gap: 7px;
+  padding: 7px 11px;
+  color: var(--ink);
+}
+
+.rotate-control span {
+  color: var(--green);
+  font-size: 21px;
+}
+
+.rotate-control strong {
+  font-size: 11px;
+}
+
+.zoom-controls {
+  padding: 3px;
+}
+
+.zoom-controls button {
+  min-width: 32px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.zoom-controls button:disabled {
+  opacity: .3;
+}
+
+.zoom-controls .zoom-value {
+  min-width: 48px;
+  color: #5f7584;
+  font-size: 10px;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 390px) 1fr;
+  gap: 22px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.canvas {
+  text-align: center;
+}
+
+.viewport {
+  width: 100%;
+  max-width: 390px;
+  aspect-ratio: 2 / 3;
+  margin: auto;
+  overflow: auto;
+  border-radius: 16px;
+  background: #eef4f6;
+  box-shadow: 0 10px 16px rgba(40, 61, 73, .08);
+}
+
+.canvas svg {
+  display: block;
+  max-width: none;
+  aspect-ratio: 2 / 3;
+  cursor: crosshair;
+}
+
+.canvas svg.placing {
+  cursor: copy;
+  outline: 2px dashed #8b2fc9;
+  outline-offset: -5px;
+}
+
+.canvas-bg {
+  fill: url(#clinicalCanvas);
+  stroke: #dbe6ea;
+  stroke-width: .6;
+}
+
+.clinical-avatar {
+  pointer-events: none;
+}
+
+.axis {
+  stroke: #bbd4da;
+  stroke-width: .25;
+  stroke-dasharray: 1.5 2.5;
+}
+
+.side-label {
+  fill: #3a7180;
+  font-size: 4px;
+  font-weight: 900;
+}
+
+.orientation {
+  display: block;
+  margin-top: 7px;
+  color: #748795;
+  font-size: 10px;
+}
+
+.orientation strong {
+  color: #366d7a;
+}
+
+.marker {
+  cursor: pointer;
+}
+
+.marker.movable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.marker.movable:active {
+  cursor: grabbing;
+}
+
+.marker circle {
+  fill: #8b2fc9;
+  stroke: #fff;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 2px 2px rgba(36, 20, 55, .28));
+}
+
+.marker text {
+  fill: #fff;
+  font-size: 4px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.marker.selected circle {
+  fill: #d93b54;
+}
+
+.marker.selected path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1;
+}
+
+.map-side {
+  background: #f7fafb;
+  border: 1px solid #e1eaee;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.map-side label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.map-side select {
+  width: 100%;
+  border: 1px solid #cad8df;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.selected-label {
+  border-radius: 12px;
+  padding: 11px;
+  background: #e5f5ee;
+  color: #0b6849;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.selected-label.hint {
+  background: #edf2f5;
+  color: #657b8b;
+  font-weight: 500;
+}
+
+.map-side small {
+  display: block;
+  color: #687e8e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.wound-sticker {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  border: 1px dashed #9b61c3;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f8f0fd;
+  color: #64268e;
+  cursor: grab;
+}
+
+.wound-sticker span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #8b2fc9;
+  color: #fff;
+  font-size: 23px;
+}
+
+.wound-sticker.active {
+  border-style: solid;
+  background: #efe0f8;
+}
+
+.sticker-help {
+  margin-bottom: 15px;
+}
+
+.readonly .map-layout {
+  grid-template-columns: 1fr;
+}
+
+.readonly .canvas svg {
+  cursor: default;
+}
+
+@media (max-width: 620px) {
+  .body-map {
+    padding: 13px;
+    border-radius: 20px;
+  }
+
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .viewport {
+    max-width: 340px;
+  }
+
+  .map-toolbar {
+    justify-content: center;
+  }
+}
