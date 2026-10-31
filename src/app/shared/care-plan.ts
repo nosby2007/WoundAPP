@@ -67,3 +67,21 @@ export function splitLines(value: string | null | undefined): string[] {
     .map((line) => line.trim())
     .filter((line) => !!line);
 }
+
+export function isActiveCarePlan(plan: any, today = todayIsoDate()): boolean {
+  const inactive = ['archived', 'completed', 'cancelled', 'canceled', 'discontinued', 'superseded'];
+  return !!plan && !plan.archivedAt && !plan.supersededById &&
+    !inactive.includes(String(plan.status || '').toLowerCase()) &&
+    !inactive.includes(String(plan.workflow?.state || '').toLowerCase()) &&
+    (!plan.startDate || plan.startDate <= today) && (!plan.endDate || plan.endDate >= today);
+}
+
+export function carePlanIsLocked(plan: any): boolean {
+  return plan?.locked === true || plan?.esign?.signed === true ||
+    ['signed', 'locked', 'completed', 'archived'].includes(String(plan?.workflow?.state || ''));
+}
+
+export function carePlanEditFingerprint(plan: any, problem: any): string {
+  return JSON.stringify([plan.title, plan.description || null, plan.startDate, plan.endDate || null,
+    plan.revisionNumber || 1, problem.category, problem.goalCatalogRefs || [], problem.customGoals || []]);
+}

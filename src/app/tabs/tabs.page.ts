@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { FieldRolePolicyService } from '../services/field-role-policy.service';
 import {
+  alertCircleOutline,
   calendarOutline,
   chatbubblesOutline,
   createOutline,
@@ -15,6 +16,7 @@ import {
   standalone: false,
 })
 export class TabsPage implements OnInit {
+  readonly alertCircleOutline = alertCircleOutline;
   readonly peopleOutline = peopleOutline;
   readonly calendarOutline = calendarOutline;
   readonly createOutline = createOutline;

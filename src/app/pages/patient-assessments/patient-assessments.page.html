@@ -86,6 +86,9 @@
 
       <div class="packet-actions">
         <div class="packet-note">Visit-specific professional record for continuity of care or payer review. Unlinked historical chart data is excluded.</div>
+        <ion-button size="small" fill="solid" color="secondary" (click)="openWoundOverview()">
+          <ion-icon slot="start" name="analytics-outline"></ion-icon>Wound map &amp; trends
+        </ion-button>
         <ion-button size="small" fill="solid" [disabled]="documentBusy()" (click)="printVisitPacket()">
           <ion-icon slot="start" name="documents-outline"></ion-icon>Print clinical record
         </ion-button>

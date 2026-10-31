@@ -37,6 +37,7 @@ import { addIcons } from 'ionicons';
 import {
   add,
   addOutline,
+  analyticsOutline,
   bodyOutline,
   chevronBackOutline,
   chevronForwardOutline,
@@ -135,6 +136,7 @@ export class PatientAssessmentsPage implements OnInit {
     addIcons({
       add,
       addOutline,
+      analyticsOutline,
       bodyOutline,
       chevronBackOutline,
       chevronForwardOutline,
@@ -428,7 +430,7 @@ export class PatientAssessmentsPage implements OnInit {
    * Grouped by the same rule the web registry uses, so the two agree.
    */
   wounds = computed(() =>
-    groupAssessmentsByWound(this.assessments()).map((group) => ({
+    groupAssessmentsByWound(this.assessments()).filter(group => group.latest.woundLifecycleStatus !== 'archived').map((group) => ({
       ...group.latest,
       assessmentCount: group.assessmentCount,
     })));
@@ -679,6 +681,13 @@ export class PatientAssessmentsPage implements OnInit {
       // A brand-new wound keeps only encounter identity. Carrying the last
       // woundId here would silently turn "New wound" into a re-evaluation.
       { queryParams: this.encounterQueryParams() },
+    );
+  }
+
+  openWoundOverview(): void {
+    void this.router.navigate(
+      ['/tabs/skin-wound', this.patientId, 'wound-overview'],
+      { queryParams: this.visitQueryParams() },
     );
   }
 
