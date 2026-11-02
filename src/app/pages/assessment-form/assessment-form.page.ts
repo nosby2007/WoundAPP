@@ -798,6 +798,8 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
     });
     await savingToast.present();
 
+    let clinicalRecordCommitted = false;
+
     try {
       const firebaseUser = getAuth().currentUser;
       const uid = firebaseUser?.uid || null;
@@ -950,12 +952,24 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
         await this.assessments.update(this.patientId, id, basePayload);
       }
 
-      const url = await this.uploadPhotoIfNeeded(id!, uid);
-      if (url) {
-        await this.assessments.update(this.patientId, id!, {
-          photoURL: url,
-          updatedAt: new Date(),
-        });
+      // The assessment is on the server from here on. Nothing below may report
+      // it as unsaved or leave Save armed: a second tap on a new assessment
+      // would allocate another id and create a duplicate wound.
+      clinicalRecordCommitted = true;
+      this.assessmentSaved = true;
+
+      let photoUploadFailed = false;
+      try {
+        const url = await this.uploadPhotoIfNeeded(id!, uid);
+        if (url) {
+          await this.assessments.update(this.patientId, id!, {
+            photoURL: url,
+            updatedAt: new Date(),
+          });
+        }
+      } catch (photoError) {
+        photoUploadFailed = true;
+        console.error('[AssessmentForm] Assessment saved but photo upload failed', photoError);
       }
 
       // A round assessment must become visible in the round immediately.
@@ -972,7 +986,6 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
         }
       }
 
-      this.assessmentSaved = true;
       this.loading = false;
       await savingToast.dismiss();
 
@@ -988,9 +1001,11 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
           ? (roundLinkFailed
               ? 'Assessment saved. Round linkage will be reconciled when evaluation is completed.'
               : 'Assessment saved and linked to wound round')
-          : 'Assessment saved') + (draftCleared ? '' : ' Draft cleanup failed; an older draft may still appear. Do not save it as a new wound.'),
-        duration: !draftCleared ? 7000 : roundLinkFailed ? 3500 : 2000,
-        color: roundLinkFailed || !draftCleared ? 'warning' : undefined,
+          : 'Assessment saved')
+          + (photoUploadFailed ? ' The photo did not upload; add it again from this assessment.' : '')
+          + (draftCleared ? '' : ' Draft cleanup failed; an older draft may still appear. Do not save it as a new wound.'),
+        duration: !draftCleared || photoUploadFailed ? 7000 : roundLinkFailed ? 3500 : 2000,
+        color: roundLinkFailed || !draftCleared || photoUploadFailed ? 'warning' : undefined,
       });
       await doneToast.present();
 
@@ -1013,6 +1028,16 @@ export class AssessmentFormPage implements OnInit, OnDestroy {
       console.error(err);
       this.loading = false;
       await savingToast.dismiss();
+
+      if (clinicalRecordCommitted) {
+        const savedToast = await this.toastCtrl.create({
+          message: 'Assessment saved, but the next screen did not open. Go back to the wound list to continue. Do not enter it again.',
+          duration: 7000,
+          color: 'warning',
+        });
+        await savedToast.present();
+        return;
+      }
 
       // Keep the form intact and show a safe, actionable failure category.
       // Do not render raw Firebase messages: they can contain resource paths.

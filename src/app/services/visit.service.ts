@@ -183,6 +183,9 @@ export class VisitService {
         throw new Error('This scheduled visit is no longer assigned to you.');
       }
 
+      // Same derivation as a missed visit. Scheduler's value is never replaced.
+      const placeOfService = scheduled['facilityId'] ? 'facility' : 'home';
+
       const currentVisit = await transaction.get(visitRef);
       if (currentVisit.exists()) {
         const visit = currentVisit.data() as Record<string, unknown>;
@@ -197,6 +200,7 @@ export class VisitService {
           executionAuthority: 'woundapp',
           fieldVisitState: 'on_site',
           officeDocumentationState: 'field_in_progress',
+          ...(visit['placeOfService'] ? {} : { placeOfService }),
           performedByUid: user.uid,
           performedByName: user.displayName ?? null,
           performedByRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
@@ -227,6 +231,7 @@ export class VisitService {
           billingProviderNpi: scheduled['billingProviderNpi'] ?? null,
           woundId: null,
           episodeId: null,
+          placeOfService,
           checkIn: checkpoint,
           checkOut: null,
           patientAttestation: null,
@@ -455,6 +460,10 @@ export class VisitService {
    * Saves the actual WoundAPP clinical path on the shared woundVisit.
    * This is navigation provenance, not a claim that the clinical step was
    * completed. Completion continues to come from the real clinical documents.
+   *
+   * Deliberately not on the durable queue: one rejected step there would hold
+   * every later write to this visit for review, and this is not evidence worth
+   * blocking a clinical write over. Callers must not wait on it offline.
    */
   async recordJourneyStep(
     patientId: string,
@@ -467,23 +476,16 @@ export class VisitService {
     if (!user || !patientId || !woundVisitId || !step) return;
 
     const safeStep = step.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
-    await this.durableMutations.enqueueUpdate({
-      operation: 'visit_journey_step',
-      patientId,
-      entityType: 'woundVisit',
-      entityId: woundVisitId,
-      firestorePath: `patients/${patientId}/woundVisits/${woundVisitId}`,
-      payload: {
-        'mobileWorkflow.appointmentId': (appointmentId ?? null) as DurableJson,
-        'mobileWorkflow.currentStep': safeStep,
-        'mobileWorkflow.lastRoute': route,
-        'mobileWorkflow.lastUpdatedAt': DurableClinicalMutationService.serverTimestamp(),
-        [`mobileWorkflow.steps.${safeStep}.enteredAt`]: DurableClinicalMutationService.serverTimestamp(),
-        [`mobileWorkflow.steps.${safeStep}.byUid`]: user.uid,
-        [`mobileWorkflow.steps.${safeStep}.byName`]: (user.displayName ?? null) as DurableJson,
-        updatedAt: DurableClinicalMutationService.serverTimestamp(),
-        updatedBy: user.uid,
-      },
+    await updateDoc(doc(db, `patients/${patientId}/woundVisits/${woundVisitId}`), {
+      'mobileWorkflow.appointmentId': appointmentId ?? null,
+      'mobileWorkflow.currentStep': safeStep,
+      'mobileWorkflow.lastRoute': route,
+      'mobileWorkflow.lastUpdatedAt': serverTimestamp(),
+      [`mobileWorkflow.steps.${safeStep}.enteredAt`]: serverTimestamp(),
+      [`mobileWorkflow.steps.${safeStep}.byUid`]: user.uid,
+      [`mobileWorkflow.steps.${safeStep}.byName`]: user.displayName ?? null,
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid,
     });
   }
 

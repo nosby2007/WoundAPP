@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { pageTestProviders } from '../../../testing/page-test-providers';
 import { AssessmentFormPage } from './assessment-form.page';
 import { of } from 'rxjs';
+import { Router } from '@angular/router';
+import { ToastController } from '@ionic/angular/standalone';
+import { getAuth } from 'firebase/auth';
 import { AssessmentsService } from '../../services/assessments.service';
 import { assessmentDebridementPayload } from '../../shared/assessment-debridement';
 import { ClinicalDraftService } from '../../services/clinical-draft.service';
@@ -80,6 +83,61 @@ describe('AssessmentFormPage', () => {
     resolveDraft({ payload: { form: { describe: { type: 'Pressure', stage: 'Stage 3' } } } });
     await restoring;
     expect(component.form.controls.describe.controls.stage.value).toBe('');
+  });
+
+  describe('after the assessment has committed', () => {
+    const toastMessages = () => (TestBed.inject(ToastController).create as jasmine.Spy).calls.allArgs().map(([o]) => o.message);
+
+    beforeEach(async () => {
+      await fixture.whenStable();
+      Object.defineProperty(getAuth(), 'currentUser', { configurable: true, value: { uid: 'u1', displayName: 'Nurse' } });
+      spyOn(TestBed.inject(ToastController), 'create').and.resolveTo({
+        present: () => Promise.resolve(),
+        dismiss: () => Promise.resolve(true),
+      } as any);
+      const assessments = TestBed.inject(AssessmentsService) as any;
+      assessments.newId = jasmine.createSpy('newId').and.returnValue('a1');
+      assessments.createWithId = jasmine.createSpy('createWithId').and.resolveTo({ woundId: 'a1', episodeId: 'e1', appointmentId: null, fieldEncounterVisitId: null });
+      assessments.update = jasmine.createSpy('update').and.resolveTo(undefined);
+      assessments.uploadWoundPhoto = jasmine.createSpy('uploadWoundPhoto').and.resolveTo('https://photo');
+      Object.defineProperty(component.form, 'invalid', { configurable: true, get: () => false });
+    });
+
+    afterEach(() => {
+      delete (getAuth() as any).currentUser;
+    });
+
+    it('reports a failed photo upload as a saved assessment and keeps going', async () => {
+      (component as any).photoDataUrl = 'data:image/jpeg;base64,AA==';
+      (TestBed.inject(AssessmentsService).uploadWoundPhoto as jasmine.Spy).and.rejectWith({ code: 'storage/unknown' });
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+      await component.save();
+
+      expect(toastMessages().some((m) => m.startsWith('Assessment saved') && m.includes('photo did not upload'))).toBeTrue();
+      expect(toastMessages().some((m) => m.includes('Could not confirm'))).toBeFalse();
+      expect(navigate).toHaveBeenCalled();
+    });
+
+    it('does not report failure or re-arm Save when the next screen fails to open', async () => {
+      spyOn(TestBed.inject(Router), 'navigate').and.rejectWith(new Error('chunk failed'));
+
+      await component.save();
+      await component.save();
+
+      expect(toastMessages().some((m) => m.startsWith('Assessment saved, but the next screen'))).toBeTrue();
+      expect(toastMessages().some((m) => m.includes('Could not confirm'))).toBeFalse();
+      expect(TestBed.inject(AssessmentsService).createWithId).toHaveBeenCalledTimes(1);
+    });
+
+    it('still reports failure when the assessment itself was not written', async () => {
+      (TestBed.inject(AssessmentsService).createWithId as jasmine.Spy).and.rejectWith(new Error('boom'));
+
+      await component.save();
+
+      expect(toastMessages().some((m) => m.includes('Could not confirm'))).toBeTrue();
+      expect((component as any).assessmentSaved).toBeFalse();
+    });
   });
 
   it('does not recreate a completed assessment draft when leaving the form', async () => {

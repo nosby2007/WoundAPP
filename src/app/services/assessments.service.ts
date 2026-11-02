@@ -528,7 +528,13 @@ export class AssessmentsService {
   async update(patientId: string, id: string, data: any): Promise<void> {
     const refDoc = doc(this.firestore, `patients/${patientId}/woundAssessments/${id}`);
     await updateDoc(refDoc, data);
-    await this.audit.record({ action: 'wound_assessment_updated', patientId, entityType: 'woundAssessment', entityId: id });
+    // Same boundary as createWithId: the edit has committed, so an audit
+    // transport failure must not tell the clinician it was not saved.
+    try {
+      await this.audit.record({ action: 'wound_assessment_updated', patientId, entityType: 'woundAssessment', entityId: id });
+    } catch (auditError) {
+      console.error('[AssessmentsService] Assessment updated; audit recording failed', auditError);
+    }
   }
 
   async updateWoundAnatomy(

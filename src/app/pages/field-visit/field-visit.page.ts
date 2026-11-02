@@ -307,17 +307,18 @@ export class FieldVisitPage implements OnInit {
           this.message = 'Arrival is encrypted on this device and queued for sync. Continue the visit; checkout will remain ordered behind check-in.';
         }
 
-        await this.visits.recordJourneyStep(
-          patientId,
-          this.visit.woundVisitId,
-          this.visit.id,
-          this.activeEvv ? 'on_site' : 'visit_workspace',
-          '/tabs/today/visit/' + this.visit.id
-        );
+        this.trackJourneyStep(this.activeEvv ? 'on_site' : 'visit_workspace', '/tabs/today/visit/' + this.visit.id);
       }
     } finally {
       this.loading = false;
     }
+  }
+
+  private trackJourneyStep(step: string, route: string): void {
+    if (!this.visit?.patientId) return;
+    // Journey telemetry must never hold up or fail the visit screen.
+    void this.visits.recordJourneyStep(this.visit.patientId, this.visit.woundVisitId, this.visit.id, step, route)
+      .catch((error) => console.warn('[VisitJourney] Unable to persist workflow step', step, error));
   }
 
   back(): void { void this.router.navigate(['/tabs/today']); }
@@ -328,13 +329,7 @@ export class FieldVisitPage implements OnInit {
   }
   chart(): void {
     if (!this.visit?.patientId) return;
-    void this.visits.recordJourneyStep(
-      this.visit.patientId,
-      this.visit.woundVisitId,
-      this.visit.id,
-      'clinical_command',
-      `/tabs/skin-wound/${this.visit.patientId}/assessments`
-    );
+    this.trackJourneyStep('clinical_command', `/tabs/skin-wound/${this.visit.patientId}/assessments`);
     void this.router.navigate(
       ['/tabs/skin-wound', this.visit.patientId, 'assessments'],
       { queryParams: { appointmentId: this.visit.id, woundVisitId: this.visit.woundVisitId ?? '' } }
@@ -384,6 +379,7 @@ export class FieldVisitPage implements OnInit {
         'Check-in did not finish in time. The controls were released; refresh visit status before retrying.'
       );
       this.visit = { ...this.visit, woundVisitId: result.visitId };
+      if (result.syncStatus === 'synced') this.trackJourneyStep('on_site', '/tabs/today/visit/' + this.visit.id);
 
       this.pendingArrivalQueued = result.syncStatus === 'queued';
       this.activeEvv = this.localQueuedEvv(result.visitId, result.checkpoint);
