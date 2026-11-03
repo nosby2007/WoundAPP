@@ -107,6 +107,36 @@ describe('AssessmentFormPage', () => {
       delete (getAuth() as any).currentUser;
     });
 
+    const undefinedPaths = (value: any, path = ''): string[] =>
+      value === undefined ? [path]
+        : value && typeof value === 'object' && !(value instanceof Date)
+          ? Object.keys(value).flatMap((key) => undefinedPaths(value[key], path ? path + '.' + key : key))
+          : [];
+
+    it('writes a new assessment with a body-map location without any undefined field', async () => {
+      component.onAnatomyChange(positionForZone('front-left-hip', 'male')!);
+      spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+      await component.save();
+
+      const payload = (TestBed.inject(AssessmentsService).createWithId as jasmine.Spy).calls.mostRecent().args[2];
+      expect(payload.describe.anatomy.id).toBe('front-left-hip');
+      expect(undefinedPaths(payload)).toEqual([]);
+    });
+
+    it('writes an edited assessment with a body-map location without any undefined field', async () => {
+      component.assessmentId = 'a1';
+      component.woundId = 'w1';
+      component.onAnatomyChange(positionForZone('front-left-hip', 'male')!);
+      spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+      await component.save();
+
+      const payload = (TestBed.inject(AssessmentsService).update as jasmine.Spy).calls.mostRecent().args[2];
+      expect(payload.describe.anatomy.id).toBe('front-left-hip');
+      expect(undefinedPaths(payload)).toEqual([]);
+    });
+
     it('reports a failed photo upload as a saved assessment and keeps going', async () => {
       (component as any).photoDataUrl = 'data:image/jpeg;base64,AA==';
       (TestBed.inject(AssessmentsService).uploadWoundPhoto as jasmine.Spy).and.rejectWith({ code: 'storage/unknown' });

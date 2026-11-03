@@ -41,7 +41,13 @@ const zone = (
   const side = laterality === 'midline' ? '' : `${laterality[0].toUpperCase()}${laterality.slice(1)} `;
   const surfaceLabel = ['head', 'neck', 'groin', 'sacrum'].includes(region.toLowerCase()) ? '' : `${surface} `;
   const levelLabel = level ? `${level} ` : '';
-  return { id, view, region, laterality, surface, label: `${side}${levelLabel}${surfaceLabel}${region}`.trim(), x, y, level, profiles };
+  // Absent, never undefined: this object is stored as-is, and Firestore rejects
+  // the whole write, assessment included, over a single undefined field.
+  return {
+    id, view, region, laterality, surface, label: `${side}${levelLabel}${surfaceLabel}${region}`.trim(), x, y,
+    ...(level ? { level } : {}),
+    ...(profiles ? { profiles } : {}),
+  };
 };
 
 /** Screen left is the patient's right on the front view and the patient's left on the back view. */
