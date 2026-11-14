@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
+import { placeOfServiceCode } from '../shared/place-of-service';
 
 export interface SchedulerStaffOption {
   uid: string;
@@ -59,7 +60,8 @@ export class MobileSchedulerService {
           uid: d.id,
           displayName: String(data.displayName || data.name || data.email || 'Unnamed'),
           role: this.normalizeRole(data.role),
-          npi: /^\\d{10}$/.test(String(data.npi || '')) ? String(data.npi) : null,
+          // Was /^\\d{10}$/ (a literal backslash + "d"): no real NPI ever matched, so no billing provider could be chosen.
+          npi: /^\d{10}$/.test(String(data.npi || '')) ? String(data.npi) : null,
           status: String(data.status || (data.active === false ? 'inactive' : 'active')).toLowerCase(),
         };
       })
@@ -81,6 +83,8 @@ export class MobileSchedulerService {
     statusReason?: string | null;
     sourceAppointmentId?: string | null;
     billingProviderUid?: string | null;
+    /** CMS place-of-service code (default 12, patient home). */
+    placeOfService?: string | null;
   }): Promise<string> {
     const user = auth.currentUser;
     const orgId = await this.tenant.currentOrgId();
@@ -89,9 +93,11 @@ export class MobileSchedulerService {
     if (!input.assignedToUid) throw new Error('Assign a staff member.');
     this.validateTimes(input.start, input.end);
     const billingProvider = input.billingProviderUid
-      ? (await this.listAssignableStaff()).find(staff => staff.uid === input.billingProviderUid && ['np','provider','md','do','physician'].includes(staff.role) && /^\\d{10}$/.test(staff.npi || ''))
+      ? (await this.listAssignableStaff()).find(staff => staff.uid === input.billingProviderUid && ['np','provider','md','do','physician'].includes(staff.role) && /^\d{10}$/.test(staff.npi || ''))
       : null;
     if (input.billingProviderUid && !billingProvider) throw new Error('Select an active billing provider with a verified 10-digit NPI.');
+    const placeOfService = placeOfServiceCode(input.placeOfService) ?? '12';
+    const billingEntity = await this.billingEntity(orgId);
 
     const appointmentRef = doc(collection(db, 'appointments'));
     const facilityId = await this.currentPrimaryFacilityId();
@@ -108,6 +114,9 @@ export class MobileSchedulerService {
       billingProviderUid: billingProvider?.uid || null,
       billingProviderName: billingProvider?.displayName || null,
       billingProviderNpi: billingProvider?.npi || null,
+      // Recorded at scheduling so the visit is billable as scheduled (JADE does the same).
+      placeOfService,
+      billingEntity,
       createdByUid: user.uid,
       start: Timestamp.fromDate(input.start),
       end: Timestamp.fromDate(input.end),
@@ -178,6 +187,21 @@ export class MobileSchedulerService {
           updatedBy: auth.currentUser?.uid || null,
         }
       );
+    }
+  }
+
+  /** Organization billing entity (organizations/{orgId}.billingProfile), or null when incomplete or unreadable. */
+  private async billingEntity(orgId: string): Promise<Record<string, unknown> | null> {
+    try {
+      const snap = await getDoc(doc(db, 'organizations', orgId));
+      const p = (snap.data() as any)?.billingProfile;
+      if (!p?.billingProviderName || !/^\d{10}$/.test(String(p.billingNpi || ''))) return null;
+      const a = p.billingAddress ?? {};
+      const address = [a.address1, a.address2, [a.city, a.state].filter(Boolean).join(', '), a.zip].filter((x: unknown) => String(x || '').trim()).join(' ');
+      return { source: 'org_billing_profile', name: String(p.billingProviderName).trim(), npi: String(p.billingNpi), taxId: p.billingTaxId || null,
+        ptn: p.billingPtn || null, address: address || null, capturedAtIso: new Date().toISOString() };
+    } catch {
+      return null;
     }
   }
 

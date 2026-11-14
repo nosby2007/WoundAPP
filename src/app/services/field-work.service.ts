@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { TenantService } from './tenant.service';
 import { FieldRolePolicyService } from './field-role-policy.service';
 import { DurableClinicalMutationService } from './durable-clinical-mutation.service';
+import { fieldVisitPlaceOfService } from '../shared/place-of-service';
 
 export interface FieldPatient {
   id: string;
@@ -382,7 +383,8 @@ export class FieldWorkService {
           ...commonMissedFields,
           summary: appointment.appointmentDetails ?? '',
           nextStep: '',
-          placeOfService: appointment.facilityId ? 'facility' : 'home',
+          placeOfService: fieldVisitPlaceOfService(appointment as Record<string, unknown>),
+          billingEntity: (appointment as any).billingEntity ?? null,
           createdAt: serverTimestamp(),
           createdBy: user.uid,
         });

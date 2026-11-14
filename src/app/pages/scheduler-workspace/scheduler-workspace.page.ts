@@ -191,7 +191,7 @@ export class SchedulerWorkspacePage implements OnInit {
   visits: TeamScheduleVisit[] = [];
   patients: Patient[] = [];
   staffOptions: SchedulerStaffOption[] = [];
-  get billingProviders(): SchedulerStaffOption[] { return this.staffOptions.filter(s => ['np','provider','md','do','physician'].includes(s.role) && /^\\d{10}$/.test(s.npi || '')); }
+  get billingProviders(): SchedulerStaffOption[] { return this.staffOptions.filter(s => ['np','provider','md','do','physician'].includes(s.role) && /^\d{10}$/.test(s.npi || '')); }
   loading = true;
   saving = false;
   error = '';

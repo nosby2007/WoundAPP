@@ -26,6 +26,7 @@ import { ClinicalAuditService } from './clinical-audit.service';
 import { normalizeFieldRole } from './field-role-policy.service';
 import { ClinicalVisitLink, matchesClinicalVisitLink } from '../shared/clinical-visit-link';
 import { normalizeWoundAnatomy, WoundAnatomyPosition } from '../shared/wound-anatomy';
+import { localIsoDate } from '../shared/place-of-service';
 
 export interface FieldAssessmentContext {
   appointmentId?: string | null;
@@ -366,7 +367,9 @@ export class AssessmentsService {
         billingProviderNpi: identity.role === 'np' ? identity.npi : null,
         ...scheduledBilling,
         needsProviderAssignment: identity.role !== 'np',
-        startDate: new Date().toISOString().slice(0, 10),
+        // The episode starts on the day of the first assessment (local date), not on the
+        // UTC date of the save (an evening or offline save gave the wrong day).
+        startDate: localIsoDate(payload.assessedAt),
         notes: 'Created from WoundAPP first field assessment.',
         sourceOfTruth: 'woundapp',
         appointmentId: fieldContext.appointmentId || null,

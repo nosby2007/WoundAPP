@@ -18,6 +18,7 @@ import {
 import { auth, db } from '../firebase';
 
 import { EvvCheckpoint, EvvLocation, EvvPatientAttestation, describeAttestationProblem } from '../shared/evv';
+import { fieldVisitPlaceOfService, placeOfServiceCode } from '../shared/place-of-service';
 import { VisitLocationService } from './visit-location.service';
 import { ClinicalAuditService } from './clinical-audit.service';
 import {
@@ -183,8 +184,11 @@ export class VisitService {
         throw new Error('This scheduled visit is no longer assigned to you.');
       }
 
-      // Same derivation as a missed visit. Scheduler's value is never replaced.
-      const placeOfService = scheduled['facilityId'] ? 'facility' : 'home';
+      // The scheduler's place-of-service code; home (12) without a facility; otherwise left for the
+      // office to confirm. The creator's facility is never turned into "facility". A valid code on
+      // the visit is never replaced.
+      const placeOfService = fieldVisitPlaceOfService(scheduled);
+      const billingEntity = (scheduled['billingEntity'] as Record<string, unknown> | undefined) ?? null;
 
       const currentVisit = await transaction.get(visitRef);
       if (currentVisit.exists()) {
@@ -200,7 +204,8 @@ export class VisitService {
           executionAuthority: 'woundapp',
           fieldVisitState: 'on_site',
           officeDocumentationState: 'field_in_progress',
-          ...(visit['placeOfService'] ? {} : { placeOfService }),
+          ...(placeOfServiceCode(visit['placeOfService']) || !placeOfService ? {} : { placeOfService, placeOfServiceSource: 'scheduling' }),
+          ...(visit['billingEntity'] || !billingEntity ? {} : { billingEntity }),
           performedByUid: user.uid,
           performedByName: user.displayName ?? null,
           performedByRole: linked.clinicianRole ?? scheduled['assignedToRole'] ?? null,
@@ -232,6 +237,9 @@ export class VisitService {
           woundId: null,
           episodeId: null,
           placeOfService,
+          placeOfServiceSource: placeOfService ? 'scheduling' : null,
+          billingEntity,
+          scheduledFor: scheduled['start'] ?? null,
           checkIn: checkpoint,
           checkOut: null,
           patientAttestation: null,
