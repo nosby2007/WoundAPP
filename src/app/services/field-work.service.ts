@@ -448,6 +448,22 @@ export class FieldWorkService {
         facilityId: p.facilityId ?? null,
       };
     } catch {
+      // Care aides cannot open the chart (minimum necessary): fall through to the directory.
+    }
+    try {
+      // Server-maintained name/room/facility only; readable by aides for their own work.
+      const entry = await getDoc(doc(db, 'patientDirectory', patientId));
+      if (!entry.exists()) return null;
+      const p: any = entry.data();
+      return {
+        id: patientId,
+        name: p.name || 'Patient',
+        address: '',
+        phone: '',
+        room: p.room ?? null,
+        facilityId: p.facilityId ?? null,
+      };
+    } catch {
       return null;
     }
   }
