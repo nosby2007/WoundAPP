@@ -61,8 +61,13 @@ export class MobileScheduleService {
   async patients(): Promise<MobileSchedulePatient[]> {
     const orgId = await this.tenant.currentOrgId();
     if (!orgId) return [];
-    const q = query(collection(db, 'patients'), where('orgId', '==', orgId));
-    const snap = await getDocs(q);
+    let snap;
+    try {
+      snap = await getDocs(query(collection(db, 'patients'), where('orgId', '==', orgId)));
+    } catch {
+      // Care aides cannot list charts: names come from the server-maintained directory.
+      snap = await getDocs(query(collection(db, 'patientDirectory'), where('orgId', '==', orgId)));
+    }
     return snap.docs
       .map(d => {
         const p: any = d.data();
