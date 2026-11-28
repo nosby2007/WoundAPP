@@ -12,6 +12,9 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "predeploy": [
+      "node scripts/verify-release-source.js"
     ]
   }
 }
